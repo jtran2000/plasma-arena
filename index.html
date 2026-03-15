@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Babylon FPS</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; overflow: hidden; }
+    canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+
+    #overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Courier New', monospace;
+      z-index: 10;
+      gap: 16px;
+    }
+    #overlay h1 { font-size: 3rem; letter-spacing: 0.2em; text-transform: uppercase; color: #f80; }
+    #overlay p { font-size: 1rem; color: #ccc; max-width: 380px; text-align: center; line-height: 1.6; }
+    #overlay button {
+      margin-top: 8px;
+      padding: 12px 36px;
+      font-size: 1.2rem;
+      font-family: inherit;
+      background: #f80;
+      color: #000;
+      border: none;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: bold;
+    }
+    #overlay button:hover { background: #fa0; }
+
+    #hud {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      font-family: 'Courier New', monospace;
+      color: #fff;
+      display: none;
+    }
+    #crosshair {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 20px; height: 20px;
+    }
+    #crosshair::before, #crosshair::after {
+      content: '';
+      position: absolute;
+      background: rgba(255,255,255,0.85);
+    }
+    #crosshair::before { width: 2px; height: 100%; left: 50%; transform: translateX(-50%); }
+    #crosshair::after  { width: 100%; height: 2px; top: 50%; transform: translateY(-50%); }
+
+    #bottom-hud {
+      position: absolute;
+      bottom: 24px;
+      left: 0; right: 0;
+      display: flex;
+      justify-content: space-between;
+      padding: 0 32px;
+      align-items: flex-end;
+    }
+    .hud-block { display: flex; flex-direction: column; gap: 2px; }
+    .hud-label { font-size: 0.65rem; color: #aaa; letter-spacing: 0.15em; text-transform: uppercase; }
+    .hud-value { font-size: 1.6rem; font-weight: bold; letter-spacing: 0.05em; }
+    #health-value { color: #4f4; }
+    #ammo-value   { color: #fa0; }
+    #score-value  { color: #4af; }
+
+    #kills-display {
+      position: absolute;
+      top: 20px;
+      right: 32px;
+      text-align: right;
+    }
+
+    #hit-flash {
+      position: absolute;
+      inset: 0;
+      background: rgba(255,50,50,0);
+      pointer-events: none;
+      transition: background 0.15s ease-out;
+    }
+    #hit-flash.active { background: rgba(255,50,50,0.35); }
+
+    #reload-msg {
+      position: absolute;
+      top: 58%;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 1.1rem;
+      color: #fa0;
+      letter-spacing: 0.1em;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    #reload-msg.visible { opacity: 1; }
+
+    #game-over {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      color: #fff;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Courier New', monospace;
+      z-index: 20;
+      gap: 16px;
+    }
+    #game-over h1 { font-size: 3.5rem; color: #f44; text-transform: uppercase; letter-spacing: 0.2em; }
+    #game-over p  { font-size: 1.2rem; color: #ccc; }
+    #game-over button {
+      margin-top: 8px;
+      padding: 12px 36px;
+      font-size: 1.1rem;
+      font-family: inherit;
+      background: #f44;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: bold;
+    }
+    #game-over button:hover { background: #f66; }
+  </style>
+</head>
+<body>
+  <canvas id="renderCanvas"></canvas>
+
+  <div id="overlay">
+    <h1>FPS</h1>
+    <p>WASD to move &bull; Mouse to look<br>Left click to shoot &bull; R to reload<br>Shift to sprint</p>
+    <button id="start-btn">Click to Play</button>
+  </div>
+
+  <div id="hud">
+    <div id="crosshair"></div>
+    <div id="hit-flash"></div>
+    <div id="reload-msg">RELOADING...</div>
+    <div id="bottom-hud">
+      <div class="hud-block">
+        <span class="hud-label">Health</span>
+        <span class="hud-value" id="health-value">100</span>
+      </div>
+      <div class="hud-block" style="text-align:center">
+        <span class="hud-label">Score</span>
+        <span class="hud-value" id="score-value">0</span>
+      </div>
+      <div class="hud-block" style="text-align:right">
+        <span class="hud-label">Ammo</span>
+        <span class="hud-value" id="ammo-value">30 / 90</span>
+      </div>
+    </div>
+    <div id="kills-display">
+      <span class="hud-label">Kills</span><br>
+      <span class="hud-value" id="kills-value" style="color:#f84">0</span>
+    </div>
+  </div>
+
+  <div id="game-over">
+    <h1>Game Over</h1>
+    <p id="final-score">Score: 0</p>
+    <button id="restart-btn">Restart</button>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
