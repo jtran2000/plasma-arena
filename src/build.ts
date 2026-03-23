@@ -30,6 +30,8 @@ export async function buildScene(): Promise<void> {
   g.bulletHoles = [];
   g.respawnTimers = [];
   g.bulletHoleTimes = [];
+  for (const p of g.pickups) p.mesh.dispose();
+  g.pickups = [];
   g.playerVelocityXZ = Vector3.Zero();
   g.pressedKeys.clear();
 

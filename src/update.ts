@@ -16,6 +16,12 @@ import {
   ENEMY_MELEE_COOLDOWN_MS,
   ENEMY_CHASE_RANGE,
   PLAYER_BEAM_DAMAGE,
+  KILL_SCORE,
+  PICKUP_SCORE_INTERVAL,
+  PICKUP_DROP_CHANCE,
+  PICKUP_HEALTH_AMOUNT,
+  PICKUP_AMMO_AMOUNT,
+  PICKUP_COLLECT_RANGE,
   PLAYER_SHOOT_COOLDOWN_MS,
   PLAYER_WALK_SPEED,
   PLAYER_SPRINT_SPEED,
@@ -26,7 +32,7 @@ import {
 } from "./constants.js";
 import { g, dom, type Enemy } from "./game.js";
 import { spawnEnemy } from "./build.js";
-import { makeBeam, makeBulletHoleDisc, BULLET_HOLE_SURFACE_OFFSET, makeBodySplitHalves, makeHeadSplitHalves } from "./meshBuilders.js";
+import { makeBeam, makeBulletHoleDisc, BULLET_HOLE_SURFACE_OFFSET, makeBodySplitHalves, makeHeadSplitHalves, makeHealthPickupMesh, makeAmmoPickupMesh } from "./meshBuilders.js";
 
 // ─── Game loop ────────────────────────────────────────────────────────────────
 export function update(): void {
@@ -97,6 +103,22 @@ function updateTimers(dt: number): void {
       if (g.state.running) spawnEnemy();
     }
   }
+
+  for (let i = g.pickups.length - 1; i >= 0; i--) {
+    const p = g.pickups[i];
+    p.mesh.rotation.y += dt * 0.003;
+    const dist = Vector3.Distance(g.camera.position, p.mesh.position);
+    if (dist < PICKUP_COLLECT_RANGE) {
+      if (p.type === "health") {
+        g.state.health = Math.min(100, g.state.health + PICKUP_HEALTH_AMOUNT);
+      } else {
+        g.state.reserve += PICKUP_AMMO_AMOUNT;
+      }
+      updateHUD();
+      p.mesh.dispose();
+      g.pickups.splice(i, 1);
+    }
+  }
 }
 
 // ─── Player ───────────────────────────────────────────────────────────────────
@@ -153,7 +175,8 @@ export function tryJump(): void {
       m.name !== "player" &&
       m.name !== "enemyPhys" &&
       m.name !== "laserBeam" &&
-      m.name !== "bhole",
+      m.name !== "bhole" &&
+      m.name !== "pickup",
   );
   if (!hit?.hit) return;
 
@@ -290,7 +313,8 @@ export function shoot(): void {
       m.name !== "player" &&
       m.name !== "enemyPhys" &&
       m.name !== "laserBeam" &&
-      m.name !== "bhole",
+      m.name !== "bhole" &&
+      m.name !== "pickup",
   );
 
   const beamEnd =
@@ -311,6 +335,8 @@ export function shoot(): void {
             spawnBulletHole(hit.pickedPoint, hit.getNormal(true), hit.pickedMesh as Mesh);
           }
         }
+      } else {
+        splitRagdoll(hit.pickedMesh as Mesh, ray.direction, hit.pickedPoint ?? undefined);
       }
     } else if (hit.pickedMesh.name === "bodyHalf" || hit.pickedMesh.name === "headHalf") {
       hitDebris(hit.pickedMesh as Mesh, ray.direction, hit.pickedPoint ?? undefined);
@@ -400,9 +426,37 @@ function killEnemy(enemy: Enemy, killMesh: Mesh, hitPoint?: Vector3): void {
   }
 
   g.state.kills++;
-  g.state.score += 100;
-  updateHUD();
+  incrementScore(isHeadshot ? Math.round(KILL_SCORE * 1.5) : KILL_SCORE, hitPoint);
   g.respawnTimers.push(3000);
+}
+
+function splitRagdoll(mesh: Mesh, beamDir: Vector3, hitPoint?: Vector3): void {
+  const worldPos = mesh.getAbsolutePosition().clone();
+  const mat = mesh.material as StandardMaterial;
+  const isHead = mesh.name === "enemyHead";
+
+  if (mesh.physicsBody) mesh.physicsBody.dispose();
+  mesh.dispose();
+
+  const awayDir = hitPoint
+    ? new Vector3(worldPos.x - hitPoint.x, 0, worldPos.z - hitPoint.z).normalizeToNew()
+    : beamDir.normalize();
+
+  const [topHalf, bottomHalf] = isHead
+    ? makeHeadSplitHalves(worldPos, mat)
+    : makeBodySplitHalves(worldPos, mat);
+
+  const topAgg = new PhysicsAggregate(topHalf, PhysicsShapeType.BOX, { mass: 1, friction: 0.5, restitution: 0.3 }, g.scene);
+  topAgg.body.applyImpulse(new Vector3(awayDir.x * 4, 6 + Math.random() * 3, awayDir.z * 4), worldPos);
+
+  const bottomAgg = new PhysicsAggregate(bottomHalf, PhysicsShapeType.BOX, { mass: 1, friction: 0.5, restitution: 0.3 }, g.scene);
+  bottomAgg.body.applyImpulse(new Vector3(awayDir.x * 2, 1 + Math.random() * 2, awayDir.z * 2), worldPos);
+
+  setTimeout(() => { topAgg.dispose(); topHalf.dispose(); bottomAgg.dispose(); bottomHalf.dispose(); }, 3500);
+
+  if (hitPoint) spawnHitParticle(hitPoint, new Color4(0.8, 0.0, 0.0, 1), beamDir.negate());
+
+  incrementScore(1, hitPoint);
 }
 
 function hitDebris(mesh: Mesh, beamDir: Vector3, hitPoint?: Vector3): void {
@@ -421,6 +475,27 @@ function hitDebris(mesh: Mesh, beamDir: Vector3, hitPoint?: Vector3): void {
     }
     mesh.dispose();
   }
+
+  incrementScore(1, hitPoint);
+}
+
+function incrementScore(amount: number, hitPoint?: Vector3): void {
+  g.state.score += amount;
+  updateHUD();
+  while (g.state.score >= g.state.nextPickupThreshold) {
+    g.state.nextPickupThreshold += PICKUP_SCORE_INTERVAL;
+    if (Math.random() < PICKUP_DROP_CHANCE && hitPoint) {
+      spawnPickup(hitPoint.clone());
+    }
+  }
+}
+
+function spawnPickup(position: Vector3): void {
+  const type = Math.random() < 0.5 ? "health" : "ammo";
+  const mesh = type === "health"
+    ? makeHealthPickupMesh(position)
+    : makeAmmoPickupMesh(position);
+  g.pickups.push({ mesh, type });
 }
 
 export function startReload(): void {

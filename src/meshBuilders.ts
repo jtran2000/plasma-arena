@@ -1,4 +1,4 @@
-import { Vector3, MeshBuilder, StandardMaterial, Mesh } from "@babylonjs/core";
+import { Vector3, MeshBuilder, StandardMaterial, Mesh, Color3 } from "@babylonjs/core";
 import { PLAYER_SPAWN_Y } from "./constants.js";
 import { PLAYER_MESH, ARENA, WEAPON, ENEMY_COLORS, ENEMY_MESH, LASER_BEAM, BULLET_HOLE } from "./meshDefs.js";
 import { g } from "./game.js";
@@ -308,6 +308,31 @@ export function makeHeadSplitHalves(worldPos: Vector3, mat: StandardMaterial): [
   bottom.material = mat;
 
   return [top, bottom];
+}
+
+// ─── Pickups (exported) ──────────────────────────────────────────────────────
+export function makeHealthPickupMesh(position: Vector3): Mesh {
+  const mat = new StandardMaterial("pickupMat", g.scene);
+  mat.diffuseColor = new Color3(0.1, 0.9, 0.2);
+  mat.emissiveColor = new Color3(0.1, 0.6, 0.1);
+  const mesh = MeshBuilder.CreateSphere("pickup", { diameter: 0.4 }, g.scene);
+  mesh.position = position.clone();
+  mesh.position.y = Math.max(mesh.position.y, 0.3);
+  mesh.material = mat;
+  mesh.isPickable = false;
+  return mesh;
+}
+
+export function makeAmmoPickupMesh(position: Vector3): Mesh {
+  const mat = new StandardMaterial("pickupMat", g.scene);
+  mat.diffuseColor = new Color3(0.1, 0.7, 0.9);
+  mat.emissiveColor = new Color3(0.1, 0.4, 0.6);
+  const mesh = MeshBuilder.CreateBox("pickup", { size: 0.35 }, g.scene);
+  mesh.position = position.clone();
+  mesh.position.y = Math.max(mesh.position.y, 0.3);
+  mesh.material = mat;
+  mesh.isPickable = false;
+  return mesh;
 }
 
 // ─── Laser beam (exported) ────────────────────────────────────────────────────

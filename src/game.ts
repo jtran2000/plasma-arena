@@ -9,7 +9,7 @@ import {
   DynamicTexture,
   Color3,
 } from "@babylonjs/core";
-import { PLAYER_MAG_SIZE, PLAYER_RESERVE_AMMO } from "./constants.js";
+import { PLAYER_MAG_SIZE, PLAYER_RESERVE_AMMO, PICKUP_SCORE_INTERVAL } from "./constants.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface GameState {
@@ -25,6 +25,12 @@ export interface GameState {
   shootCooldown: number;
   running: boolean;
   paused: boolean;
+  nextPickupThreshold: number;
+}
+
+export interface Pickup {
+  mesh: Mesh;
+  type: "health" | "ammo";
 }
 
 export interface Enemy {
@@ -57,6 +63,7 @@ export function makeState(): GameState {
     shootCooldown: 0,
     running: false,
     paused: false,
+    nextPickupThreshold: PICKUP_SCORE_INTERVAL,
   };
 }
 
@@ -97,6 +104,7 @@ export const g = {
   playerAggregate:  null as unknown as PhysicsAggregate,
   playerVelocityXZ: Vector3.Zero(),
   enemies:          [] as Enemy[],
+  pickups:          [] as Pickup[],
   bulletHoles:      [] as Mesh[],
   bulletHoleTimes:  [] as number[],
   respawnTimers:    [] as number[],
