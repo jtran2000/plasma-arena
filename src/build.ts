@@ -20,7 +20,7 @@ import {
   makePlayerMesh,
   setupArenaFloor, setupArenaCeil, setupArenaWalls, setupArenaPillars, setupArenaCrates, setupArenaAccentStrips,
   setupWeaponRoot, setupWeaponParts,
-  makeEnemyMat, makeEnemyPhysCapsule, makeEnemyBodyMesh, makeEnemyHeadMesh,
+  makeEnemyMats, makeEnemyPhysCapsule, makeEnemyBodyMesh, makeEnemyHeadMesh,
 } from "./meshBuilders.js";
 
 // ─── Scene builder ────────────────────────────────────────────────────────────
@@ -139,16 +139,16 @@ export function spawnEnemy(): void {
     inertiaOrientation: Quaternion.Identity(),
   });
 
-  const mat = makeEnemyMat();
+  const { bodyMat, headMat } = makeEnemyMats();
 
   const bodyMesh = makeEnemyBodyMesh();
   bodyMesh.parent = physMesh;
   bodyMesh.position = Vector3.Zero();
-  bodyMesh.material = mat;
+  bodyMesh.material = bodyMat;
 
   const head = makeEnemyHeadMesh();
   head.parent = physMesh;
-  head.material = mat;
+  head.material = headMat;
 
   g.shadowGenerator.addShadowCaster(bodyMesh);
   g.shadowGenerator.addShadowCaster(head);
@@ -165,6 +165,7 @@ export function spawnEnemy(): void {
     patrolTarget: physMesh.position.clone(),
     attackCooldown: 0,
     flashTime: 0,
-    baseEmissive: mat.diffuseColor.scale(0.2),
+    flashMesh: null,
+    baseEmissive: bodyMat.diffuseColor.scale(0.2),
   });
 }

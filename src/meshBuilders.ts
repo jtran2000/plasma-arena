@@ -250,11 +250,17 @@ export function makePlayerMesh(): Mesh {
 }
 
 // ─── Enemy material & meshes (exported) ───────────────────────────────────────
-export function makeEnemyMat(): StandardMaterial {
+function makeEnemyMat(): StandardMaterial {
   const mat = new StandardMaterial("emat", g.scene);
   mat.diffuseColor = ENEMY_COLORS[Math.floor(Math.random() * ENEMY_COLORS.length)];
   mat.emissiveColor = mat.diffuseColor.scale(0.2);
   return mat;
+}
+
+export function makeEnemyMats(): { bodyMat: StandardMaterial; headMat: StandardMaterial } {
+  const bodyMat = makeEnemyMat();
+  const headMat = bodyMat.clone("emat_head") as StandardMaterial;
+  return { bodyMat, headMat };
 }
 
 export function makeEnemyPhysCapsule(): Mesh {
@@ -271,6 +277,37 @@ export function makeEnemyHeadMesh(): Mesh {
   const mesh = MeshBuilder.CreateSphere("enemyHead", ENEMY_MESH.head, g.scene);
   mesh.position = ENEMY_MESH.headOffset.clone();
   return mesh;
+}
+
+// ─── Ragdoll split halves (exported) ─────────────────────────────────────────
+export function makeBodySplitHalves(worldPos: Vector3, mat: StandardMaterial): [Mesh, Mesh] {
+  const { width, depth } = ENEMY_MESH.body;
+  const halfH = ENEMY_MESH.body.height / 2;
+
+  const top = MeshBuilder.CreateBox("bodyHalf", { width, height: halfH, depth }, g.scene);
+  top.position = new Vector3(worldPos.x, worldPos.y + halfH / 2, worldPos.z);
+  top.material = mat;
+
+  const bottom = MeshBuilder.CreateBox("bodyHalf", { width, height: halfH, depth }, g.scene);
+  bottom.position = new Vector3(worldPos.x, worldPos.y - halfH / 2, worldPos.z);
+  bottom.material = mat;
+
+  return [top, bottom];
+}
+
+export function makeHeadSplitHalves(worldPos: Vector3, mat: StandardMaterial): [Mesh, Mesh] {
+  const d = ENEMY_MESH.head.diameter;
+
+  const top = MeshBuilder.CreateSphere("headHalf", { diameter: d, slice: 0.5 }, g.scene);
+  top.rotation.x = Math.PI;
+  top.position = worldPos.clone();
+  top.material = mat;
+
+  const bottom = MeshBuilder.CreateSphere("headHalf", { diameter: d, slice: 0.5 }, g.scene);
+  bottom.position = worldPos.clone();
+  bottom.material = mat;
+
+  return [top, bottom];
 }
 
 // ─── Laser beam (exported) ────────────────────────────────────────────────────

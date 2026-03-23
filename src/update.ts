@@ -15,8 +15,7 @@ import {
   ENEMY_MELEE_DAMAGE,
   ENEMY_MELEE_COOLDOWN_MS,
   ENEMY_CHASE_RANGE,
-  PLAYER_BEAM_DAMAGE_MIN,
-  PLAYER_BEAM_DAMAGE_VARIANCE,
+  PLAYER_BEAM_DAMAGE,
   PLAYER_SHOOT_COOLDOWN_MS,
   PLAYER_WALK_SPEED,
   PLAYER_SPRINT_SPEED,
@@ -27,7 +26,7 @@ import {
 } from "./constants.js";
 import { g, dom, type Enemy } from "./game.js";
 import { spawnEnemy } from "./build.js";
-import { makeBeam, makeBulletHoleDisc, BULLET_HOLE_SURFACE_OFFSET } from "./meshBuilders.js";
+import { makeBeam, makeBulletHoleDisc, BULLET_HOLE_SURFACE_OFFSET, makeBodySplitHalves, makeHeadSplitHalves } from "./meshBuilders.js";
 
 // ─── Game loop ────────────────────────────────────────────────────────────────
 export function update(): void {
@@ -66,7 +65,10 @@ function updateTimers(dt: number): void {
       e.flashTime -= dt;
       if (e.flashTime <= 0) {
         e.flashTime = 0;
-        (e.bodyMesh.material as StandardMaterial).emissiveColor = e.baseEmissive.clone();
+        if (e.flashMesh) {
+          (e.flashMesh.material as StandardMaterial).emissiveColor = e.baseEmissive.clone();
+          e.flashMesh = null;
+        }
       }
     }
   }
@@ -301,12 +303,20 @@ export function shoot(): void {
     if (hit.pickedMesh.name === "enemyBody" || hit.pickedMesh.name === "enemyHead") {
       const enemy = g.enemies.find((e) => e.physMesh === hit.pickedMesh!.parent);
       if (enemy) {
-        hitEnemy(enemy, hit.pickedPoint ?? undefined);
+        hitEnemy(enemy, hit.pickedMesh as Mesh, hit.pickedPoint ?? undefined);
         if (hit.pickedPoint) {
           const hitNormal = hit.getNormal(true) ?? ray.direction.negate();
           spawnHitParticle(hit.pickedPoint, new Color4(0.8, 0.0, 0.0, 1), hitNormal);
-          spawnBulletHole(hit.pickedPoint, hit.getNormal(true), enemy.bodyMesh);
+          if (g.enemies.includes(enemy)) {
+            spawnBulletHole(hit.pickedPoint, hit.getNormal(true), hit.pickedMesh as Mesh);
+          }
         }
+      }
+    } else if (hit.pickedMesh.name === "bodyHalf" || hit.pickedMesh.name === "headHalf") {
+      hitDebris(hit.pickedMesh as Mesh, ray.direction, hit.pickedPoint ?? undefined);
+      if (hit.pickedPoint) {
+        const hitNormal = hit.getNormal(true) ?? ray.direction.negate();
+        spawnHitParticle(hit.pickedPoint, new Color4(0.8, 0.0, 0.0, 1), hitNormal);
       }
     } else if (hit.pickedPoint) {
       spawnBulletHole(hit.pickedPoint, hit.getNormal(true));
@@ -316,22 +326,34 @@ export function shoot(): void {
   if (g.state.ammo === 0 && g.state.reserve > 0) g.state.autoReloadDelay = 300;
 }
 
-function hitEnemy(enemy: Enemy, hitPoint?: Vector3): void {
-  enemy.hp -= PLAYER_BEAM_DAMAGE_MIN + Math.floor(Math.random() * PLAYER_BEAM_DAMAGE_VARIANCE);
+function hitEnemy(enemy: Enemy, hitMesh: Mesh, hitPoint?: Vector3): void {
+  const headshot = hitMesh.name === "enemyHead";
+  enemy.hp -= Math.round(PLAYER_BEAM_DAMAGE * (0.8 + Math.random() * 0.4) * (headshot ? 2 : 1));
 
-  const mat = enemy.bodyMesh.material as StandardMaterial;
-  mat.emissiveColor = new Color3(1, 0, 0);
-  enemy.flashTime = 80;
+  (hitMesh.material as StandardMaterial).emissiveColor = new Color3(1, 0, 0);
+  enemy.flashMesh = hitMesh;
+  enemy.flashTime = PLAYER_SHOOT_COOLDOWN_MS * 0.6;
 
-  if (enemy.hp <= 0) killEnemy(enemy, hitPoint);
+  if (enemy.hp <= 0) killEnemy(enemy, hitMesh, hitPoint);
 }
 
-function killEnemy(enemy: Enemy, hitPoint?: Vector3): void {
-  spawnDeathParticle(enemy.physMesh.position.clone());
+function killEnemy(enemy: Enemy, killMesh: Mesh, hitPoint?: Vector3): void {
+  playEnemyDeathSound();
 
   const bodyWorldPos = enemy.bodyMesh.getAbsolutePosition().clone();
   const headWorldPos = enemy.headMesh.getAbsolutePosition().clone();
+  const isHeadshot = killMesh.name === "enemyHead";
 
+  spawnDeathParticle(isHeadshot ? headWorldPos : bodyWorldPos);
+
+  if (enemy.flashMesh) {
+    (enemy.flashMesh.material as StandardMaterial).emissiveColor = enemy.baseEmissive.clone();
+    enemy.flashMesh = null;
+  }
+
+  // Unparent both meshes before disposing the capsule so they aren't recursively destroyed
+  const bodyMat = enemy.bodyMesh.material as StandardMaterial;
+  const headMat = enemy.headMesh.material as StandardMaterial;
   enemy.bodyMesh.parent = null;
   enemy.bodyMesh.position = bodyWorldPos;
   enemy.headMesh.parent = null;
@@ -345,33 +367,60 @@ function killEnemy(enemy: Enemy, hitPoint?: Vector3): void {
     ? new Vector3(bodyWorldPos.x - hitPoint.x, 0, bodyWorldPos.z - hitPoint.z).normalizeToNew()
     : new Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalizeToNew();
 
-  const bodyAgg = new PhysicsAggregate(
-    enemy.bodyMesh,
-    PhysicsShapeType.BOX,
-    { mass: 8, friction: 0.6, restitution: 0.05 },
-    g.scene,
-  );
-  const impactPoint = bodyWorldPos.add(new Vector3(0, 0.4, 0));
-  bodyAgg.body.applyImpulse(awayDir.scale(18), impactPoint);
+  if (isHeadshot) {
+    enemy.headMesh.dispose();
+    const [topHalf, bottomHalf] = makeHeadSplitHalves(headWorldPos, headMat);
 
-  const headAgg = new PhysicsAggregate(
-    enemy.headMesh,
-    PhysicsShapeType.SPHERE,
-    { mass: 2, friction: 0.5, restitution: 0.3 },
-    g.scene,
-  );
-  headAgg.body.applyImpulse(
-    new Vector3((Math.random() - 0.5) * 8, 3 + Math.random() * 4, (Math.random() - 0.5) * 8),
-    headWorldPos,
-  );
+    const topAgg = new PhysicsAggregate(topHalf, PhysicsShapeType.BOX, { mass: 1, friction: 0.5, restitution: 0.3 }, g.scene);
+    topAgg.body.applyImpulse(new Vector3(awayDir.x * 4, 6 + Math.random() * 3, awayDir.z * 4), headWorldPos);
 
-  setTimeout(() => { bodyAgg.dispose(); enemy.bodyMesh.dispose(); }, 3500);
-  setTimeout(() => { headAgg.dispose(); enemy.headMesh.dispose(); }, 3500);
+    const bottomAgg = new PhysicsAggregate(bottomHalf, PhysicsShapeType.BOX, { mass: 1, friction: 0.5, restitution: 0.3 }, g.scene);
+    bottomAgg.body.applyImpulse(new Vector3(awayDir.x * 2, 1 + Math.random() * 2, awayDir.z * 2), headWorldPos);
+
+    setTimeout(() => { topAgg.dispose(); topHalf.dispose(); bottomAgg.dispose(); bottomHalf.dispose(); }, 3500);
+
+    const bodyAgg = new PhysicsAggregate(enemy.bodyMesh, PhysicsShapeType.BOX, { mass: 8, friction: 0.6, restitution: 0.05 }, g.scene);
+    bodyAgg.body.applyImpulse(awayDir.scale(40), bodyWorldPos.add(new Vector3(0, 0.7, 0)));
+    setTimeout(() => { bodyAgg.dispose(); enemy.bodyMesh.dispose(); }, 3500);
+  } else {
+    enemy.bodyMesh.dispose();
+    const [topHalf, bottomHalf] = makeBodySplitHalves(bodyWorldPos, bodyMat);
+
+    const topAgg = new PhysicsAggregate(topHalf, PhysicsShapeType.BOX, { mass: 5, friction: 0.6, restitution: 0.05 }, g.scene);
+    topAgg.body.applyImpulse(new Vector3(awayDir.x * 22, 18, awayDir.z * 22), bodyWorldPos.add(new Vector3(0, 0.4, 0)));
+
+    const bottomAgg = new PhysicsAggregate(bottomHalf, PhysicsShapeType.BOX, { mass: 5, friction: 0.6, restitution: 0.05 }, g.scene);
+    bottomAgg.body.applyImpulse(new Vector3(awayDir.x * 14, -5, awayDir.z * 14), bodyWorldPos);
+
+    setTimeout(() => { topAgg.dispose(); topHalf.dispose(); bottomAgg.dispose(); bottomHalf.dispose(); }, 3500);
+
+    const headAgg = new PhysicsAggregate(enemy.headMesh, PhysicsShapeType.SPHERE, { mass: 2, friction: 0.5, restitution: 0.3 }, g.scene);
+    headAgg.body.applyImpulse(new Vector3((Math.random() - 0.5) * 8, 3 + Math.random() * 4, (Math.random() - 0.5) * 8), headWorldPos);
+    setTimeout(() => { headAgg.dispose(); enemy.headMesh.dispose(); }, 3500);
+  }
 
   g.state.kills++;
   g.state.score += 100;
   updateHUD();
   g.respawnTimers.push(3000);
+}
+
+function hitDebris(mesh: Mesh, beamDir: Vector3, hitPoint?: Vector3): void {
+  const shrink = 0.75;
+  mesh.scaling.scaleInPlace(shrink);
+
+  const body = mesh.physicsBody;
+  if (body && hitPoint) {
+    const pushForce = beamDir.normalize().scale(12);
+    body.applyImpulse(pushForce, hitPoint);
+  }
+
+  if (mesh.scaling.x < 0.15) {
+    if (mesh.physicsBody) {
+      mesh.physicsBody.dispose();
+    }
+    mesh.dispose();
+  }
 }
 
 export function startReload(): void {
@@ -581,6 +630,40 @@ function playReloadSounds(): void {
     clickGain.connect(ctx.destination);
     noise.start(now);
   }, PLAYER_RELOAD_TIME * 0.65);
+}
+
+function playEnemyDeathSound(): void {
+  if (!g.beamAudioCtx) g.beamAudioCtx = new AudioContext();
+  if (g.beamAudioCtx.state === "suspended") g.beamAudioCtx.resume();
+  const ctx = g.beamAudioCtx;
+  const now = ctx.currentTime;
+
+  // Impact thud — filtered noise burst
+  const bufSize = Math.floor(ctx.sampleRate * 0.15);
+  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+  const noise = ctx.createBufferSource();
+  noise.buffer = buf;
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.setValueAtTime(0.5, now);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+  noise.connect(noiseGain);
+  noiseGain.connect(ctx.destination);
+  noise.start(now);
+
+  // Low descending tone
+  const osc = ctx.createOscillator();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(180, now);
+  osc.frequency.exponentialRampToValueAtTime(35, now + 0.35);
+  const oscGain = ctx.createGain();
+  oscGain.gain.setValueAtTime(0.25, now);
+  oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+  osc.connect(oscGain);
+  oscGain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.36);
 }
 
 function playBeamSound(): void {

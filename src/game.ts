@@ -39,6 +39,7 @@ export interface Enemy {
   patrolTarget: Vector3;
   attackCooldown: number;
   flashTime: number;
+  flashMesh: Mesh | null;
   baseEmissive: Color3;
 }
 
