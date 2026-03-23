@@ -1,6 +1,5 @@
 import {
   Vector3,
-  MeshBuilder,
   StandardMaterial,
   Color3,
   Color4,
@@ -26,9 +25,9 @@ import {
   PLAYER_MAG_SIZE,
   PLAYER_RELOAD_TIME,
 } from "./constants.js";
-import { LASER_BEAM, BULLET_HOLE } from "./meshDefs.js";
 import { g, dom, type Enemy } from "./game.js";
 import { spawnEnemy } from "./build.js";
+import { makeBeam, makeBulletHoleDisc, BULLET_HOLE_SURFACE_OFFSET } from "./meshBuilders.js";
 
 // ─── Game loop ────────────────────────────────────────────────────────────────
 export function update(): void {
@@ -418,12 +417,14 @@ export function pause(): void {
   g.state.paused = true;
   g.mouseHeld = false;
   g.pressedKeys.clear();
+  g.scene.physicsEnabled = false;
   dom.pauseScreen.style.display = "flex";
   dom.hud.classList.add("paused");
 }
 
 export function resume(): void {
   g.state.paused = false;
+  g.scene.physicsEnabled = true;
   dom.pauseScreen.style.display = "none";
   dom.hud.classList.remove("paused");
 }
@@ -445,19 +446,7 @@ function spawnLaserBeam(from: Vector3, to: Vector3): void {
 
   playBeamSound();
 
-  const beamMat = new StandardMaterial("laserMat", g.scene);
-  beamMat.diffuseColor = LASER_BEAM.diffuse;
-  beamMat.emissiveColor = LASER_BEAM.emissive;
-  beamMat.disableLighting = true;
-
-  const beam = MeshBuilder.CreateTube(
-    "laserBeam",
-    { path: [from, to], radius: LASER_BEAM.radius, tessellation: LASER_BEAM.tessellation, updatable: false, cap: 0 },
-    g.scene,
-  );
-  beam.material = beamMat;
-  beam.isPickable = false;
-
+  const beam = makeBeam(from, to);
   setTimeout(() => beam.dispose(), PLAYER_SHOOT_COOLDOWN_MS * 0.6);
 }
 
@@ -526,15 +515,9 @@ function spawnBulletHole(position: Vector3, normal: Vector3 | null, parentMesh?:
     g.bulletHoleTimes.shift();
   }
 
-  const disc = MeshBuilder.CreateDisc(
-    "bhole",
-    { radius: BULLET_HOLE.radius, tessellation: BULLET_HOLE.tessellation },
-    g.scene,
-  );
-  disc.isPickable = false;
-
+  const disc = makeBulletHoleDisc();
   const n = normal ?? Vector3.Up();
-  const worldPos = position.add(n.scale(BULLET_HOLE.surfaceOffset));
+  const worldPos = position.add(n.scale(BULLET_HOLE_SURFACE_OFFSET));
 
   if (parentMesh) {
     const invWorld = parentMesh.getWorldMatrix().clone().invert();
@@ -547,12 +530,6 @@ function spawnBulletHole(position: Vector3, normal: Vector3 | null, parentMesh?:
     g.bulletHoles.push(disc);
     g.bulletHoleTimes.push(60_000);
   }
-
-  const mat = new StandardMaterial("bholeMat", g.scene);
-  mat.diffuseColor = BULLET_HOLE.diffuse;
-  mat.emissiveColor = BULLET_HOLE.emissive;
-  mat.backFaceCulling = false;
-  disc.material = mat;
 }
 
 // ─── Audio ────────────────────────────────────────────────────────────────────

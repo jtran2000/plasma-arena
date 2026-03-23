@@ -9,6 +9,7 @@ export const ENEMY_CHASE_RANGE = 20;
 
 
 // ─── Player ───────────────────────────────────────────────────────────────────
+export const PLAYER_SPAWN_Y = 0.9;
 export const PLAYER_WALK_SPEED = 5; // m/s
 export const PLAYER_SPRINT_SPEED = 10; // m/s
 export const PLAYER_ACCELERATION = 0.15; // lerp factor per frame (0 = sluggish, 1 = instant)

@@ -3,7 +3,6 @@ import { Color3, Vector3 } from "@babylonjs/core";
 // ─── Player ───────────────────────────────────────────────────────────────────
 export const PLAYER_MESH = {
   capsule: { height: 1.8, radius: 0.4 },
-  spawnPos: new Vector3(0, 0.9, 0),
 };
 
 // ─── Arena ────────────────────────────────────────────────────────────────────
