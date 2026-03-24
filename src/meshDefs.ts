@@ -69,8 +69,8 @@ export const WEAPON = {
   },
 
   barrel: {
-    size: { diameter: 0.024, height: 0.22, tessellation: 10 } as const,
-    pos: new Vector3(0, 0.016, 0.22),
+    size: { diameter: 0.024, height: 0.32, tessellation: 10 } as const,
+    pos: new Vector3(0, 0.016, 0.27),
     rotX: Math.PI / 2,
     diffuse: new Color3(0.18, 0.18, 0.24),
     specular: new Color3(0.9, 0.9, 1.0),
@@ -98,12 +98,12 @@ export const WEAPON = {
 
   lens: {
     size: { diameter: 0.034, segments: 6 } as const,
-    pos: new Vector3(0, 0.016, 0.335),
+    pos: new Vector3(0, 0.016, 0.435),
     diffuse: new Color3(0.0, 0.9, 1.0),
     emissive: new Color3(0.0, 0.8, 1.0),
   },
 
-  barrelTipPos: new Vector3(0, 0.016, 0.36),
+  barrelTipPos: new Vector3(0, 0.016, 0.46),
 };
 
 // ─── Enemy ────────────────────────────────────────────────────────────────────

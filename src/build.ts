@@ -9,9 +9,6 @@ import {
   ShadowGenerator,
   DynamicTexture,
   HavokPlugin,
-  PhysicsAggregate,
-  PhysicsShapeType,
-  Quaternion,
 } from "@babylonjs/core";
 import HavokPhysics from "@babylonjs/havok";
 import { g } from "./game.js";
@@ -52,25 +49,15 @@ export async function buildScene(): Promise<void> {
   const havokPlugin = new HavokPlugin(true, havok);
   g.scene.enablePhysics(new Vector3(0, -20, 0), havokPlugin);
 
-  g.playerMesh = makePlayerMesh();
-  g.playerAggregate = new PhysicsAggregate(
-    g.playerMesh,
-    PhysicsShapeType.CAPSULE,
-    { mass: 70, friction: 0.7, restitution: 0 },
-    g.scene,
-  );
-  g.playerAggregate.body.setMassProperties({
-    mass: 70,
-    inertia: Vector3.Zero(),
-    inertiaOrientation: Quaternion.Identity(),
-  });
+  const player = makePlayerMesh();
+  g.playerMesh = player.mesh;
+  g.playerAggregate = player.aggregate;
 
   const ambient = new HemisphericLight("amb", new Vector3(0, 1, 0), g.scene);
   ambient.intensity = 0.15;
   ambient.groundColor = new Color3(0.03, 0.03, 0.06);
 
-  const { pole, lightY } = setupLamppost();
-  new PhysicsAggregate(pole, PhysicsShapeType.CYLINDER, { mass: 0 }, g.scene);
+  const { lightY } = setupLamppost();
 
   const lamp = new SpotLight("lamp", new Vector3(0, lightY, 0), new Vector3(0, -1, 0), Math.PI * 0.8, 1.5, g.scene);
   lamp.intensity = 2.0;
@@ -94,21 +81,16 @@ export async function buildScene(): Promise<void> {
 
 // ─── Arena ────────────────────────────────────────────────────────────────────
 function buildArena(): void {
-  new PhysicsAggregate(setupArenaFloor(), PhysicsShapeType.BOX, { mass: 0 }, g.scene);
-  new PhysicsAggregate(setupArenaCeil(), PhysicsShapeType.BOX, { mass: 0 }, g.scene);
-
-  for (const wall of setupArenaWalls()) {
-    new PhysicsAggregate(wall, PhysicsShapeType.BOX, { mass: 0 }, g.scene);
-  }
+  setupArenaFloor();
+  setupArenaCeil();
+  setupArenaWalls();
 
   for (const pillar of setupArenaPillars()) {
     g.shadowGenerator.addShadowCaster(pillar);
-    new PhysicsAggregate(pillar, PhysicsShapeType.BOX, { mass: 0 }, g.scene);
   }
 
   for (const crate of setupArenaCrates()) {
     g.shadowGenerator.addShadowCaster(crate);
-    new PhysicsAggregate(crate, PhysicsShapeType.BOX, { mass: 0 }, g.scene);
   }
 
   setupArenaAccentStrips();

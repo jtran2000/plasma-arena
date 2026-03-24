@@ -1,4 +1,4 @@
-import { Vector3, MeshBuilder, StandardMaterial, Mesh, Color3 } from "@babylonjs/core";
+import { Vector3, MeshBuilder, StandardMaterial, Mesh, Color3, PhysicsAggregate, PhysicsShapeType, Quaternion } from "@babylonjs/core";
 import { PLAYER_SPAWN_Y, ARENA_CEIL } from "./constants.js";
 import { PLAYER_MESH, ARENA, WEAPON, ENEMY_COLOR, ENEMY_MESH, LASER_BEAM, BULLET_HOLE } from "./meshDefs.js";
 import { g } from "./game.js";
@@ -68,6 +68,7 @@ export function setupArenaFloor(): Mesh {
   m.position.y = -0.1;
   m.material = makeFloorMat();
   m.receiveShadows = true;
+  new PhysicsAggregate(m, PhysicsShapeType.BOX, { mass: 0 }, g.scene);
   return m;
 }
 
@@ -75,6 +76,7 @@ export function setupArenaCeil(): Mesh {
   const m = makeCeil();
   m.position.y = ARENA.ceil + 0.1;
   m.material = makeCeilMat();
+  new PhysicsAggregate(m, PhysicsShapeType.BOX, { mass: 0 }, g.scene);
   return m;
 }
 
@@ -94,6 +96,7 @@ export function setupArenaWalls(): Mesh[] {
     m.rotation.y = rotY as number;
     m.material = mat;
     m.receiveShadows = true;
+    new PhysicsAggregate(m, PhysicsShapeType.BOX, { mass: 0 }, g.scene);
     return m;
   });
 }
@@ -105,6 +108,7 @@ export function setupArenaPillars(): Mesh[] {
     m.position = new Vector3(x, ARENA.ceil / 2, z);
     m.material = mat;
     m.receiveShadows = true;
+    new PhysicsAggregate(m, PhysicsShapeType.BOX, { mass: 0 }, g.scene);
     return m;
   });
 }
@@ -116,6 +120,7 @@ export function setupArenaCrates(): Mesh[] {
     m.position = new Vector3(x, y, z);
     m.material = mat;
     m.receiveShadows = true;
+    new PhysicsAggregate(m, PhysicsShapeType.BOX, { mass: 0 }, g.scene);
     return m;
   });
 }
@@ -242,11 +247,17 @@ export function setupWeaponParts(root: Mesh): { cell: Mesh; barrelTip: Mesh } {
 }
 
 // ─── Player mesh (exported) ───────────────────────────────────────────────────
-export function makePlayerMesh(): Mesh {
+export function makePlayerMesh(): { mesh: Mesh; aggregate: PhysicsAggregate } {
   const mesh = MeshBuilder.CreateCapsule("player", PLAYER_MESH.capsule, g.scene);
   mesh.position.y = PLAYER_SPAWN_Y;
   mesh.isVisible = false;
-  return mesh;
+  const aggregate = new PhysicsAggregate(mesh, PhysicsShapeType.CAPSULE, { mass: 70, friction: 0.7, restitution: 0 }, g.scene);
+  aggregate.body.setMassProperties({
+    mass: 70,
+    inertia: Vector3.Zero(),
+    inertiaOrientation: Quaternion.Identity(),
+  });
+  return { mesh, aggregate };
 }
 
 // ─── Enemy material & meshes (exported) ───────────────────────────────────────
@@ -263,10 +274,16 @@ export function makeEnemyMats(): { bodyMat: StandardMaterial; headMat: StandardM
   return { bodyMat, headMat };
 }
 
-export function makeEnemyPhysCapsule(): Mesh {
+export function makeEnemyPhysCapsule(): { mesh: Mesh; aggregate: PhysicsAggregate } {
   const mesh = MeshBuilder.CreateCapsule("enemyPhys", ENEMY_MESH.capsule, g.scene);
   mesh.isVisible = false;
-  return mesh;
+  const aggregate = new PhysicsAggregate(mesh, PhysicsShapeType.CAPSULE, { mass: 10, friction: 0.7, restitution: 0 }, g.scene);
+  aggregate.body.setMassProperties({
+    mass: 10,
+    inertia: Vector3.Zero(),
+    inertiaOrientation: Quaternion.Identity(),
+  });
+  return { mesh, aggregate };
 }
 
 export function makeEnemyBodyMesh(): Mesh {
@@ -321,6 +338,7 @@ export function setupLamppost(): { pole: Mesh; lightY: number } {
   const pole = MeshBuilder.CreateCylinder("pole", { diameter: 0.15, height: lampY }, g.scene);
   pole.position.y = lampY / 2;
   pole.material = poleMat;
+  new PhysicsAggregate(pole, PhysicsShapeType.CYLINDER, { mass: 0 }, g.scene);
 
   const head = MeshBuilder.CreateCylinder("lampHead", { diameterTop: 0.1, diameterBottom: 0.8, height: 0.4, tessellation: 8 }, g.scene);
   head.position.y = lampY - 0.2;
@@ -337,7 +355,7 @@ export function setupLamppost(): { pole: Mesh; lightY: number } {
 }
 
 // ─── Pickups (exported) ──────────────────────────────────────────────────────
-export function makeHealthPickupMesh(position: Vector3): Mesh {
+export function makeHealthPickup(position: Vector3): { mesh: Mesh; aggregate: PhysicsAggregate } {
   const mat = new StandardMaterial("pickupMat", g.scene);
   mat.diffuseColor = new Color3(0.1, 0.9, 0.2);
   mat.emissiveColor = new Color3(0.1, 0.6, 0.1);
@@ -346,10 +364,11 @@ export function makeHealthPickupMesh(position: Vector3): Mesh {
   mesh.position.y = Math.max(mesh.position.y, 0.3);
   mesh.material = mat;
   mesh.isPickable = false;
-  return mesh;
+  const aggregate = new PhysicsAggregate(mesh, PhysicsShapeType.BOX, { mass: 1, friction: 0.8, restitution: 0.2 }, g.scene);
+  return { mesh, aggregate };
 }
 
-export function makeAmmoPickupMesh(position: Vector3): Mesh {
+export function makeAmmoPickup(position: Vector3): { mesh: Mesh; aggregate: PhysicsAggregate } {
   const mat = new StandardMaterial("pickupMat", g.scene);
   mat.diffuseColor = WEAPON.cell.diffuse.clone();
   mat.emissiveColor = WEAPON.cell.emissive.clone();
@@ -359,7 +378,8 @@ export function makeAmmoPickupMesh(position: Vector3): Mesh {
   mesh.position.y = Math.max(mesh.position.y, 0.3);
   mesh.material = mat;
   mesh.isPickable = false;
-  return mesh;
+  const aggregate = new PhysicsAggregate(mesh, PhysicsShapeType.BOX, { mass: 1, friction: 0.8, restitution: 0.2 }, g.scene);
+  return { mesh, aggregate };
 }
 
 // ─── Laser beam (exported) ────────────────────────────────────────────────────
@@ -376,6 +396,19 @@ export function makeBeam(from: Vector3, to: Vector3): Mesh {
   beam.material = mat;
   beam.isPickable = false;
   return beam;
+}
+
+// ─── Ragdoll physics helpers (exported) ──────────────────────────────────────
+export function makeRagdollBodyAggregate(mesh: Mesh): PhysicsAggregate {
+  return new PhysicsAggregate(mesh, PhysicsShapeType.BOX, { mass: 8, friction: 0.6, restitution: 0.05 }, g.scene);
+}
+
+export function makeRagdollHeadAggregate(mesh: Mesh): PhysicsAggregate {
+  return new PhysicsAggregate(mesh, PhysicsShapeType.SPHERE, { mass: 2, friction: 0.5, restitution: 0.3 }, g.scene);
+}
+
+export function makeRagdollHalfAggregate(mesh: Mesh, mass: number): PhysicsAggregate {
+  return new PhysicsAggregate(mesh, PhysicsShapeType.BOX, { mass, friction: 0.6, restitution: 0.05 }, g.scene);
 }
 
 // ─── Bullet hole (exported) ───────────────────────────────────────────────────

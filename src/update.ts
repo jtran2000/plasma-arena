@@ -7,9 +7,6 @@ import {
   Mesh,
   AbstractMesh,
   Ray,
-  PhysicsAggregate,
-  PhysicsShapeType,
-  Quaternion,
 } from "@babylonjs/core";
 import {
   ENEMY_HP,
@@ -43,7 +40,7 @@ import {
   PLAYER_MAX_RESERVE_MAGS,
 } from "./constants.js";
 import { g, dom, type Enemy } from "./game.js";
-import { makeBeam, makeBulletHoleDisc, BULLET_HOLE_SURFACE_OFFSET, makeBodySplitHalves, makeHeadSplitHalves, makeHealthPickupMesh, makeAmmoPickupMesh, makeEnemyMats, makeEnemyPhysCapsule, makeEnemyBodyMesh, makeEnemyHeadMesh } from "./meshBuilders.js";
+import { makeBeam, makeBulletHoleDisc, BULLET_HOLE_SURFACE_OFFSET, makeBodySplitHalves, makeHeadSplitHalves, makeHealthPickup, makeAmmoPickup, makeEnemyMats, makeEnemyPhysCapsule, makeEnemyBodyMesh, makeEnemyHeadMesh, makeRagdollBodyAggregate, makeRagdollHeadAggregate, makeRagdollHalfAggregate } from "./meshBuilders.js";
 
 // ─── Game loop ────────────────────────────────────────────────────────────────
 export function update(): void {
@@ -336,20 +333,8 @@ function spawnEnemy(): void {
     (x - playerPos.x) ** 2 + (z - playerPos.z) ** 2 < ENEMY_MIN_SPAWN_DIST ** 2
   );
 
-  const physMesh = makeEnemyPhysCapsule();
+  const { mesh: physMesh, aggregate } = makeEnemyPhysCapsule();
   physMesh.position = new Vector3(x, ARENA_CEIL - 0.5, z);
-
-  const aggregate = new PhysicsAggregate(
-    physMesh,
-    PhysicsShapeType.CAPSULE,
-    { mass: 10, friction: 0.7, restitution: 0 },
-    g.scene,
-  );
-  aggregate.body.setMassProperties({
-    mass: 10,
-    inertia: Vector3.Zero(),
-    inertiaOrientation: Quaternion.Identity(),
-  });
 
   const { bodyMat, headMat } = makeEnemyMats();
 
@@ -538,31 +523,25 @@ function killEnemy(enemy: Enemy, killMesh: Mesh, hitPoint?: Vector3): void {
   if (isHeadshot) {
     enemy.headMesh.dispose();
     const [topHalf, bottomHalf] = makeHeadSplitHalves(headWorldPos, headMat);
-
-    const topAgg = new PhysicsAggregate(topHalf, PhysicsShapeType.BOX, { mass: 1, friction: 0.5, restitution: 0.3 }, g.scene);
+    const topAgg = makeRagdollHalfAggregate(topHalf, 1);
     topAgg.body.applyImpulse(new Vector3(awayDir.x * 4, 6 + Math.random() * 3, awayDir.z * 4), headWorldPos);
-
-    const bottomAgg = new PhysicsAggregate(bottomHalf, PhysicsShapeType.BOX, { mass: 1, friction: 0.5, restitution: 0.3 }, g.scene);
+    const bottomAgg = makeRagdollHalfAggregate(bottomHalf, 1);
     bottomAgg.body.applyImpulse(new Vector3(awayDir.x * 2, 1 + Math.random() * 2, awayDir.z * 2), headWorldPos);
-
     setTimeout(() => { topAgg.dispose(); topHalf.dispose(); bottomAgg.dispose(); bottomHalf.dispose(); }, 3500);
 
-    const bodyAgg = new PhysicsAggregate(enemy.bodyMesh, PhysicsShapeType.BOX, { mass: 8, friction: 0.6, restitution: 0.05 }, g.scene);
+    const bodyAgg = makeRagdollBodyAggregate(enemy.bodyMesh);
     bodyAgg.body.applyImpulse(awayDir.scale(40), bodyWorldPos.add(new Vector3(0, 0.7, 0)));
     setTimeout(() => { bodyAgg.dispose(); enemy.bodyMesh.dispose(); }, 3500);
   } else {
     enemy.bodyMesh.dispose();
     const [topHalf, bottomHalf] = makeBodySplitHalves(bodyWorldPos, bodyMat);
-
-    const topAgg = new PhysicsAggregate(topHalf, PhysicsShapeType.BOX, { mass: 5, friction: 0.6, restitution: 0.05 }, g.scene);
+    const topAgg = makeRagdollHalfAggregate(topHalf, 5);
     topAgg.body.applyImpulse(new Vector3(awayDir.x * 22, 18, awayDir.z * 22), bodyWorldPos.add(new Vector3(0, 0.4, 0)));
-
-    const bottomAgg = new PhysicsAggregate(bottomHalf, PhysicsShapeType.BOX, { mass: 5, friction: 0.6, restitution: 0.05 }, g.scene);
+    const bottomAgg = makeRagdollHalfAggregate(bottomHalf, 5);
     bottomAgg.body.applyImpulse(new Vector3(awayDir.x * 14, -5, awayDir.z * 14), bodyWorldPos);
-
     setTimeout(() => { topAgg.dispose(); topHalf.dispose(); bottomAgg.dispose(); bottomHalf.dispose(); }, 3500);
 
-    const headAgg = new PhysicsAggregate(enemy.headMesh, PhysicsShapeType.SPHERE, { mass: 2, friction: 0.5, restitution: 0.3 }, g.scene);
+    const headAgg = makeRagdollHeadAggregate(enemy.headMesh);
     headAgg.body.applyImpulse(new Vector3((Math.random() - 0.5) * 8, 3 + Math.random() * 4, (Math.random() - 0.5) * 8), headWorldPos);
     setTimeout(() => { headAgg.dispose(); enemy.headMesh.dispose(); }, 3500);
   }
@@ -587,10 +566,9 @@ function splitRagdoll(mesh: Mesh, beamDir: Vector3, hitPoint?: Vector3): void {
     ? makeHeadSplitHalves(worldPos, mat)
     : makeBodySplitHalves(worldPos, mat);
 
-  const topAgg = new PhysicsAggregate(topHalf, PhysicsShapeType.BOX, { mass: 1, friction: 0.5, restitution: 0.3 }, g.scene);
+  const topAgg = makeRagdollHalfAggregate(topHalf, 1);
   topAgg.body.applyImpulse(new Vector3(awayDir.x * 4, 6 + Math.random() * 3, awayDir.z * 4), worldPos);
-
-  const bottomAgg = new PhysicsAggregate(bottomHalf, PhysicsShapeType.BOX, { mass: 1, friction: 0.5, restitution: 0.3 }, g.scene);
+  const bottomAgg = makeRagdollHalfAggregate(bottomHalf, 1);
   bottomAgg.body.applyImpulse(new Vector3(awayDir.x * 2, 1 + Math.random() * 2, awayDir.z * 2), worldPos);
 
   setTimeout(() => { topAgg.dispose(); topHalf.dispose(); bottomAgg.dispose(); bottomHalf.dispose(); }, 3500);
@@ -633,10 +611,9 @@ function incrementScore(amount: number, hitPoint?: Vector3): void {
 
 function spawnPickup(position: Vector3, forceType?: "health" | "ammo"): void {
   const type = forceType ?? (Math.random() < 0.5 ? "health" : "ammo");
-  const mesh = type === "health"
-    ? makeHealthPickupMesh(position)
-    : makeAmmoPickupMesh(position);
-  const aggregate = new PhysicsAggregate(mesh, PhysicsShapeType.BOX, { mass: 1, friction: 0.8, restitution: 0.2 }, g.scene);
+  const { mesh, aggregate } = type === "health"
+    ? makeHealthPickup(position)
+    : makeAmmoPickup(position);
   g.pickups.push({ mesh, aggregate, type });
 }
 
