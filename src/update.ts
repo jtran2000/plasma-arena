@@ -9,8 +9,11 @@ import {
   Ray,
   PhysicsAggregate,
   PhysicsShapeType,
+  Quaternion,
 } from "@babylonjs/core";
 import {
+  ENEMY_HP,
+  ENEMY_SPEED,
   ENEMY_MELEE_RANGE,
   ENEMY_MELEE_DAMAGE,
   ENEMY_MELEE_COOLDOWN_MS,
@@ -20,7 +23,6 @@ import {
   PICKUP_SCORE_INTERVAL,
   PICKUP_DROP_CHANCE,
   PICKUP_HEALTH_AMOUNT,
-  PICKUP_AMMO_AMOUNT,
   PICKUP_COLLECT_RANGE,
   PLAYER_SHOOT_COOLDOWN_MS,
   PLAYER_WALK_SPEED,
@@ -29,10 +31,19 @@ import {
   PLAYER_JUMP_SPEED,
   PLAYER_MAG_SIZE,
   PLAYER_RELOAD_TIME,
+  WAVE_BASE_ENEMIES,
+  WAVE_GROWTH,
+  WAVE_SPAWN_INTERVAL_MS,
+  WAVE_PAUSE_MS,
+  MAX_ENEMIES_ALIVE,
+  ARENA_CEIL,
+  ARENA_SIZE,
+  ENEMY_MIN_SPAWN_DIST,
+  WAVE_COMPLETE_SCORE,
+  PLAYER_MAX_RESERVE_MAGS,
 } from "./constants.js";
 import { g, dom, type Enemy } from "./game.js";
-import { spawnEnemy } from "./build.js";
-import { makeBeam, makeBulletHoleDisc, BULLET_HOLE_SURFACE_OFFSET, makeBodySplitHalves, makeHeadSplitHalves, makeHealthPickupMesh, makeAmmoPickupMesh } from "./meshBuilders.js";
+import { makeBeam, makeBulletHoleDisc, BULLET_HOLE_SURFACE_OFFSET, makeBodySplitHalves, makeHeadSplitHalves, makeHealthPickupMesh, makeAmmoPickupMesh, makeEnemyMats, makeEnemyPhysCapsule, makeEnemyBodyMesh, makeEnemyHeadMesh } from "./meshBuilders.js";
 
 // ─── Game loop ────────────────────────────────────────────────────────────────
 export function update(): void {
@@ -96,25 +107,45 @@ function updateTimers(dt: number): void {
     }
   }
 
-  for (let i = g.respawnTimers.length - 1; i >= 0; i--) {
-    g.respawnTimers[i] -= dt;
-    if (g.respawnTimers[i] <= 0) {
-      g.respawnTimers.splice(i, 1);
-      if (g.state.running) spawnEnemy();
+  for (let i = g.glowingHoles.length - 1; i >= 0; i--) {
+    const gh = g.glowingHoles[i];
+    gh.time -= dt;
+    if (gh.mesh.isDisposed()) {
+      g.glowingHoles.splice(i, 1);
+      continue;
+    }
+    const mat = gh.mesh.material as StandardMaterial;
+    if (gh.time <= 0) {
+      mat.emissiveColor = BULLET_HOLE_DARK;
+      g.glowingHoles.splice(i, 1);
+    } else {
+      const t = 1 - gh.time / BULLET_HOLE_GLOW_MS;
+      if (t < 0.5) {
+        const s = t / 0.5;
+        mat.emissiveColor = new Color3(1, 0.9 - 0.5 * s, 0.2 - 0.15 * s);
+      } else {
+        const s = (t - 0.5) / 0.5;
+        mat.emissiveColor = new Color3(1 - 0.4 * s, 0.4 - 0.35 * s, 0.05 - 0.03 * s);
+      }
     }
   }
 
+  if (g.state.running) updateWaves(dt);
+
   for (let i = g.pickups.length - 1; i >= 0; i--) {
     const p = g.pickups[i];
-    p.mesh.rotation.y += dt * 0.003;
-    const dist = Vector3.Distance(g.camera.position, p.mesh.position);
+    const dist = Vector3.Distance(g.playerMesh.position, p.mesh.position);
     if (dist < PICKUP_COLLECT_RANGE) {
+      const maxReserve = PLAYER_MAX_RESERVE_MAGS * PLAYER_MAG_SIZE;
+      if (p.type === "health" && g.state.health >= 100) continue;
+      if (p.type === "ammo" && g.state.reserve >= maxReserve) continue;
       if (p.type === "health") {
         g.state.health = Math.min(100, g.state.health + PICKUP_HEALTH_AMOUNT);
       } else {
-        g.state.reserve += PICKUP_AMMO_AMOUNT;
+        g.state.reserve = Math.min(maxReserve, g.state.reserve + PLAYER_MAG_SIZE);
       }
       updateHUD();
+      p.aggregate.dispose();
       p.mesh.dispose();
       g.pickups.splice(i, 1);
     }
@@ -294,6 +325,117 @@ function updateEnemies(): void {
   }
 }
 
+// ─── Enemy spawning ─────────────────────────────────────────────────────────
+function spawnEnemy(): void {
+  const playerPos = g.playerMesh.position;
+  let x: number, z: number;
+  do {
+    x = (Math.random() * 2 - 1) * (ARENA_SIZE / 2 - 2);
+    z = (Math.random() * 2 - 1) * (ARENA_SIZE / 2 - 2);
+  } while (
+    (x - playerPos.x) ** 2 + (z - playerPos.z) ** 2 < ENEMY_MIN_SPAWN_DIST ** 2
+  );
+
+  const physMesh = makeEnemyPhysCapsule();
+  physMesh.position = new Vector3(x, ARENA_CEIL - 0.5, z);
+
+  const aggregate = new PhysicsAggregate(
+    physMesh,
+    PhysicsShapeType.CAPSULE,
+    { mass: 10, friction: 0.7, restitution: 0 },
+    g.scene,
+  );
+  aggregate.body.setMassProperties({
+    mass: 10,
+    inertia: Vector3.Zero(),
+    inertiaOrientation: Quaternion.Identity(),
+  });
+
+  const { bodyMat, headMat } = makeEnemyMats();
+
+  const bodyMesh = makeEnemyBodyMesh();
+  bodyMesh.parent = physMesh;
+  bodyMesh.position = Vector3.Zero();
+  bodyMesh.material = bodyMat;
+
+  const head = makeEnemyHeadMesh();
+  head.parent = physMesh;
+  head.material = headMat;
+
+  g.shadowGenerator.addShadowCaster(bodyMesh);
+  g.shadowGenerator.addShadowCaster(head);
+
+  g.enemies.push({
+    physMesh,
+    bodyMesh,
+    headMesh: head,
+    aggregate,
+    hp: ENEMY_HP,
+    maxHp: ENEMY_HP,
+    speed: ENEMY_SPEED,
+    state: "patrol",
+    patrolTarget: physMesh.position.clone(),
+    attackCooldown: 0,
+    flashTime: 0,
+    flashMesh: null,
+    baseEmissive: bodyMat.diffuseColor.scale(0.2),
+  });
+}
+
+// ─── Waves ───────────────────────────────────────────────────────────────────
+function waveEnemyCount(wave: number): number {
+  return WAVE_BASE_ENEMIES + WAVE_GROWTH * (wave - 1);
+}
+
+function startNextWave(): void {
+  g.state.wave++;
+  g.state.waveEnemiesLeft = waveEnemyCount(g.state.wave);
+  g.state.waveSpawnTimer = 0;
+  g.state.waveActive = true;
+  showWaveBanner(`Wave ${g.state.wave}`);
+  updateHUD();
+}
+
+function updateWaves(dt: number): void {
+  // Between waves — count down the pause timer
+  if (!g.state.waveActive) {
+    g.state.wavePauseTimer -= dt;
+    if (g.state.wavePauseTimer <= 0) startNextWave();
+    return;
+  }
+
+  // Wave active — spawn enemies one at a time on an interval
+  if (g.state.waveEnemiesLeft > 0 && g.enemies.length < MAX_ENEMIES_ALIVE) {
+    g.state.waveSpawnTimer -= dt;
+    if (g.state.waveSpawnTimer <= 0) {
+      spawnEnemy();
+      g.state.waveEnemiesLeft--;
+      g.state.waveSpawnTimer = WAVE_SPAWN_INTERVAL_MS;
+    }
+  }
+
+  // All enemies spawned and killed — wave complete
+  if (g.state.waveEnemiesLeft <= 0 && g.enemies.length === 0) {
+    g.state.waveActive = false;
+    g.state.wavePauseTimer = WAVE_PAUSE_MS;
+    showWaveBanner(`Wave ${g.state.wave} Complete`);
+
+    // Reward: spawn pickups in front of player + score bonus
+    const fwd = g.camera.getForwardRay(3).direction;
+    const frontPos = g.camera.position.add(fwd.scale(3));
+    frontPos.y = 0.5;
+    spawnPickup(frontPos.clone(), "health");
+    spawnPickup(new Vector3(frontPos.x + 0.6, frontPos.y, frontPos.z), "ammo");
+    incrementScore(WAVE_COMPLETE_SCORE, frontPos);
+  }
+}
+
+export function showWaveBanner(text: string): void {
+  dom.waveBanner.textContent = text;
+  dom.waveBanner.classList.add("visible");
+  setTimeout(() => dom.waveBanner.classList.remove("visible"), 2500);
+}
+
 // ─── Shooting ─────────────────────────────────────────────────────────────────
 export function shoot(): void {
   if (!g.state.running || g.state.reloading || g.isSprinting) return;
@@ -427,7 +569,6 @@ function killEnemy(enemy: Enemy, killMesh: Mesh, hitPoint?: Vector3): void {
 
   g.state.kills++;
   incrementScore(isHeadshot ? Math.round(KILL_SCORE * 1.5) : KILL_SCORE, hitPoint);
-  g.respawnTimers.push(3000);
 }
 
 function splitRagdoll(mesh: Mesh, beamDir: Vector3, hitPoint?: Vector3): void {
@@ -490,12 +631,13 @@ function incrementScore(amount: number, hitPoint?: Vector3): void {
   }
 }
 
-function spawnPickup(position: Vector3): void {
-  const type = Math.random() < 0.5 ? "health" : "ammo";
+function spawnPickup(position: Vector3, forceType?: "health" | "ammo"): void {
+  const type = forceType ?? (Math.random() < 0.5 ? "health" : "ammo");
   const mesh = type === "health"
     ? makeHealthPickupMesh(position)
     : makeAmmoPickupMesh(position);
-  g.pickups.push({ mesh, type });
+  const aggregate = new PhysicsAggregate(mesh, PhysicsShapeType.BOX, { mass: 1, friction: 0.8, restitution: 0.2 }, g.scene);
+  g.pickups.push({ mesh, aggregate, type });
 }
 
 export function startReload(): void {
@@ -534,6 +676,8 @@ export function updateHUD(): void {
   dom.ammoEl.textContent = `${g.state.ammo} / ${g.state.reserve}`;
   dom.scoreEl.textContent = String(g.state.score);
   dom.killsEl.textContent = String(g.state.kills);
+  dom.waveValue.textContent = String(g.state.wave);
+  dom.waveRemaining.textContent = String(g.state.waveEnemiesLeft + g.enemies.length);
 }
 
 // ─── Game flow ────────────────────────────────────────────────────────────────
@@ -633,6 +777,9 @@ function spawnDeathParticle(position: Vector3): void {
   setTimeout(() => ps.dispose(false), 1200);
 }
 
+const BULLET_HOLE_GLOW_MS = 1500;
+const BULLET_HOLE_DARK = new Color3(0.02, 0.02, 0.02);
+
 function spawnBulletHole(position: Vector3, normal: Vector3 | null, parentMesh?: Mesh): void {
   if (!parentMesh && g.bulletHoles.length >= 200) {
     g.bulletHoles.shift()!.dispose();
@@ -640,6 +787,7 @@ function spawnBulletHole(position: Vector3, normal: Vector3 | null, parentMesh?:
   }
 
   const disc = makeBulletHoleDisc();
+  (disc.material as StandardMaterial).emissiveColor = new Color3(1, 0.9, 0.2);
   const n = normal ?? Vector3.Up();
   const worldPos = position.add(n.scale(BULLET_HOLE_SURFACE_OFFSET));
 
@@ -654,6 +802,7 @@ function spawnBulletHole(position: Vector3, normal: Vector3 | null, parentMesh?:
     g.bulletHoles.push(disc);
     g.bulletHoleTimes.push(60_000);
   }
+  g.glowingHoles.push({ mesh: disc, time: BULLET_HOLE_GLOW_MS });
 }
 
 // ─── Audio ────────────────────────────────────────────────────────────────────

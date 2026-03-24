@@ -9,7 +9,7 @@ import {
   DynamicTexture,
   Color3,
 } from "@babylonjs/core";
-import { PLAYER_MAG_SIZE, PLAYER_RESERVE_AMMO, PICKUP_SCORE_INTERVAL } from "./constants.js";
+import { PLAYER_MAG_SIZE, PLAYER_RESERVE_MAGS, PICKUP_SCORE_INTERVAL, WAVE_BASE_ENEMIES } from "./constants.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface GameState {
@@ -26,10 +26,16 @@ export interface GameState {
   running: boolean;
   paused: boolean;
   nextPickupThreshold: number;
+  wave: number;
+  waveEnemiesLeft: number;
+  waveSpawnTimer: number;
+  wavePauseTimer: number;
+  waveActive: boolean;
 }
 
 export interface Pickup {
   mesh: Mesh;
+  aggregate: PhysicsAggregate;
   type: "health" | "ammo";
 }
 
@@ -53,7 +59,7 @@ export function makeState(): GameState {
   return {
     health: 100,
     ammo: PLAYER_MAG_SIZE,
-    reserve: PLAYER_RESERVE_AMMO,
+    reserve: PLAYER_MAG_SIZE * PLAYER_RESERVE_MAGS,
     score: 0,
     kills: 0,
     reloading: false,
@@ -64,6 +70,11 @@ export function makeState(): GameState {
     running: false,
     paused: false,
     nextPickupThreshold: PICKUP_SCORE_INTERVAL,
+    wave: 1,
+    waveEnemiesLeft: WAVE_BASE_ENEMIES,
+    waveSpawnTimer: 0,
+    wavePauseTimer: 0,
+    waveActive: true,
   };
 }
 
@@ -90,6 +101,10 @@ export const dom = {
   reloadMsg:    getEl("reload-msg"),
   pauseScreen:  getEl("pause-screen"),
   crosshair:    getEl("crosshair"),
+  waveDisplay:  getEl("wave-display"),
+  waveValue:    getEl("wave-value"),
+  waveRemaining: getEl("wave-remaining"),
+  waveBanner:   getEl("wave-banner"),
 };
 
 // ─── Shared mutable game context ──────────────────────────────────────────────
@@ -107,7 +122,7 @@ export const g = {
   pickups:          [] as Pickup[],
   bulletHoles:      [] as Mesh[],
   bulletHoleTimes:  [] as number[],
-  respawnTimers:    [] as number[],
+  glowingHoles:     [] as { mesh: Mesh; time: number }[],
   particleTex:      null as unknown as DynamicTexture,
   weaponRoot:       null as unknown as Mesh,
   barrelTip:        null as unknown as Mesh,

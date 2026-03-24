@@ -1,4 +1,5 @@
 import { Color3, Vector3 } from "@babylonjs/core";
+import { ARENA_SIZE, ARENA_CEIL } from "./constants.js";
 
 // ─── Player ───────────────────────────────────────────────────────────────────
 export const PLAYER_MESH = {
@@ -7,8 +8,8 @@ export const PLAYER_MESH = {
 
 // ─── Arena ────────────────────────────────────────────────────────────────────
 export const ARENA = {
-  room: 30,
-  ceil: 5,
+  room: ARENA_SIZE,
+  ceil: ARENA_CEIL,
 
   floor: {
     size: { height: 0.2 } as const, // width/depth = room
@@ -106,12 +107,7 @@ export const WEAPON = {
 };
 
 // ─── Enemy ────────────────────────────────────────────────────────────────────
-export const ENEMY_COLORS: Color3[] = [
-  new Color3(0.7, 0.1, 0.1),
-  new Color3(0.1, 0.6, 0.1),
-  new Color3(0.1, 0.1, 0.8),
-  new Color3(0.7, 0.4, 0.0),
-];
+export const ENEMY_COLOR = new Color3(0.45, 0.45, 0.45);
 
 export const ENEMY_MESH = {
   capsule: { height: 1.6, radius: 0.4 } as const,

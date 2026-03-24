@@ -10,6 +10,7 @@ import {
   updateHUD,
   pause,
   resume,
+  showWaveBanner,
 } from "./update.js";
 
 // ─── Key tracking ─────────────────────────────────────────────────────────────
@@ -64,6 +65,7 @@ async function startGame(): Promise<void> {
   g.scene.registerBeforeRender(update);
   g.state.running = true;
   updateHUD();
+  showWaveBanner("Wave 1");
 
   g.camera.attachControl(dom.canvas, true);
   dom.canvas.requestPointerLock();

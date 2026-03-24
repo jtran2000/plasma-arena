@@ -3,7 +3,7 @@ import {
   UniversalCamera,
   Vector3,
   HemisphericLight,
-  DirectionalLight,
+  SpotLight,
   Color3,
   Color4,
   ShadowGenerator,
@@ -14,13 +14,11 @@ import {
   Quaternion,
 } from "@babylonjs/core";
 import HavokPhysics from "@babylonjs/havok";
-import { ENEMY_HP, ENEMY_SPEED } from "./constants.js";
 import { g } from "./game.js";
 import {
   makePlayerMesh,
   setupArenaFloor, setupArenaCeil, setupArenaWalls, setupArenaPillars, setupArenaCrates, setupArenaAccentStrips,
-  setupWeaponRoot, setupWeaponParts,
-  makeEnemyMats, makeEnemyPhysCapsule, makeEnemyBodyMesh, makeEnemyHeadMesh,
+  setupWeaponRoot, setupWeaponParts, setupLamppost,
 } from "./meshBuilders.js";
 
 // ─── Scene builder ────────────────────────────────────────────────────────────
@@ -28,9 +26,9 @@ export async function buildScene(): Promise<void> {
   if (g.scene) g.scene.dispose();
   g.enemies = [];
   g.bulletHoles = [];
-  g.respawnTimers = [];
   g.bulletHoleTimes = [];
-  for (const p of g.pickups) p.mesh.dispose();
+  g.glowingHoles = [];
+  for (const p of g.pickups) { p.aggregate.dispose(); p.mesh.dispose(); }
   g.pickups = [];
   g.playerVelocityXZ = Vector3.Zero();
   g.pressedKeys.clear();
@@ -68,14 +66,18 @@ export async function buildScene(): Promise<void> {
   });
 
   const ambient = new HemisphericLight("amb", new Vector3(0, 1, 0), g.scene);
-  ambient.intensity = 0.4;
-  ambient.groundColor = new Color3(0.05, 0.05, 0.1);
+  ambient.intensity = 0.15;
+  ambient.groundColor = new Color3(0.03, 0.03, 0.06);
 
-  const sun = new DirectionalLight("sun", new Vector3(-1, -2, -1), g.scene);
-  sun.intensity = 1.2;
-  sun.position = new Vector3(10, 20, 10);
+  const { pole, lightY } = setupLamppost();
+  new PhysicsAggregate(pole, PhysicsShapeType.CYLINDER, { mass: 0 }, g.scene);
 
-  g.shadowGenerator = new ShadowGenerator(1024, sun);
+  const lamp = new SpotLight("lamp", new Vector3(0, lightY, 0), new Vector3(0, -1, 0), Math.PI * 0.8, 1.5, g.scene);
+  lamp.intensity = 2.0;
+  lamp.diffuse = new Color3(1, 0.9, 0.7);
+  lamp.range = 35;
+
+  g.shadowGenerator = new ShadowGenerator(1024, lamp);
   g.shadowGenerator.useBlurExponentialShadowMap = true;
 
   g.particleTex = new DynamicTexture("ptex", { width: 32, height: 32 }, g.scene, false);
@@ -87,7 +89,6 @@ export async function buildScene(): Promise<void> {
   g.particleTex.update();
 
   buildArena();
-  for (let i = 0; i < 8; i++) spawnEnemy();
   buildWeapon();
 }
 
@@ -121,53 +122,3 @@ function buildWeapon(): void {
   g.barrelTip = barrelTip;
 }
 
-// ─── Enemy spawning ───────────────────────────────────────────────────────────
-export function spawnEnemy(): void {
-  const angle = Math.random() * Math.PI * 2;
-  const dist = 8 + Math.random() * 10;
-
-  const physMesh = makeEnemyPhysCapsule();
-  physMesh.position = new Vector3(Math.cos(angle) * dist, 0.8, Math.sin(angle) * dist);
-
-  const aggregate = new PhysicsAggregate(
-    physMesh,
-    PhysicsShapeType.CAPSULE,
-    { mass: 10, friction: 0.7, restitution: 0 },
-    g.scene,
-  );
-  aggregate.body.setMassProperties({
-    mass: 10,
-    inertia: Vector3.Zero(),
-    inertiaOrientation: Quaternion.Identity(),
-  });
-
-  const { bodyMat, headMat } = makeEnemyMats();
-
-  const bodyMesh = makeEnemyBodyMesh();
-  bodyMesh.parent = physMesh;
-  bodyMesh.position = Vector3.Zero();
-  bodyMesh.material = bodyMat;
-
-  const head = makeEnemyHeadMesh();
-  head.parent = physMesh;
-  head.material = headMat;
-
-  g.shadowGenerator.addShadowCaster(bodyMesh);
-  g.shadowGenerator.addShadowCaster(head);
-
-  g.enemies.push({
-    physMesh,
-    bodyMesh,
-    headMesh: head,
-    aggregate,
-    hp: ENEMY_HP,
-    maxHp: ENEMY_HP,
-    speed: ENEMY_SPEED,
-    state: "patrol",
-    patrolTarget: physMesh.position.clone(),
-    attackCooldown: 0,
-    flashTime: 0,
-    flashMesh: null,
-    baseEmissive: bodyMat.diffuseColor.scale(0.2),
-  });
-}

@@ -1,6 +1,6 @@
 import { Vector3, MeshBuilder, StandardMaterial, Mesh, Color3 } from "@babylonjs/core";
-import { PLAYER_SPAWN_Y } from "./constants.js";
-import { PLAYER_MESH, ARENA, WEAPON, ENEMY_COLORS, ENEMY_MESH, LASER_BEAM, BULLET_HOLE } from "./meshDefs.js";
+import { PLAYER_SPAWN_Y, ARENA_CEIL } from "./constants.js";
+import { PLAYER_MESH, ARENA, WEAPON, ENEMY_COLOR, ENEMY_MESH, LASER_BEAM, BULLET_HOLE } from "./meshDefs.js";
 import { g } from "./game.js";
 
 // ─── Arena materials (private) ────────────────────────────────────────────────
@@ -252,7 +252,7 @@ export function makePlayerMesh(): Mesh {
 // ─── Enemy material & meshes (exported) ───────────────────────────────────────
 function makeEnemyMat(): StandardMaterial {
   const mat = new StandardMaterial("emat", g.scene);
-  mat.diffuseColor = ENEMY_COLORS[Math.floor(Math.random() * ENEMY_COLORS.length)];
+  mat.diffuseColor = ENEMY_COLOR.clone();
   mat.emissiveColor = mat.diffuseColor.scale(0.2);
   return mat;
 }
@@ -310,6 +310,32 @@ export function makeHeadSplitHalves(worldPos: Vector3, mat: StandardMaterial): [
   return [top, bottom];
 }
 
+// ─── Lamppost (exported) ─────────────────────────────────────────────────────
+export function setupLamppost(): { pole: Mesh; lightY: number } {
+  const lampY = ARENA_CEIL - 0.3;
+
+  const poleMat = new StandardMaterial("poleMat", g.scene);
+  poleMat.diffuseColor = new Color3(0.2, 0.2, 0.22);
+  poleMat.specularColor = new Color3(0.4, 0.4, 0.4);
+
+  const pole = MeshBuilder.CreateCylinder("pole", { diameter: 0.15, height: lampY }, g.scene);
+  pole.position.y = lampY / 2;
+  pole.material = poleMat;
+
+  const head = MeshBuilder.CreateCylinder("lampHead", { diameterTop: 0.1, diameterBottom: 0.8, height: 0.4, tessellation: 8 }, g.scene);
+  head.position.y = lampY - 0.2;
+  head.material = poleMat;
+
+  const bulbMat = new StandardMaterial("bulbMat", g.scene);
+  bulbMat.diffuseColor = new Color3(1, 0.9, 0.7);
+  bulbMat.emissiveColor = new Color3(1, 0.85, 0.5);
+  const bulb = MeshBuilder.CreateSphere("bulb", { diameter: 0.3 }, g.scene);
+  bulb.position.y = lampY - 0.4;
+  bulb.material = bulbMat;
+
+  return { pole, lightY: lampY - 0.3 };
+}
+
 // ─── Pickups (exported) ──────────────────────────────────────────────────────
 export function makeHealthPickupMesh(position: Vector3): Mesh {
   const mat = new StandardMaterial("pickupMat", g.scene);
@@ -325,9 +351,10 @@ export function makeHealthPickupMesh(position: Vector3): Mesh {
 
 export function makeAmmoPickupMesh(position: Vector3): Mesh {
   const mat = new StandardMaterial("pickupMat", g.scene);
-  mat.diffuseColor = new Color3(0.1, 0.7, 0.9);
-  mat.emissiveColor = new Color3(0.1, 0.4, 0.6);
-  const mesh = MeshBuilder.CreateBox("pickup", { size: 0.35 }, g.scene);
+  mat.diffuseColor = WEAPON.cell.diffuse.clone();
+  mat.emissiveColor = WEAPON.cell.emissive.clone();
+  const s = WEAPON.cell.size;
+  const mesh = MeshBuilder.CreateBox("pickup", { width: s.width * 4, height: s.height * 4, depth: s.depth * 4 }, g.scene);
   mesh.position = position.clone();
   mesh.position.y = Math.max(mesh.position.y, 0.3);
   mesh.material = mat;
