@@ -142,6 +142,7 @@ export const g = {
   glowingHoles:     [] as { mesh: Mesh; time: number }[],
   particleTex:      null as unknown as DynamicTexture,
   weaponRoot:       null as unknown as Mesh,
+  weaponBarrel:     null as unknown as Mesh,
   barrelTip:        null as unknown as Mesh,
   weaponCell:       null as unknown as Mesh,
   mouseHeld:        false,

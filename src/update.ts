@@ -51,6 +51,7 @@ import {
   PLAYER_MOVE_SPREAD_RATE,
   PLAYER_HEAT_PER_SHOT,
   PLAYER_HEAT_MAX,
+  PLAYER_HEAT_CRITICAL,
   PLAYER_HEAT_DECAY,
   PLAYER_HEAT_COOLDOWN_DELAY,
 } from "./constants.js";
@@ -101,13 +102,22 @@ function updateTimers(dt: number): void {
       }
     }
   }
-  // Heat bar display
+  // Heat bar display + barrel glow
+  const criticalHeat = PLAYER_HEAT_MAX * PLAYER_HEAT_CRITICAL;
+  const barrelMat = g.weaponBarrel.material as StandardMaterial;
   if (g.state.heat > 0) {
     dom.heatBar.classList.add("visible");
     dom.heatFill.style.width = `${(g.state.heat / PLAYER_HEAT_MAX) * 100}%`;
-    dom.heatFill.classList.toggle("critical", g.state.heat >= PLAYER_HEAT_MAX * 0.75);
+    dom.heatFill.classList.toggle("critical", g.state.heat >= criticalHeat);
+    if (g.state.heat >= criticalHeat) {
+      const t = (g.state.heat - criticalHeat) / (PLAYER_HEAT_MAX - criticalHeat);
+      barrelMat.emissiveColor = new Color3(t * 0.9, t * 0.15, 0);
+    } else {
+      barrelMat.emissiveColor = Color3.Black();
+    }
   } else {
     dom.heatBar.classList.remove("visible");
+    barrelMat.emissiveColor = Color3.Black();
   }
 
   for (const e of g.enemies) {
@@ -516,6 +526,7 @@ export function shoot(): void {
   g.state.heatCooldownTimer = PLAYER_HEAT_COOLDOWN_DELAY;
   if (g.state.heat >= PLAYER_HEAT_MAX) {
     g.state.overheated = true;
+    g.state.heatCooldownTimer = PLAYER_HEAT_COOLDOWN_DELAY * 2;
     dom.overheatMsg.classList.add("visible");
     playOverheatSound();
     spawnSmokeParticles();
@@ -583,7 +594,11 @@ export function shoot(): void {
 
 function hitEnemy(enemy: Enemy, hitMesh: Mesh, hitPoint?: Vector3): void {
   const headshot = hitMesh.name === "enemyHead";
-  enemy.hp -= Math.round(PLAYER_BEAM_DAMAGE * (0.8 + Math.random() * 0.4) * (headshot ? 2 : 1));
+  const critHeat = PLAYER_HEAT_MAX * PLAYER_HEAT_CRITICAL;
+  const heatPenalty = g.state.heat >= critHeat
+    ? 1 - 0.6 * ((g.state.heat - critHeat) / (PLAYER_HEAT_MAX - critHeat))
+    : 1;
+  enemy.hp -= Math.round(PLAYER_BEAM_DAMAGE * (0.8 + Math.random() * 0.4) * (headshot ? 2 : 1) * heatPenalty);
 
   (hitMesh.material as StandardMaterial).emissiveColor = new Color3(1, 0, 0);
   enemy.flashMesh = hitMesh;
@@ -795,6 +810,13 @@ function spawnLaserBeam(from: Vector3, to: Vector3): void {
   playBeamSound();
 
   const beam = makeBeam(from, to);
+  const critHeat = PLAYER_HEAT_MAX * PLAYER_HEAT_CRITICAL;
+  if (g.state.heat >= critHeat) {
+    const t = (g.state.heat - critHeat) / (PLAYER_HEAT_MAX - critHeat);
+    const mat = beam.material as StandardMaterial;
+    mat.alpha = 1 - t * 0.6;
+    mat.emissiveColor = Color3.Lerp(mat.emissiveColor, new Color3(0.2, 0.3, 0.3), t);
+  }
   setTimeout(() => beam.dispose(), PLAYER_SHOOT_COOLDOWN_MS * 0.6);
 }
 
@@ -1122,23 +1144,38 @@ function playOverheatSound(): void {
 }
 
 function spawnSmokeParticles(): void {
-  const ps = new ParticleSystem("smoke", 30, g.scene);
+  const emitPos = g.barrelTip.getAbsolutePosition().clone();
+  const ps = new ParticleSystem("smoke", 50, g.scene);
   ps.particleTexture = g.particleTex;
-  ps.emitter = g.barrelTip;
-  ps.minSize = 0.05;
-  ps.maxSize = 0.15;
-  ps.minLifeTime = 0.4;
-  ps.maxLifeTime = 1.0;
-  ps.emitRate = 40;
-  ps.direction1 = new Vector3(-0.3, 0.5, -0.3);
-  ps.direction2 = new Vector3(0.3, 1.0, 0.3);
-  ps.minEmitPower = 0.3;
-  ps.maxEmitPower = 0.8;
-  ps.color1 = new Color4(0.6, 0.6, 0.6, 0.6);
-  ps.color2 = new Color4(0.3, 0.3, 0.3, 0.3);
+  ps.emitter = emitPos;
+  ps.minEmitBox = new Vector3(-0.01, -0.01, -0.01);
+  ps.maxEmitBox = new Vector3(0.01, 0.01, 0.01);
+  ps.minSize = 0.02;
+  ps.maxSize = 0.08;
+  ps.minLifeTime = 0.5;
+  ps.maxLifeTime = 1.2;
+  ps.emitRate = 50;
+  ps.direction1 = new Vector3(-0.02, 0.3, -0.02);
+  ps.direction2 = new Vector3(0.02, 0.6, 0.02);
+  ps.minEmitPower = 0.2;
+  ps.maxEmitPower = 0.5;
+  ps.color1 = new Color4(0.6, 0.6, 0.6, 0.5);
+  ps.color2 = new Color4(0.35, 0.35, 0.35, 0.3);
   ps.colorDead = new Color4(0.1, 0.1, 0.1, 0);
-  ps.gravity = new Vector3(0, 0.5, 0);
+  ps.gravity = new Vector3(0, 0.4, 0);
   ps.blendMode = ParticleSystem.BLENDMODE_STANDARD;
+  ps.renderingGroupId = 1;
   ps.start();
-  setTimeout(() => { ps.stop(); setTimeout(() => ps.dispose(), 1500); }, 1500);
+  // Track barrel tip position while emitting
+  const obs = g.scene.onBeforeRenderObservable.add(() => {
+    const p = g.barrelTip.getAbsolutePosition();
+    emitPos.x = p.x; emitPos.y = p.y; emitPos.z = p.z;
+  });
+  setTimeout(() => {
+    ps.stop();
+    setTimeout(() => {
+      ps.dispose(false);
+      g.scene.onBeforeRenderObservable.remove(obs);
+    }, 1500);
+  }, 1500);
 }

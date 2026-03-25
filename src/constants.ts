@@ -13,7 +13,7 @@ export const ENEMY_ZIGZAG_FREQ = 1.8; // full zigzag cycles per second
 export const ENEMY_ZIGZAG_AMPLITUDE = 0.6; // lateral offset strength (0-1)
 
 // ─── Player ───────────────────────────────────────────────────────────────────
-export const PLAYER_MAX_HEALTH = 100;
+export const PLAYER_MAX_HEALTH = 1000;
 export const PLAYER_SPAWN_Y = 0.9;
 export const PLAYER_WALK_SPEED = 5; // m/s
 export const PLAYER_SPRINT_SPEED = 10; // m/s
@@ -27,6 +27,7 @@ export const PLAYER_SHOOT_COOLDOWN_MS = 65; // ms between continuous beam pulses
 export const PLAYER_BEAM_DAMAGE = 25;
 export const PLAYER_HEAT_PER_SHOT = 3; // heat added per shot
 export const PLAYER_HEAT_MAX = 100; // overheat threshold
+export const PLAYER_HEAT_CRITICAL = 0.75; // fraction of max heat for critical threshold
 export const PLAYER_HEAT_DECAY = 40; // heat lost per second while cooling
 export const PLAYER_HEAT_COOLDOWN_DELAY = 1000; // ms of not firing/reloading before heat decays
 export const PLAYER_SPREAD_PER_SHOT = 0.004; // radians of spread added per shot

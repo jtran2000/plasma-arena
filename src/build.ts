@@ -99,8 +99,9 @@ function buildArena(): void {
 // ─── Weapon model ─────────────────────────────────────────────────────────────
 function buildWeapon(): void {
   g.weaponRoot = setupWeaponRoot();
-  const { cell, barrelTip } = setupWeaponParts(g.weaponRoot);
+  const { cell, barrel, barrelTip } = setupWeaponParts(g.weaponRoot);
   g.weaponCell = cell;
+  g.weaponBarrel = barrel;
   g.barrelTip = barrelTip;
 }
 

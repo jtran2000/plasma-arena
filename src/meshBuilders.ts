@@ -219,7 +219,7 @@ export function setupWeaponRoot(): Mesh {
   return root;
 }
 
-export function setupWeaponParts(root: Mesh): { cell: Mesh; barrelTip: Mesh } {
+export function setupWeaponParts(root: Mesh): { cell: Mesh; barrel: Mesh; barrelTip: Mesh } {
   function wp(mesh: Mesh, mat: StandardMaterial, localPos: Vector3, localRotX = 0): Mesh {
     mesh.parent = root;
     mesh.position = localPos;
@@ -231,7 +231,7 @@ export function setupWeaponParts(root: Mesh): { cell: Mesh; barrelTip: Mesh } {
   }
 
   wp(makeWeaponBodyMesh(),   makeWeaponBodyMat(),   WEAPON.body.pos.clone());
-  wp(makeWeaponBarrelMesh(), makeWeaponBarrelMat(), WEAPON.barrel.pos.clone(), WEAPON.barrel.rotX);
+  const barrel = wp(makeWeaponBarrelMesh(), makeWeaponBarrelMat(), WEAPON.barrel.pos.clone(), WEAPON.barrel.rotX);
   const cell = wp(makeWeaponCellMesh(), makeWeaponCellMat(), WEAPON.cell.pos.clone());
   wp(makeWeaponGripMesh(),   makeWeaponGripMat(),   WEAPON.grip.pos.clone());
   wp(makeWeaponAccentMesh(), makeWeaponAccentMat(), WEAPON.accent.pos.clone());
@@ -243,7 +243,7 @@ export function setupWeaponParts(root: Mesh): { cell: Mesh; barrelTip: Mesh } {
   barrelTip.isVisible = false;
   barrelTip.isPickable = false;
 
-  return { cell, barrelTip };
+  return { cell, barrel, barrelTip };
 }
 
 // ─── Player mesh (exported) ───────────────────────────────────────────────────
