@@ -274,9 +274,10 @@ export function makeEnemyMats(): { bodyMat: StandardMaterial; headMat: StandardM
   return { bodyMat, headMat };
 }
 
-export function makeEnemyPhysCapsule(): { mesh: Mesh; aggregate: PhysicsAggregate } {
+export function makeEnemyPhysCapsule(position: Vector3): { mesh: Mesh; aggregate: PhysicsAggregate } {
   const mesh = MeshBuilder.CreateCapsule("enemyPhys", ENEMY_MESH.capsule, g.scene);
   mesh.isVisible = false;
+  mesh.position = position;
   const aggregate = new PhysicsAggregate(mesh, PhysicsShapeType.CAPSULE, { mass: 10, friction: 0.7, restitution: 0 }, g.scene);
   aggregate.body.setMassProperties({
     mass: 10,
@@ -291,7 +292,7 @@ export function makeEnemyBodyMesh(): Mesh {
 }
 
 export function makeEnemyHeadMesh(): Mesh {
-  const mesh = MeshBuilder.CreateSphere("enemyHead", ENEMY_MESH.head, g.scene);
+  const mesh = MeshBuilder.CreateCapsule("enemyHead", ENEMY_MESH.head, g.scene);
   mesh.position = ENEMY_MESH.headOffset.clone();
   return mesh;
 }
@@ -313,15 +314,15 @@ export function makeBodySplitHalves(worldPos: Vector3, mat: StandardMaterial): [
 }
 
 export function makeHeadSplitHalves(worldPos: Vector3, mat: StandardMaterial): [Mesh, Mesh] {
-  const d = ENEMY_MESH.head.diameter;
+  const { height, radius } = ENEMY_MESH.head;
+  const halfH = height / 2;
 
-  const top = MeshBuilder.CreateSphere("headHalf", { diameter: d, slice: 0.5 }, g.scene);
-  top.rotation.x = Math.PI;
-  top.position = worldPos.clone();
+  const top = MeshBuilder.CreateCapsule("headHalf", { height: halfH, radius, capSubdivisions: 6, subdivisions: 1, tessellation: 12 }, g.scene);
+  top.position = new Vector3(worldPos.x, worldPos.y + halfH / 4, worldPos.z);
   top.material = mat;
 
-  const bottom = MeshBuilder.CreateSphere("headHalf", { diameter: d, slice: 0.5 }, g.scene);
-  bottom.position = worldPos.clone();
+  const bottom = MeshBuilder.CreateCapsule("headHalf", { height: halfH, radius, capSubdivisions: 6, subdivisions: 1, tessellation: 12 }, g.scene);
+  bottom.position = new Vector3(worldPos.x, worldPos.y - halfH / 4, worldPos.z);
   bottom.material = mat;
 
   return [top, bottom];
@@ -404,7 +405,7 @@ export function makeRagdollBodyAggregate(mesh: Mesh): PhysicsAggregate {
 }
 
 export function makeRagdollHeadAggregate(mesh: Mesh): PhysicsAggregate {
-  return new PhysicsAggregate(mesh, PhysicsShapeType.SPHERE, { mass: 2, friction: 0.5, restitution: 0.3 }, g.scene);
+  return new PhysicsAggregate(mesh, PhysicsShapeType.CAPSULE, { mass: 2, friction: 0.5, restitution: 0.3 }, g.scene);
 }
 
 export function makeRagdollHalfAggregate(mesh: Mesh, mass: number): PhysicsAggregate {

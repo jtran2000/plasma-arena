@@ -69,8 +69,8 @@ export const WEAPON = {
   },
 
   barrel: {
-    size: { diameter: 0.024, height: 0.32, tessellation: 10 } as const,
-    pos: new Vector3(0, 0.016, 0.27),
+    size: { diameter: 0.024, height: 0.44, tessellation: 10 } as const,
+    pos: new Vector3(0, 0.016, 0.33),
     rotX: Math.PI / 2,
     diffuse: new Color3(0.18, 0.18, 0.24),
     specular: new Color3(0.9, 0.9, 1.0),
@@ -98,12 +98,12 @@ export const WEAPON = {
 
   lens: {
     size: { diameter: 0.034, segments: 6 } as const,
-    pos: new Vector3(0, 0.016, 0.435),
+    pos: new Vector3(0, 0.016, 0.555),
     diffuse: new Color3(0.0, 0.9, 1.0),
     emissive: new Color3(0.0, 0.8, 1.0),
   },
 
-  barrelTipPos: new Vector3(0, 0.016, 0.46),
+  barrelTipPos: new Vector3(0, 0.016, 0.58),
 };
 
 // ─── Enemy ────────────────────────────────────────────────────────────────────
@@ -112,7 +112,7 @@ export const ENEMY_COLOR = new Color3(0.45, 0.45, 0.45);
 export const ENEMY_MESH = {
   capsule: { height: 1.6, radius: 0.4 } as const,
   body: { width: 0.8, height: 1.6, depth: 0.8 } as const,
-  head: { diameter: 0.55 } as const,
+  head: { height: 0.55, radius: 0.22 } as const,
   headOffset: new Vector3(0, 1.05, 0),
 };
 

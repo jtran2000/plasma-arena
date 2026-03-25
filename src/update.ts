@@ -9,12 +9,19 @@ import {
   Ray,
 } from "@babylonjs/core";
 import {
+  PLAYER_MAX_HEALTH,
   ENEMY_HP,
+  ENEMY_HP_PER_WAVE,
   ENEMY_SPEED,
   ENEMY_MELEE_RANGE,
   ENEMY_MELEE_DAMAGE,
-  ENEMY_MELEE_COOLDOWN_MS,
+  ENEMY_MELEE_DAMAGE_PER_WAVE,
+  ENEMY_MELEE_ATTACKS_PER_MIN,
+  ENEMY_MELEE_ATTACKS_PER_MIN_PER_WAVE,
+  ENEMY_SPEED_PER_WAVE,
   ENEMY_CHASE_RANGE,
+  ENEMY_ZIGZAG_FREQ,
+  ENEMY_ZIGZAG_AMPLITUDE,
   PLAYER_BEAM_DAMAGE,
   KILL_SCORE,
   PICKUP_SCORE_INTERVAL,
@@ -38,6 +45,14 @@ import {
   ENEMY_MIN_SPAWN_DIST,
   WAVE_COMPLETE_SCORE,
   PLAYER_MAX_RESERVE_MAGS,
+  PLAYER_SPREAD_PER_SHOT,
+  PLAYER_MAX_SPREAD,
+  PLAYER_SPREAD_DECAY,
+  PLAYER_MOVE_SPREAD_RATE,
+  PLAYER_HEAT_PER_SHOT,
+  PLAYER_HEAT_MAX,
+  PLAYER_HEAT_DECAY,
+  PLAYER_HEAT_COOLDOWN_DELAY,
 } from "./constants.js";
 import { g, dom, type Enemy } from "./game.js";
 import { makeBeam, makeBulletHoleDisc, BULLET_HOLE_SURFACE_OFFSET, makeBodySplitHalves, makeHeadSplitHalves, makeHealthPickup, makeAmmoPickup, makeEnemyMats, makeEnemyPhysCapsule, makeEnemyBodyMesh, makeEnemyHeadMesh, makeRagdollBodyAggregate, makeRagdollHeadAggregate, makeRagdollHalfAggregate } from "./meshBuilders.js";
@@ -74,6 +89,27 @@ function updateTimers(dt: number): void {
     }
   }
 
+  // Heat decay
+  if (g.state.heat > 0) {
+    if (g.state.heatCooldownTimer > 0) {
+      g.state.heatCooldownTimer -= dt;
+    } else {
+      g.state.heat = Math.max(0, g.state.heat - PLAYER_HEAT_DECAY * dt / 1000);
+      if (g.state.overheated && g.state.heat <= PLAYER_HEAT_MAX / 2) {
+        g.state.overheated = false;
+        dom.overheatMsg.classList.remove("visible");
+      }
+    }
+  }
+  // Heat bar display
+  if (g.state.heat > 0) {
+    dom.heatBar.classList.add("visible");
+    dom.heatFill.style.width = `${(g.state.heat / PLAYER_HEAT_MAX) * 100}%`;
+    dom.heatFill.classList.toggle("critical", g.state.heat >= PLAYER_HEAT_MAX * 0.75);
+  } else {
+    dom.heatBar.classList.remove("visible");
+  }
+
   for (const e of g.enemies) {
     if (e.flashTime > 0) {
       e.flashTime -= dt;
@@ -93,7 +129,43 @@ function updateTimers(dt: number): void {
       shoot();
       g.state.shootCooldown = PLAYER_SHOOT_COOLDOWN_MS;
     }
+  } else if (g.currentSpread > 0) {
+    g.currentSpread = Math.max(0, g.currentSpread - PLAYER_SPREAD_DECAY * dt / 1000);
   }
+
+  // Movement spread: increase while moving, decay when stopped
+  const isMoving = g.pressedKeys.has("KeyW") || g.pressedKeys.has("KeyS") ||
+    g.pressedKeys.has("KeyA") || g.pressedKeys.has("KeyD");
+  if (isMoving) {
+    g.moveSpread = Math.min(PLAYER_MAX_SPREAD, g.moveSpread + PLAYER_MOVE_SPREAD_RATE * dt / 1000);
+  } else if (g.moveSpread > 0) {
+    g.moveSpread = Math.max(0, g.moveSpread - PLAYER_SPREAD_DECAY * dt / 1000);
+  }
+
+  // Update crosshair spread offset (map radians to screen pixels)
+  const totalSpread = Math.min(g.currentSpread + g.moveSpread, PLAYER_MAX_SPREAD);
+  const halfFov = g.camera.fov / 2;
+  const screenDist = g.engine.getRenderHeight() / (2 * Math.tan(halfFov));
+  const chOffset = Math.round(Math.tan(totalSpread) * screenDist);
+  dom.chTop.style.bottom = `${3 + chOffset}px`;
+  dom.chBottom.style.top = `${3 + chOffset}px`;
+  dom.chLeft.style.right = `${3 + chOffset}px`;
+  dom.chRight.style.left = `${3 + chOffset}px`;
+
+  // Crosshair color: red when over a living enemy
+  const centerRay = g.camera.getForwardRay(100);
+  const centerHit = g.scene.pickWithRay(centerRay, (m: AbstractMesh) =>
+    m.name !== "player" && m.name !== "enemyPhys" && m.name !== "laserBeam" &&
+    m.name !== "bhole" && m.name !== "pickup" && m.renderingGroupId !== 1,
+  );
+  const overEnemy = centerHit?.hit && centerHit.pickedMesh &&
+    (centerHit.pickedMesh.name === "enemyBody" || centerHit.pickedMesh.name === "enemyHead") &&
+    g.enemies.some(e => e.physMesh === centerHit.pickedMesh!.parent);
+  const chColor = overEnemy ? "rgba(255,60,60,0.9)" : "rgba(255,255,255,0.85)";
+  dom.chTop.style.background = chColor;
+  dom.chBottom.style.background = chColor;
+  dom.chLeft.style.background = chColor;
+  dom.chRight.style.background = chColor;
 
   for (let i = g.bulletHoles.length - 1; i >= 0; i--) {
     g.bulletHoleTimes[i] -= dt;
@@ -134,14 +206,15 @@ function updateTimers(dt: number): void {
     const dist = Vector3.Distance(g.playerMesh.position, p.mesh.position);
     if (dist < PICKUP_COLLECT_RANGE) {
       const maxReserve = PLAYER_MAX_RESERVE_MAGS * PLAYER_MAG_SIZE;
-      if (p.type === "health" && g.state.health >= 100) continue;
+      if (p.type === "health" && g.state.health >= PLAYER_MAX_HEALTH) continue;
       if (p.type === "ammo" && g.state.reserve >= maxReserve) continue;
       if (p.type === "health") {
-        g.state.health = Math.min(100, g.state.health + PICKUP_HEALTH_AMOUNT);
+        g.state.health = Math.min(PLAYER_MAX_HEALTH, g.state.health + PICKUP_HEALTH_AMOUNT);
       } else {
         g.state.reserve = Math.min(maxReserve, g.state.reserve + PLAYER_MAG_SIZE);
       }
       updateHUD();
+      if (p.type === "health") playHealthPickupSound(); else playAmmoPickupSound();
       p.aggregate.dispose();
       p.mesh.dispose();
       g.pickups.splice(i, 1);
@@ -290,15 +363,21 @@ function updateEnemies(): void {
       const dirXZ = new Vector3(toPlayer.x, 0, toPlayer.z);
       if (dirXZ.lengthSquared() > 0) dirXZ.normalize();
 
+      // Zigzag lateral offset
+      e.zigzagTimer += (g.engine.getDeltaTime() / 1000) * ENEMY_ZIGZAG_FREQ * Math.PI * 2;
+      const lateral = new Vector3(-dirXZ.z, 0, dirXZ.x);
+      const zigzag = Math.sin(e.zigzagTimer) * ENEMY_ZIGZAG_AMPLITUDE;
+      const moveDir = dirXZ.add(lateral.scale(zigzag)).normalize();
+
       e.aggregate.body.setLinearVelocity(
-        new Vector3(dirXZ.x * e.speed, currentVel.y, dirXZ.z * e.speed),
+        new Vector3(moveDir.x * e.speed, currentVel.y, moveDir.z * e.speed),
       );
 
       if (dist < ENEMY_MELEE_RANGE) {
         e.attackCooldown -= g.engine.getDeltaTime();
         if (e.attackCooldown <= 0) {
-          damagePlayer(ENEMY_MELEE_DAMAGE);
-          e.attackCooldown = ENEMY_MELEE_COOLDOWN_MS;
+          damagePlayer(e.meleeDamage);
+          e.attackCooldown = e.meleeIntervalMs;
         }
       }
     } else {
@@ -333,8 +412,7 @@ function spawnEnemy(): void {
     (x - playerPos.x) ** 2 + (z - playerPos.z) ** 2 < ENEMY_MIN_SPAWN_DIST ** 2
   );
 
-  const { mesh: physMesh, aggregate } = makeEnemyPhysCapsule();
-  physMesh.position = new Vector3(x, ARENA_CEIL - 0.5, z);
+  const { mesh: physMesh, aggregate } = makeEnemyPhysCapsule(new Vector3(x, ARENA_CEIL - 0.5, z));
 
   const { bodyMat, headMat } = makeEnemyMats();
 
@@ -355,16 +433,20 @@ function spawnEnemy(): void {
     bodyMesh,
     headMesh: head,
     aggregate,
-    hp: ENEMY_HP,
-    maxHp: ENEMY_HP,
-    speed: ENEMY_SPEED,
+    hp: ENEMY_HP + ENEMY_HP_PER_WAVE * (g.state.wave - 1),
+    maxHp: ENEMY_HP + ENEMY_HP_PER_WAVE * (g.state.wave - 1),
+    speed: ENEMY_SPEED + ENEMY_SPEED_PER_WAVE * (g.state.wave - 1),
     state: "patrol",
     patrolTarget: physMesh.position.clone(),
     attackCooldown: 0,
+    meleeDamage: ENEMY_MELEE_DAMAGE + ENEMY_MELEE_DAMAGE_PER_WAVE * (g.state.wave - 1),
+    meleeIntervalMs: 60000 / (ENEMY_MELEE_ATTACKS_PER_MIN + ENEMY_MELEE_ATTACKS_PER_MIN_PER_WAVE * (g.state.wave - 1)),
+    zigzagTimer: Math.random() * Math.PI * 2,
     flashTime: 0,
     flashMesh: null,
     baseEmissive: bodyMat.diffuseColor.scale(0.2),
   });
+  playEnemySpawnSound();
 }
 
 // ─── Waves ───────────────────────────────────────────────────────────────────
@@ -423,16 +505,36 @@ export function showWaveBanner(text: string): void {
 
 // ─── Shooting ─────────────────────────────────────────────────────────────────
 export function shoot(): void {
-  if (!g.state.running || g.state.reloading || g.isSprinting) return;
+  if (!g.state.running || g.state.reloading || g.isSprinting || g.state.overheated) return;
   if (g.state.ammo <= 0) {
     startReload();
     return;
   }
 
   g.state.ammo--;
+  g.state.heat = Math.min(g.state.heat + PLAYER_HEAT_PER_SHOT, PLAYER_HEAT_MAX);
+  g.state.heatCooldownTimer = PLAYER_HEAT_COOLDOWN_DELAY;
+  if (g.state.heat >= PLAYER_HEAT_MAX) {
+    g.state.overheated = true;
+    dom.overheatMsg.classList.add("visible");
+    playOverheatSound();
+    spawnSmokeParticles();
+  }
   updateHUD();
 
   const ray = g.camera.getForwardRay(100);
+  const shotSpread = Math.min(g.currentSpread + g.moveSpread, PLAYER_MAX_SPREAD);
+  if (shotSpread > 0) {
+    const angle = Math.random() * Math.PI * 2;
+    const magnitude = Math.random() * shotSpread;
+    const up = g.camera.upVector;
+    const right = Vector3.Cross(ray.direction, up).normalize();
+    const trueUp = Vector3.Cross(right, ray.direction).normalize();
+    ray.direction.addInPlace(right.scale(Math.cos(angle) * magnitude));
+    ray.direction.addInPlace(trueUp.scale(Math.sin(angle) * magnitude));
+    ray.direction.normalize();
+  }
+  g.currentSpread = Math.min(g.currentSpread + PLAYER_SPREAD_PER_SHOT, PLAYER_MAX_SPREAD);
   const hit = g.scene.pickWithRay(
     ray,
     (m: AbstractMesh) =>
@@ -618,7 +720,7 @@ function spawnPickup(position: Vector3, forceType?: "health" | "ammo"): void {
 }
 
 export function startReload(): void {
-  if (g.state.reloading || g.state.reserve <= 0 || g.state.ammo >= PLAYER_MAG_SIZE || g.isSprinting)
+  if (g.state.reloading || g.state.reserve <= 0 || g.state.ammo >= PLAYER_MAG_SIZE || g.isSprinting || g.state.overheated)
     return;
   g.state.reloading = true;
   g.state.reloadTimeLeft = PLAYER_RELOAD_TIME;
@@ -680,6 +782,7 @@ export function endGame(): void {
   g.pressedKeys.clear();
   dom.hud.style.display = "none";
   dom.gameOver.style.display = "flex";
+  dom.finalWaveEl.textContent = `Wave: ${g.state.wave}`;
   dom.finalScoreEl.textContent = `Score: ${g.state.score}  |  Kills: ${g.state.kills}`;
   document.exitPointerLock();
 }
@@ -888,4 +991,154 @@ function playBeamSound(): void {
   gain.connect(ctx.destination);
   osc.start(now);
   osc.stop(now + duration + 0.01);
+}
+
+function playEnemySpawnSound(): void {
+  if (!g.beamAudioCtx) g.beamAudioCtx = new AudioContext();
+  if (g.beamAudioCtx.state === "suspended") g.beamAudioCtx.resume();
+  const ctx = g.beamAudioCtx;
+  const now = ctx.currentTime;
+
+  // Whoosh — filtered noise sweep
+  const bufSize = Math.floor(ctx.sampleRate * 0.3);
+  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+  const noise = ctx.createBufferSource();
+  noise.buffer = buf;
+  const filter = ctx.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.setValueAtTime(800, now);
+  filter.frequency.exponentialRampToValueAtTime(200, now + 0.3);
+  filter.Q.value = 2;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.15, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+  noise.connect(filter);
+  filter.connect(gain);
+  gain.connect(ctx.destination);
+  noise.start(now);
+}
+
+function playHealthPickupSound(): void {
+  if (!g.beamAudioCtx) g.beamAudioCtx = new AudioContext();
+  if (g.beamAudioCtx.state === "suspended") g.beamAudioCtx.resume();
+  const ctx = g.beamAudioCtx;
+  const now = ctx.currentTime;
+
+  // Bright ascending two-tone chime
+  const osc1 = ctx.createOscillator();
+  osc1.type = "sine";
+  osc1.frequency.setValueAtTime(520, now);
+  const g1 = ctx.createGain();
+  g1.gain.setValueAtTime(0.2, now);
+  g1.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+  osc1.connect(g1);
+  g1.connect(ctx.destination);
+  osc1.start(now);
+  osc1.stop(now + 0.16);
+
+  const osc2 = ctx.createOscillator();
+  osc2.type = "sine";
+  osc2.frequency.setValueAtTime(780, now + 0.08);
+  const g2 = ctx.createGain();
+  g2.gain.setValueAtTime(0.001, now);
+  g2.gain.setValueAtTime(0.2, now + 0.08);
+  g2.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+  osc2.connect(g2);
+  g2.connect(ctx.destination);
+  osc2.start(now + 0.08);
+  osc2.stop(now + 0.26);
+}
+
+function playAmmoPickupSound(): void {
+  if (!g.beamAudioCtx) g.beamAudioCtx = new AudioContext();
+  if (g.beamAudioCtx.state === "suspended") g.beamAudioCtx.resume();
+  const ctx = g.beamAudioCtx;
+  const now = ctx.currentTime;
+
+  // Metallic click-clack
+  const osc = ctx.createOscillator();
+  osc.type = "square";
+  osc.frequency.setValueAtTime(300, now);
+  osc.frequency.exponentialRampToValueAtTime(150, now + 0.06);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.15, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.09);
+
+  const osc2 = ctx.createOscillator();
+  osc2.type = "triangle";
+  osc2.frequency.setValueAtTime(450, now + 0.06);
+  const g2 = ctx.createGain();
+  g2.gain.setValueAtTime(0.001, now);
+  g2.gain.setValueAtTime(0.12, now + 0.06);
+  g2.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+  osc2.connect(g2);
+  g2.connect(ctx.destination);
+  osc2.start(now + 0.06);
+  osc2.stop(now + 0.16);
+}
+
+function playOverheatSound(): void {
+  if (!g.beamAudioCtx) g.beamAudioCtx = new AudioContext();
+  if (g.beamAudioCtx.state === "suspended") g.beamAudioCtx.resume();
+  const ctx = g.beamAudioCtx;
+  const now = ctx.currentTime;
+
+  // Hissing steam burst
+  const bufSize = Math.floor(ctx.sampleRate * 0.5);
+  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+  const noise = ctx.createBufferSource();
+  noise.buffer = buf;
+  const filter = ctx.createBiquadFilter();
+  filter.type = "highpass";
+  filter.frequency.setValueAtTime(3000, now);
+  filter.frequency.exponentialRampToValueAtTime(1000, now + 0.5);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.3, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+  noise.connect(filter);
+  filter.connect(gain);
+  gain.connect(ctx.destination);
+  noise.start(now);
+
+  // Low warning tone
+  const osc = ctx.createOscillator();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(120, now);
+  const oscGain = ctx.createGain();
+  oscGain.gain.setValueAtTime(0.15, now);
+  oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+  osc.connect(oscGain);
+  oscGain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.31);
+}
+
+function spawnSmokeParticles(): void {
+  const ps = new ParticleSystem("smoke", 30, g.scene);
+  ps.particleTexture = g.particleTex;
+  ps.emitter = g.barrelTip;
+  ps.minSize = 0.05;
+  ps.maxSize = 0.15;
+  ps.minLifeTime = 0.4;
+  ps.maxLifeTime = 1.0;
+  ps.emitRate = 40;
+  ps.direction1 = new Vector3(-0.3, 0.5, -0.3);
+  ps.direction2 = new Vector3(0.3, 1.0, 0.3);
+  ps.minEmitPower = 0.3;
+  ps.maxEmitPower = 0.8;
+  ps.color1 = new Color4(0.6, 0.6, 0.6, 0.6);
+  ps.color2 = new Color4(0.3, 0.3, 0.3, 0.3);
+  ps.colorDead = new Color4(0.1, 0.1, 0.1, 0);
+  ps.gravity = new Vector3(0, 0.5, 0);
+  ps.blendMode = ParticleSystem.BLENDMODE_STANDARD;
+  ps.start();
+  setTimeout(() => { ps.stop(); setTimeout(() => ps.dispose(), 1500); }, 1500);
 }

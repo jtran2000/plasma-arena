@@ -9,7 +9,7 @@ import {
   DynamicTexture,
   Color3,
 } from "@babylonjs/core";
-import { PLAYER_MAG_SIZE, PLAYER_RESERVE_MAGS, PICKUP_SCORE_INTERVAL, WAVE_BASE_ENEMIES } from "./constants.js";
+import { PLAYER_MAX_HEALTH, PLAYER_MAG_SIZE, PLAYER_RESERVE_MAGS, PICKUP_SCORE_INTERVAL, WAVE_BASE_ENEMIES } from "./constants.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface GameState {
@@ -23,6 +23,9 @@ export interface GameState {
   autoReloadDelay: number;
   hitFlashTime: number;
   shootCooldown: number;
+  heat: number;
+  heatCooldownTimer: number;
+  overheated: boolean;
   running: boolean;
   paused: boolean;
   nextPickupThreshold: number;
@@ -50,6 +53,9 @@ export interface Enemy {
   state: "patrol" | "chase";
   patrolTarget: Vector3;
   attackCooldown: number;
+  meleeDamage: number;
+  meleeIntervalMs: number;
+  zigzagTimer: number;
   flashTime: number;
   flashMesh: Mesh | null;
   baseEmissive: Color3;
@@ -57,7 +63,7 @@ export interface Enemy {
 
 export function makeState(): GameState {
   return {
-    health: 100,
+    health: PLAYER_MAX_HEALTH,
     ammo: PLAYER_MAG_SIZE,
     reserve: PLAYER_MAG_SIZE * PLAYER_RESERVE_MAGS,
     score: 0,
@@ -67,6 +73,9 @@ export function makeState(): GameState {
     autoReloadDelay: 0,
     hitFlashTime: 0,
     shootCooldown: 0,
+    heat: 0,
+    heatCooldownTimer: 0,
+    overheated: false,
     running: false,
     paused: false,
     nextPickupThreshold: PICKUP_SCORE_INTERVAL,
@@ -96,15 +105,23 @@ export const dom = {
   ammoEl:       getEl("ammo-value"),
   scoreEl:      getEl("score-value"),
   killsEl:      getEl("kills-value"),
+  finalWaveEl:  getEl("final-wave"),
   finalScoreEl: getEl("final-score"),
   hitFlash:     getEl("hit-flash"),
   reloadMsg:    getEl("reload-msg"),
   pauseScreen:  getEl("pause-screen"),
   crosshair:    getEl("crosshair"),
+  chTop:        document.querySelector(".ch-top") as HTMLElement,
+  chBottom:     document.querySelector(".ch-bottom") as HTMLElement,
+  chLeft:       document.querySelector(".ch-left") as HTMLElement,
+  chRight:      document.querySelector(".ch-right") as HTMLElement,
   waveDisplay:  getEl("wave-display"),
   waveValue:    getEl("wave-value"),
   waveRemaining: getEl("wave-remaining"),
   waveBanner:   getEl("wave-banner"),
+  heatBar:      getEl("heat-bar"),
+  heatFill:     getEl("heat-fill"),
+  overheatMsg:  getEl("overheat-msg"),
 };
 
 // ─── Shared mutable game context ──────────────────────────────────────────────
@@ -128,6 +145,8 @@ export const g = {
   barrelTip:        null as unknown as Mesh,
   weaponCell:       null as unknown as Mesh,
   mouseHeld:        false,
+  currentSpread:    0,
+  moveSpread:       0,
   isSprinting:      false,
   beamAudioCtx:     null as AudioContext | null,
   sprintBobTime:    0,

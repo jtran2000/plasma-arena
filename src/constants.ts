@@ -1,13 +1,19 @@
 // ─── Enemy ────────────────────────────────────────────────────────────────────
 export const ENEMY_HP = 100;
+export const ENEMY_HP_PER_WAVE = 15; // extra HP per wave after wave 1
 export const ENEMY_SPEED = 3; // m/s
-
+export const ENEMY_SPEED_PER_WAVE = 0.2; // extra m/s per wave after wave 1
 export const ENEMY_MELEE_RANGE = 1.8;
 export const ENEMY_MELEE_DAMAGE = 10;
-export const ENEMY_MELEE_COOLDOWN_MS = 1200;
+export const ENEMY_MELEE_DAMAGE_PER_WAVE = 2; // extra damage per wave after wave 1
+export const ENEMY_MELEE_ATTACKS_PER_MIN = 50; // base attacks per minute
+export const ENEMY_MELEE_ATTACKS_PER_MIN_PER_WAVE = 3; // extra attacks/min per wave after wave 1
 export const ENEMY_CHASE_RANGE = 20;
+export const ENEMY_ZIGZAG_FREQ = 1.8; // full zigzag cycles per second
+export const ENEMY_ZIGZAG_AMPLITUDE = 0.6; // lateral offset strength (0-1)
 
 // ─── Player ───────────────────────────────────────────────────────────────────
+export const PLAYER_MAX_HEALTH = 100;
 export const PLAYER_SPAWN_Y = 0.9;
 export const PLAYER_WALK_SPEED = 5; // m/s
 export const PLAYER_SPRINT_SPEED = 10; // m/s
@@ -19,6 +25,14 @@ export const PLAYER_MAX_RESERVE_MAGS = 5;
 export const PLAYER_RELOAD_TIME = 1800; // ms
 export const PLAYER_SHOOT_COOLDOWN_MS = 65; // ms between continuous beam pulses (~15/sec)
 export const PLAYER_BEAM_DAMAGE = 25;
+export const PLAYER_HEAT_PER_SHOT = 3; // heat added per shot
+export const PLAYER_HEAT_MAX = 100; // overheat threshold
+export const PLAYER_HEAT_DECAY = 40; // heat lost per second while cooling
+export const PLAYER_HEAT_COOLDOWN_DELAY = 1000; // ms of not firing/reloading before heat decays
+export const PLAYER_SPREAD_PER_SHOT = 0.004; // radians of spread added per shot
+export const PLAYER_MAX_SPREAD = 0.06; // radians max spread
+export const PLAYER_SPREAD_DECAY = 0.12; // radians per second of spread recovery
+export const PLAYER_MOVE_SPREAD_RATE = 0.08; // radians per second while moving
 export const KILL_SCORE = 100;
 export const PICKUP_SCORE_INTERVAL = 500;
 export const PICKUP_DROP_CHANCE = 0.5;

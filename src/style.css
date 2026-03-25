@@ -44,15 +44,50 @@ canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
   position: absolute;
   top: 50%; left: 50%;
   transform: translate(-50%, -50%);
-  width: 20px; height: 20px;
+  width: 0; height: 0;
 }
-#crosshair::before, #crosshair::after {
-  content: '';
+.ch-line {
   position: absolute;
   background: rgba(255,255,255,0.85);
 }
-#crosshair::before { width: 2px; height: 100%; left: 50%; transform: translateX(-50%); }
-#crosshair::after  { width: 100%; height: 2px; top: 50%; transform: translateY(-50%); }
+.ch-top    { width: 2px; height: 8px; left: -1px; }
+.ch-bottom { width: 2px; height: 8px; left: -1px; }
+.ch-left   { width: 8px; height: 2px; top: -1px; }
+.ch-right  { width: 8px; height: 2px; top: -1px; }
+
+#heat-bar {
+  display: none;
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 6px;
+  background: rgba(0,0,0,0.5);
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 3px;
+  overflow: hidden;
+}
+#heat-bar.visible { display: block; }
+#heat-fill {
+  height: 100%;
+  width: 0%;
+  background: #f80;
+  transition: background 0.2s;
+}
+#heat-fill.critical { background: #f22; }
+#overheat-msg {
+  display: none;
+  position: absolute;
+  bottom: 92px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #f22;
+  font-size: 14px;
+  font-weight: bold;
+  text-shadow: 0 0 6px #f00;
+}
+#overheat-msg.visible { display: block; }
 
 #bottom-hud {
   position: absolute;

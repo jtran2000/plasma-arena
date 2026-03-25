@@ -16,7 +16,12 @@
   </div>
 
   <div id="hud">
-    <div id="crosshair"></div>
+    <div id="crosshair">
+      <span class="ch-line ch-top"></span>
+      <span class="ch-line ch-bottom"></span>
+      <span class="ch-line ch-left"></span>
+      <span class="ch-line ch-right"></span>
+    </div>
     <div id="hit-flash"></div>
     <div id="reload-msg">RELOADING...</div>
     <div id="bottom-hud">
@@ -44,6 +49,8 @@
       <span class="hud-value" id="wave-remaining" style="color:#f80">5</span>
     </div>
     <div id="wave-banner"></div>
+    <div id="heat-bar"><div id="heat-fill"></div></div>
+    <div id="overheat-msg">OVERHEATED</div>
   </div>
 
   <div id="pause-screen">
@@ -53,6 +60,7 @@
 
   <div id="game-over">
     <h1>Game Over</h1>
+    <p id="final-wave">Wave: 1</p>
     <p id="final-score">Score: 0</p>
     <button id="restart-btn">Restart</button>
   </div>
