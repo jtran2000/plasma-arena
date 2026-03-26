@@ -183,7 +183,7 @@ function effectiveReloadTime(): number {
 function effectiveMagSize(): number {
   return PLAYER_MAG_SIZE + g.upgrades.magSize * UPGRADE_MAG_SIZE;
 }
-export function effectiveRateOfFire(): number {
+function effectiveRateOfFire(): number {
   return PLAYER_RATE_OF_FIRE + g.upgrades.rateOfFire * UPGRADE_RATE_OF_FIRE;
 }
 function effectiveHeatMax(): number {
@@ -321,7 +321,6 @@ function updateTimers(dt: number): void {
     g.state.shootCooldown -= dt;
     if (g.state.shootCooldown <= 0) {
       shoot();
-      g.state.shootCooldown = 60000 / effectiveRateOfFire();
     }
   } else if (g.shootSpread > 0) {
     g.shootSpread = Math.max(
@@ -772,6 +771,7 @@ export function shoot(): void {
   }
 
   g.state.ammo--;
+  g.state.shootCooldown = 60000 / effectiveRateOfFire();
   g.state.heat = Math.min(
     g.state.heat + PLAYER_HEAT_PER_SHOT,
     effectiveHeatMax(),

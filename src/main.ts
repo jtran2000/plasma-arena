@@ -11,7 +11,6 @@ import {
   resume,
   showWaveBanner,
   selectUpgrade,
-  effectiveRateOfFire,
 } from "./update.js";
 
 // ─── Key tracking ─────────────────────────────────────────────────────────────
@@ -25,7 +24,6 @@ function setupInput(): void {
     if (info.type === PointerEventTypes.POINTERDOWN) {
       g.mouseHeld = true;
       shoot();
-      g.state.shootCooldown = 60000 / effectiveRateOfFire();
     } else if (info.type === PointerEventTypes.POINTERUP) {
       g.mouseHeld = false;
     }
