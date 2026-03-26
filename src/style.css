@@ -101,7 +101,32 @@ canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
 .hud-block { display: flex; flex-direction: column; gap: 2px; }
 .hud-label { font-size: 0.65rem; color: #aaa; letter-spacing: 0.15em; text-transform: uppercase; }
 .hud-value { font-size: 1.6rem; font-weight: bold; letter-spacing: 0.05em; }
-#health-value { color: #4f4; }
+#health-bar {
+  position: relative;
+  width: 120px;
+  height: 24px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.3);
+  transition: width 0.3s;
+}
+#health-fill {
+  height: 100%;
+  width: 100%;
+  background: #4f4;
+  transition: width 0.15s, background 0.3s;
+}
+#health-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: bold;
+  color: #fff;
+  text-shadow: 0 0 3px #000, 0 0 3px #000;
+  pointer-events: none;
+}
 #ammo-value   { color: #fa0; }
 #score-value  { color: #4af; }
 

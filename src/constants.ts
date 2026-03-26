@@ -3,7 +3,7 @@ export const ARENA_SIZE = 30; // square arena side length (m)
 export const ARENA_CEIL = 5; // ceiling height (m)
 
 // ─── Enemy — Base Stats ─────────────────────────────────────────────────────
-export const ENEMY_HP = 100;
+export const ENEMY_HP = 50;
 export const ENEMY_SPEED = 3; // m/s
 export const ENEMY_MELEE_RANGE = 1.8; // m
 export const ENEMY_MELEE_DAMAGE = 10;
@@ -71,9 +71,10 @@ export const MAX_ENEMIES_ALIVE = 10;
 export const UPGRADE_MAX_HEALTH = 25;
 export const UPGRADE_SPEED = 0.5; // m/s
 export const UPGRADE_RELOAD_SPEED = 0.15; // 15% faster per upgrade (exponential decay)
-export const UPGRADE_MAG_SIZE = 10; // rounds
-export const UPGRADE_RATE_OF_FIRE = 60; // RPM
-export const UPGRADE_HEAT_CAPACITY = 15;
+export const UPGRADE_MAG_SIZE = 25; // rounds
+export const UPGRADE_RATE_OF_FIRE = 150; // RPM
+export const UPGRADE_HEAT_CAPACITY = 25;
 export const UPGRADE_HEAT_DECAY = 10; // heat/s
-export const UPGRADE_SPREAD_REDUCTION = 0.15; // 15% less spread per shot
+export const UPGRADE_BLOOM_REDUCTION = 0.25; // 25% less bloom per shot per upgrade
+export const UPGRADE_MOVE_SPREAD_REDUCTION = 0.25; // 25% less spread from movement per upgrade
 export const UPGRADE_DAMAGE = 5;

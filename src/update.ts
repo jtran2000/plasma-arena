@@ -61,7 +61,8 @@ import {
   UPGRADE_RATE_OF_FIRE,
   UPGRADE_HEAT_CAPACITY,
   UPGRADE_HEAT_DECAY,
-  UPGRADE_SPREAD_REDUCTION,
+  UPGRADE_BLOOM_REDUCTION,
+  UPGRADE_MOVE_SPREAD_REDUCTION,
   UPGRADE_DAMAGE,
 } from "./constants.js";
 import { g, dom, type Enemy } from "./game.js";
@@ -90,26 +91,122 @@ interface UpgradeDef {
 }
 
 const UPGRADE_DEFS: UpgradeDef[] = [
-  { key: "maxHealth", label: `+${UPGRADE_MAX_HEALTH} Max Health`, apply: () => { g.upgrades.maxHealth++; g.state.health = Math.min(g.state.health + UPGRADE_MAX_HEALTH, effectiveMaxHealth()); updateHUD(); } },
-  { key: "speed", label: `+${UPGRADE_SPEED} Speed`, apply: () => { g.upgrades.speed++; } },
-  { key: "reloadTime", label: `+${Math.round(UPGRADE_RELOAD_SPEED * 100)}% Reload Speed`, apply: () => { g.upgrades.reloadTime++; } },
-  { key: "magSize", label: `+${UPGRADE_MAG_SIZE} Mag Size`, apply: () => { g.upgrades.magSize++; } },
-  { key: "rateOfFire", label: `+${UPGRADE_RATE_OF_FIRE} RPM`, apply: () => { g.upgrades.rateOfFire++; } },
-  { key: "heatCapacity", label: `+${UPGRADE_HEAT_CAPACITY} Heat Cap`, apply: () => { g.upgrades.heatCapacity++; } },
-  { key: "heatDecay", label: `+${UPGRADE_HEAT_DECAY} Cooling`, apply: () => { g.upgrades.heatDecay++; } },
-  { key: "spreadPerShot", label: `-${Math.round(UPGRADE_SPREAD_REDUCTION * 100)}% Spread`, apply: () => { g.upgrades.spreadPerShot++; } },
-  { key: "damage", label: `+${UPGRADE_DAMAGE} Damage`, apply: () => { g.upgrades.damage++; } },
+  {
+    key: "maxHealth",
+    label: `+${UPGRADE_MAX_HEALTH} Max Health`,
+    apply: () => {
+      g.upgrades.maxHealth++;
+      g.state.health = Math.min(
+        g.state.health + UPGRADE_MAX_HEALTH,
+        effectiveMaxHealth(),
+      );
+      updateHUD();
+    },
+  },
+  {
+    key: "speed",
+    label: `+${UPGRADE_SPEED} Speed`,
+    apply: () => {
+      g.upgrades.speed++;
+    },
+  },
+  {
+    key: "reloadTime",
+    label: `+${Math.round(UPGRADE_RELOAD_SPEED * 100)}% Reload Speed`,
+    apply: () => {
+      g.upgrades.reloadTime++;
+    },
+  },
+  {
+    key: "magSize",
+    label: `+${UPGRADE_MAG_SIZE} Mag Size`,
+    apply: () => {
+      g.upgrades.magSize++;
+    },
+  },
+  {
+    key: "rateOfFire",
+    label: `+${UPGRADE_RATE_OF_FIRE} RPM`,
+    apply: () => {
+      g.upgrades.rateOfFire++;
+    },
+  },
+  {
+    key: "heatCapacity",
+    label: `+${UPGRADE_HEAT_CAPACITY} Heat Cap`,
+    apply: () => {
+      g.upgrades.heatCapacity++;
+    },
+  },
+  {
+    key: "heatDecay",
+    label: `+${UPGRADE_HEAT_DECAY} Cooling`,
+    apply: () => {
+      g.upgrades.heatDecay++;
+    },
+  },
+  {
+    key: "bloom",
+    label: `-${Math.round(UPGRADE_BLOOM_REDUCTION * 100)}% Bloom`,
+    apply: () => {
+      g.upgrades.bloom++;
+    },
+  },
+  {
+    key: "moveSpread",
+    label: `+${Math.round(UPGRADE_MOVE_SPREAD_REDUCTION * 100)}% Accuracy While Moving`,
+    apply: () => {
+      g.upgrades.moveSpread++;
+    },
+  },
+  {
+    key: "damage",
+    label: `+${UPGRADE_DAMAGE} Damage`,
+    apply: () => {
+      g.upgrades.damage++;
+    },
+  },
 ];
 
-function effectiveMaxHealth(): number { return PLAYER_MAX_HEALTH + g.upgrades.maxHealth * UPGRADE_MAX_HEALTH; }
-function effectiveSpeed(): number { return PLAYER_SPEED + g.upgrades.speed * UPGRADE_SPEED; }
-function effectiveReloadTime(): number { return PLAYER_RELOAD_TIME * Math.pow(1 - UPGRADE_RELOAD_SPEED, g.upgrades.reloadTime); }
-function effectiveMagSize(): number { return PLAYER_MAG_SIZE + g.upgrades.magSize * UPGRADE_MAG_SIZE; }
-export function effectiveRateOfFire(): number { return PLAYER_RATE_OF_FIRE + g.upgrades.rateOfFire * UPGRADE_RATE_OF_FIRE; }
-function effectiveHeatMax(): number { return PLAYER_HEAT_MAX + g.upgrades.heatCapacity * UPGRADE_HEAT_CAPACITY; }
-function effectiveHeatDecay(): number { return PLAYER_HEAT_DECAY + g.upgrades.heatDecay * UPGRADE_HEAT_DECAY; }
-function effectiveSpreadPerShot(): number { return PLAYER_SPREAD_PER_SHOT * Math.max(0.1, 1 - g.upgrades.spreadPerShot * UPGRADE_SPREAD_REDUCTION); }
-function effectiveDamage(): number { return PLAYER_BEAM_DAMAGE + g.upgrades.damage * UPGRADE_DAMAGE; }
+function effectiveMaxHealth(): number {
+  return PLAYER_MAX_HEALTH + g.upgrades.maxHealth * UPGRADE_MAX_HEALTH;
+}
+function effectiveSpeed(): number {
+  return PLAYER_SPEED + g.upgrades.speed * UPGRADE_SPEED;
+}
+function effectiveReloadTime(): number {
+  return (
+    PLAYER_RELOAD_TIME *
+    Math.pow(1 - UPGRADE_RELOAD_SPEED, g.upgrades.reloadTime)
+  );
+}
+function effectiveMagSize(): number {
+  return PLAYER_MAG_SIZE + g.upgrades.magSize * UPGRADE_MAG_SIZE;
+}
+export function effectiveRateOfFire(): number {
+  return PLAYER_RATE_OF_FIRE + g.upgrades.rateOfFire * UPGRADE_RATE_OF_FIRE;
+}
+function effectiveHeatMax(): number {
+  return PLAYER_HEAT_MAX + g.upgrades.heatCapacity * UPGRADE_HEAT_CAPACITY;
+}
+function effectiveHeatDecay(): number {
+  return PLAYER_HEAT_DECAY + g.upgrades.heatDecay * UPGRADE_HEAT_DECAY;
+}
+function effectiveBloom(): number {
+  return (
+    PLAYER_SPREAD_PER_SHOT *
+    Math.max(0.1, 1 - g.upgrades.bloom * UPGRADE_BLOOM_REDUCTION)
+  );
+}
+function effectiveMoveSpreadRate(): number {
+  return (
+    PLAYER_MOVE_SPREAD_RATE *
+    Math.max(0.1, 1 - g.upgrades.moveSpread * UPGRADE_MOVE_SPREAD_REDUCTION)
+  );
+}
+function effectiveDamage(): number {
+  return PLAYER_BEAM_DAMAGE + g.upgrades.damage * UPGRADE_DAMAGE;
+}
 
 function pickRandomUpgrades(): UpgradeDef[] {
   const shuffled = [...UPGRADE_DEFS].sort(() => Math.random() - 0.5);
@@ -118,7 +215,7 @@ function pickRandomUpgrades(): UpgradeDef[] {
 
 function showUpgradeMenu(): void {
   const choices = pickRandomUpgrades();
-  g.pendingUpgrades = choices.map(c => c.key);
+  g.pendingUpgrades = choices.map((c) => c.key);
   for (let i = 0; i < 3; i++) {
     dom.upgradeLabels[i].textContent = choices[i].label;
     const n = g.upgrades[choices[i].key];
@@ -137,7 +234,7 @@ function hideUpgradeMenu(): void {
 export function selectUpgrade(index: number): void {
   if (g.pendingUpgrades.length === 0) return;
   const key = g.pendingUpgrades[index];
-  const def = UPGRADE_DEFS.find(d => d.key === key);
+  const def = UPGRADE_DEFS.find((d) => d.key === key);
   if (def) def.apply();
   hideUpgradeMenu();
 }
@@ -195,11 +292,11 @@ function updateTimers(dt: number): void {
   const barrelMat = g.weaponBarrel.material as StandardMaterial;
   if (g.state.heat > 0) {
     dom.heatBar.classList.add("visible");
+    dom.heatBar.style.width = `${120 * (heatMax / PLAYER_HEAT_MAX)}px`;
     dom.heatFill.style.width = `${(g.state.heat / heatMax) * 100}%`;
     dom.heatFill.classList.toggle("critical", g.state.heat >= criticalHeat);
     if (g.state.heat >= criticalHeat) {
-      const t =
-        (g.state.heat - criticalHeat) / (heatMax - criticalHeat);
+      const t = (g.state.heat - criticalHeat) / (heatMax - criticalHeat);
       barrelMat.emissiveColor = new Color3(t * 0.9, t * 0.15, 0);
     } else {
       barrelMat.emissiveColor = Color3.Black();
@@ -245,7 +342,7 @@ function updateTimers(dt: number): void {
   if (isMoving) {
     g.moveSpread = Math.min(
       PLAYER_MAX_SPREAD,
-      g.moveSpread + (PLAYER_MOVE_SPREAD_RATE * dt) / 1000,
+      g.moveSpread + (effectiveMoveSpreadRate() * dt) / 1000,
     );
   } else if (g.moveSpread > 0) {
     g.moveSpread = Math.max(
@@ -333,7 +430,8 @@ function updateTimers(dt: number): void {
     const dist = Vector3.Distance(g.playerMesh.position, p.mesh.position);
     if (dist < PICKUP_COLLECT_RANGE) {
       const maxReserve = PLAYER_MAX_RESERVE_MAGS * effectiveMagSize();
-      if (p.type === "health" && g.state.health >= effectiveMaxHealth()) continue;
+      if (p.type === "health" && g.state.health >= effectiveMaxHealth())
+        continue;
       if (p.type === "ammo" && g.state.reserve >= maxReserve) continue;
       if (p.type === "health") {
         g.state.health = Math.min(
@@ -385,7 +483,9 @@ function updatePlayer(): void {
   }
   g.isSprinting = nowSprinting;
 
-  const maxSpeed = nowSprinting ? effectiveSpeed() * PLAYER_SPRINT_MULTIPLIER : effectiveSpeed();
+  const maxSpeed = nowSprinting
+    ? effectiveSpeed() * PLAYER_SPRINT_MULTIPLIER
+    : effectiveSpeed();
   const targetXZ =
     wish.lengthSquared() > 0
       ? wish.normalize().scale(maxSpeed)
@@ -674,7 +774,10 @@ export function shoot(): void {
   }
 
   g.state.ammo--;
-  g.state.heat = Math.min(g.state.heat + PLAYER_HEAT_PER_SHOT, effectiveHeatMax());
+  g.state.heat = Math.min(
+    g.state.heat + PLAYER_HEAT_PER_SHOT,
+    effectiveHeatMax(),
+  );
   g.state.heatCooldownTimer = PLAYER_HEAT_COOLDOWN_DELAY;
   if (g.state.heat >= effectiveHeatMax()) {
     g.state.overheated = true;
@@ -697,10 +800,7 @@ export function shoot(): void {
     ray.direction.addInPlace(trueUp.scale(Math.sin(angle) * magnitude));
     ray.direction.normalize();
   }
-  g.shootSpread = Math.min(
-    g.shootSpread + effectiveSpreadPerShot(),
-    PLAYER_MAX_SPREAD,
-  );
+  g.shootSpread = Math.min(g.shootSpread + effectiveBloom(), PLAYER_MAX_SPREAD);
   const hit = g.scene.pickWithRay(
     ray,
     (m: AbstractMesh) =>
@@ -1021,9 +1121,15 @@ export function damagePlayer(amount: number): void {
 
 // ─── HUD ──────────────────────────────────────────────────────────────────────
 export function updateHUD(): void {
-  dom.healthEl.textContent = String(g.state.health);
-  dom.healthEl.style.color =
-    g.state.health > 50 ? "#4f4" : g.state.health > 25 ? "#fa0" : "#f44";
+  const maxHp = effectiveMaxHealth();
+  const hpFrac = g.state.health / maxHp;
+  const baseWidth = 120;
+  const barWidth = baseWidth * (maxHp / PLAYER_MAX_HEALTH);
+  dom.healthBar.style.width = `${barWidth}px`;
+  dom.healthFill.style.width = `${hpFrac * 100}%`;
+  dom.healthFill.style.background =
+    hpFrac > 0.5 ? "#4f4" : hpFrac > 0.25 ? "#fa0" : "#f44";
+  dom.healthText.textContent = `${Math.ceil(g.state.health)} / ${maxHp}`;
   dom.ammoEl.textContent = `${g.state.ammo} / ${g.state.reserve}`;
   dom.scoreEl.textContent = String(g.state.score);
   dom.killsEl.textContent = String(g.state.kills);

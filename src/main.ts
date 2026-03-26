@@ -69,7 +69,7 @@ async function startGame(): Promise<void> {
   dom.pauseScreen.style.display = "none";
   dom.upgradeMenu.classList.remove("visible");
   dom.hud.style.display = "block";
-  g.upgrades = { maxHealth: 0, speed: 0, reloadTime: 0, magSize: 0, rateOfFire: 0, heatCapacity: 0, heatDecay: 0, spreadPerShot: 0, damage: 0 };
+  g.upgrades = { maxHealth: 0, speed: 0, reloadTime: 0, magSize: 0, rateOfFire: 0, heatCapacity: 0, heatDecay: 0, bloom: 0, moveSpread: 0, damage: 0 };
   g.pendingUpgrades = [];
 
   g.state = makeState();
