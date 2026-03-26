@@ -224,6 +224,7 @@ function showUpgradeMenu(): void {
     dom.upgradeCounts[i].textContent = n > 0 ? `(${n}x)` : "";
   }
   dom.upgradeMenu.classList.add("visible");
+  g.mouseHeld = false;
   document.exitPointerLock();
 }
 
@@ -767,7 +768,8 @@ export function shoot(): void {
     !g.state.running ||
     g.state.reloading ||
     g.isSprinting ||
-    g.state.overheated
+    g.state.overheated ||
+    g.pendingUpgrades.length > 0
   )
     return;
   if (g.state.ammo <= 0) {
@@ -1156,6 +1158,10 @@ export function resume(): void {
   g.scene.physicsEnabled = true;
   dom.pauseScreen.style.display = "none";
   dom.hud.classList.remove("paused");
+  if (g.pendingUpgrades.length > 0) {
+    dom.upgradeMenu.classList.add("visible");
+    document.exitPointerLock();
+  }
 }
 
 export function endGame(): void {

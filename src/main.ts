@@ -107,6 +107,13 @@ document.addEventListener("pointerlockchange", () => {
   }
 });
 
+window.addEventListener("keydown", (e) => {
+  if (e.code === "Escape" && g.state.running && !g.state.paused && g.pendingUpgrades.length > 0) {
+    dom.upgradeMenu.classList.remove("visible");
+    pause();
+  }
+});
+
 g.engine.runRenderLoop(() => {
   if (g.scene) g.scene.render();
 });
