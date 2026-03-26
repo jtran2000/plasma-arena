@@ -1,5 +1,4 @@
 import { PointerEventTypes, ActionManager, ExecuteCodeAction } from "@babylonjs/core";
-import { PLAYER_SHOOT_COOLDOWN_MS } from "./constants.js";
 import { g, dom, makeState } from "./game.js";
 import { buildScene } from "./build.js";
 import {
@@ -11,6 +10,8 @@ import {
   pause,
   resume,
   showWaveBanner,
+  selectUpgrade,
+  effectiveRateOfFire,
 } from "./update.js";
 
 // ─── Key tracking ─────────────────────────────────────────────────────────────
@@ -24,7 +25,7 @@ function setupInput(): void {
     if (info.type === PointerEventTypes.POINTERDOWN) {
       g.mouseHeld = true;
       shoot();
-      g.state.shootCooldown = PLAYER_SHOOT_COOLDOWN_MS;
+      g.state.shootCooldown = 60000 / effectiveRateOfFire();
     } else if (info.type === PointerEventTypes.POINTERUP) {
       g.mouseHeld = false;
     }
@@ -49,7 +50,16 @@ function setupInput(): void {
       e.preventDefault();
       tryJump();
     }
+    if (e.code === "Digit1") selectUpgrade(0);
+    if (e.code === "Digit2") selectUpgrade(1);
+    if (e.code === "Digit3") selectUpgrade(2);
   });
+
+  for (const btn of dom.upgradeButtons) {
+    btn.addEventListener("click", () => {
+      selectUpgrade(Number(btn.dataset.index));
+    });
+  }
 }
 
 // ─── Game flow ────────────────────────────────────────────────────────────────
@@ -57,7 +67,10 @@ async function startGame(): Promise<void> {
   dom.overlay.style.display = "none";
   dom.gameOver.style.display = "none";
   dom.pauseScreen.style.display = "none";
+  dom.upgradeMenu.classList.remove("visible");
   dom.hud.style.display = "block";
+  g.upgrades = { maxHealth: 0, speed: 0, reloadTime: 0, magSize: 0, rateOfFire: 0, heatCapacity: 0, heatDecay: 0, spreadPerShot: 0, damage: 0 };
+  g.pendingUpgrades = [];
 
   g.state = makeState();
   await buildScene();
@@ -90,7 +103,7 @@ document.addEventListener("pointerlockchange", () => {
   if (document.pointerLockElement === dom.canvas) {
     if (g.state.paused) resume();
   } else {
-    pause();
+    if (g.pendingUpgrades.length === 0) pause();
   }
 });
 

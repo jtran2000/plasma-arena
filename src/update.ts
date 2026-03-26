@@ -28,9 +28,9 @@ import {
   PICKUP_DROP_CHANCE,
   PICKUP_HEALTH_AMOUNT,
   PICKUP_COLLECT_RANGE,
-  PLAYER_SHOOT_COOLDOWN_MS,
-  PLAYER_WALK_SPEED,
-  PLAYER_SPRINT_SPEED,
+  PLAYER_RATE_OF_FIRE,
+  PLAYER_SPEED,
+  PLAYER_SPRINT_MULTIPLIER,
   PLAYER_ACCELERATION,
   PLAYER_JUMP_SPEED,
   PLAYER_MAG_SIZE,
@@ -54,9 +54,93 @@ import {
   PLAYER_HEAT_CRITICAL,
   PLAYER_HEAT_DECAY,
   PLAYER_HEAT_COOLDOWN_DELAY,
+  UPGRADE_MAX_HEALTH,
+  UPGRADE_SPEED,
+  UPGRADE_RELOAD_SPEED,
+  UPGRADE_MAG_SIZE,
+  UPGRADE_RATE_OF_FIRE,
+  UPGRADE_HEAT_CAPACITY,
+  UPGRADE_HEAT_DECAY,
+  UPGRADE_SPREAD_REDUCTION,
+  UPGRADE_DAMAGE,
 } from "./constants.js";
 import { g, dom, type Enemy } from "./game.js";
-import { makeBeam, makeBulletHoleDisc, BULLET_HOLE_SURFACE_OFFSET, makeBodySplitHalves, makeHeadSplitHalves, makeHealthPickup, makeAmmoPickup, makeEnemyMats, makeEnemyPhysCapsule, makeEnemyBodyMesh, makeEnemyHeadMesh, makeRagdollBodyAggregate, makeRagdollHeadAggregate, makeRagdollHalfAggregate } from "./meshBuilders.js";
+import {
+  makeBeam,
+  makeBulletHoleDisc,
+  BULLET_HOLE_SURFACE_OFFSET,
+  makeBodySplitHalves,
+  makeHeadSplitHalves,
+  makeHealthPickup,
+  makeAmmoPickup,
+  makeEnemyMats,
+  makeEnemyPhysCapsule,
+  makeEnemyBodyMesh,
+  makeEnemyHeadMesh,
+  makeRagdollBodyAggregate,
+  makeRagdollHeadAggregate,
+  makeRagdollHalfAggregate,
+} from "./meshBuilders.js";
+
+// ─── Upgrades ────────────────────────────────────────────────────────────────
+interface UpgradeDef {
+  key: keyof typeof g.upgrades;
+  label: string;
+  apply: () => void;
+}
+
+const UPGRADE_DEFS: UpgradeDef[] = [
+  { key: "maxHealth", label: `+${UPGRADE_MAX_HEALTH} Max Health`, apply: () => { g.upgrades.maxHealth++; g.state.health = Math.min(g.state.health + UPGRADE_MAX_HEALTH, effectiveMaxHealth()); updateHUD(); } },
+  { key: "speed", label: `+${UPGRADE_SPEED} Speed`, apply: () => { g.upgrades.speed++; } },
+  { key: "reloadTime", label: `+${Math.round(UPGRADE_RELOAD_SPEED * 100)}% Reload Speed`, apply: () => { g.upgrades.reloadTime++; } },
+  { key: "magSize", label: `+${UPGRADE_MAG_SIZE} Mag Size`, apply: () => { g.upgrades.magSize++; } },
+  { key: "rateOfFire", label: `+${UPGRADE_RATE_OF_FIRE} RPM`, apply: () => { g.upgrades.rateOfFire++; } },
+  { key: "heatCapacity", label: `+${UPGRADE_HEAT_CAPACITY} Heat Cap`, apply: () => { g.upgrades.heatCapacity++; } },
+  { key: "heatDecay", label: `+${UPGRADE_HEAT_DECAY} Cooling`, apply: () => { g.upgrades.heatDecay++; } },
+  { key: "spreadPerShot", label: `-${Math.round(UPGRADE_SPREAD_REDUCTION * 100)}% Spread`, apply: () => { g.upgrades.spreadPerShot++; } },
+  { key: "damage", label: `+${UPGRADE_DAMAGE} Damage`, apply: () => { g.upgrades.damage++; } },
+];
+
+function effectiveMaxHealth(): number { return PLAYER_MAX_HEALTH + g.upgrades.maxHealth * UPGRADE_MAX_HEALTH; }
+function effectiveSpeed(): number { return PLAYER_SPEED + g.upgrades.speed * UPGRADE_SPEED; }
+function effectiveReloadTime(): number { return PLAYER_RELOAD_TIME * Math.pow(1 - UPGRADE_RELOAD_SPEED, g.upgrades.reloadTime); }
+function effectiveMagSize(): number { return PLAYER_MAG_SIZE + g.upgrades.magSize * UPGRADE_MAG_SIZE; }
+export function effectiveRateOfFire(): number { return PLAYER_RATE_OF_FIRE + g.upgrades.rateOfFire * UPGRADE_RATE_OF_FIRE; }
+function effectiveHeatMax(): number { return PLAYER_HEAT_MAX + g.upgrades.heatCapacity * UPGRADE_HEAT_CAPACITY; }
+function effectiveHeatDecay(): number { return PLAYER_HEAT_DECAY + g.upgrades.heatDecay * UPGRADE_HEAT_DECAY; }
+function effectiveSpreadPerShot(): number { return PLAYER_SPREAD_PER_SHOT * Math.max(0.1, 1 - g.upgrades.spreadPerShot * UPGRADE_SPREAD_REDUCTION); }
+function effectiveDamage(): number { return PLAYER_BEAM_DAMAGE + g.upgrades.damage * UPGRADE_DAMAGE; }
+
+function pickRandomUpgrades(): UpgradeDef[] {
+  const shuffled = [...UPGRADE_DEFS].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, 3);
+}
+
+function showUpgradeMenu(): void {
+  const choices = pickRandomUpgrades();
+  g.pendingUpgrades = choices.map(c => c.key);
+  for (let i = 0; i < 3; i++) {
+    dom.upgradeLabels[i].textContent = choices[i].label;
+    const n = g.upgrades[choices[i].key];
+    dom.upgradeCounts[i].textContent = n > 0 ? `(${n}x)` : "";
+  }
+  dom.upgradeMenu.classList.add("visible");
+  document.exitPointerLock();
+}
+
+function hideUpgradeMenu(): void {
+  dom.upgradeMenu.classList.remove("visible");
+  g.pendingUpgrades = [];
+  dom.canvas.requestPointerLock();
+}
+
+export function selectUpgrade(index: number): void {
+  if (g.pendingUpgrades.length === 0) return;
+  const key = g.pendingUpgrades[index];
+  const def = UPGRADE_DEFS.find(d => d.key === key);
+  if (def) def.apply();
+  hideUpgradeMenu();
+}
 
 // ─── Game loop ────────────────────────────────────────────────────────────────
 export function update(): void {
@@ -95,22 +179,27 @@ function updateTimers(dt: number): void {
     if (g.state.heatCooldownTimer > 0) {
       g.state.heatCooldownTimer -= dt;
     } else {
-      g.state.heat = Math.max(0, g.state.heat - PLAYER_HEAT_DECAY * dt / 1000);
-      if (g.state.overheated && g.state.heat <= PLAYER_HEAT_MAX / 2) {
+      g.state.heat = Math.max(
+        0,
+        g.state.heat - (effectiveHeatDecay() * dt) / 1000,
+      );
+      if (g.state.overheated && g.state.heat <= effectiveHeatMax() / 2) {
         g.state.overheated = false;
         dom.overheatMsg.classList.remove("visible");
       }
     }
   }
   // Heat bar display + barrel glow
-  const criticalHeat = PLAYER_HEAT_MAX * PLAYER_HEAT_CRITICAL;
+  const heatMax = effectiveHeatMax();
+  const criticalHeat = heatMax * PLAYER_HEAT_CRITICAL;
   const barrelMat = g.weaponBarrel.material as StandardMaterial;
   if (g.state.heat > 0) {
     dom.heatBar.classList.add("visible");
-    dom.heatFill.style.width = `${(g.state.heat / PLAYER_HEAT_MAX) * 100}%`;
+    dom.heatFill.style.width = `${(g.state.heat / heatMax) * 100}%`;
     dom.heatFill.classList.toggle("critical", g.state.heat >= criticalHeat);
     if (g.state.heat >= criticalHeat) {
-      const t = (g.state.heat - criticalHeat) / (PLAYER_HEAT_MAX - criticalHeat);
+      const t =
+        (g.state.heat - criticalHeat) / (heatMax - criticalHeat);
       barrelMat.emissiveColor = new Color3(t * 0.9, t * 0.15, 0);
     } else {
       barrelMat.emissiveColor = Color3.Black();
@@ -126,7 +215,8 @@ function updateTimers(dt: number): void {
       if (e.flashTime <= 0) {
         e.flashTime = 0;
         if (e.flashMesh) {
-          (e.flashMesh.material as StandardMaterial).emissiveColor = e.baseEmissive.clone();
+          (e.flashMesh.material as StandardMaterial).emissiveColor =
+            e.baseEmissive.clone();
           e.flashMesh = null;
         }
       }
@@ -137,23 +227,37 @@ function updateTimers(dt: number): void {
     g.state.shootCooldown -= dt;
     if (g.state.shootCooldown <= 0) {
       shoot();
-      g.state.shootCooldown = PLAYER_SHOOT_COOLDOWN_MS;
+      g.state.shootCooldown = 60000 / effectiveRateOfFire();
     }
-  } else if (g.currentSpread > 0) {
-    g.currentSpread = Math.max(0, g.currentSpread - PLAYER_SPREAD_DECAY * dt / 1000);
+  } else if (g.shootSpread > 0) {
+    g.shootSpread = Math.max(
+      0,
+      g.shootSpread - (PLAYER_SPREAD_DECAY * dt) / 1000,
+    );
   }
 
   // Movement spread: increase while moving, decay when stopped
-  const isMoving = g.pressedKeys.has("KeyW") || g.pressedKeys.has("KeyS") ||
-    g.pressedKeys.has("KeyA") || g.pressedKeys.has("KeyD");
+  const isMoving =
+    g.pressedKeys.has("KeyW") ||
+    g.pressedKeys.has("KeyS") ||
+    g.pressedKeys.has("KeyA") ||
+    g.pressedKeys.has("KeyD");
   if (isMoving) {
-    g.moveSpread = Math.min(PLAYER_MAX_SPREAD, g.moveSpread + PLAYER_MOVE_SPREAD_RATE * dt / 1000);
+    g.moveSpread = Math.min(
+      PLAYER_MAX_SPREAD,
+      g.moveSpread + (PLAYER_MOVE_SPREAD_RATE * dt) / 1000,
+    );
   } else if (g.moveSpread > 0) {
-    g.moveSpread = Math.max(0, g.moveSpread - PLAYER_SPREAD_DECAY * dt / 1000);
+    g.moveSpread = Math.max(
+      0,
+      g.moveSpread - (PLAYER_SPREAD_DECAY * dt) / 1000,
+    );
   }
 
   // Update crosshair spread offset (map radians to screen pixels)
-  const totalSpread = Math.min(g.currentSpread + g.moveSpread, PLAYER_MAX_SPREAD);
+  const totalSpread =
+    Math.min(g.shootSpread, PLAYER_MAX_SPREAD) +
+    Math.min(g.moveSpread, PLAYER_MAX_SPREAD);
   const halfFov = g.camera.fov / 2;
   const screenDist = g.engine.getRenderHeight() / (2 * Math.tan(halfFov));
   const chOffset = Math.round(Math.tan(totalSpread) * screenDist);
@@ -164,13 +268,22 @@ function updateTimers(dt: number): void {
 
   // Crosshair color: red when over a living enemy
   const centerRay = g.camera.getForwardRay(100);
-  const centerHit = g.scene.pickWithRay(centerRay, (m: AbstractMesh) =>
-    m.name !== "player" && m.name !== "enemyPhys" && m.name !== "laserBeam" &&
-    m.name !== "bhole" && m.name !== "pickup" && m.renderingGroupId !== 1,
+  const centerHit = g.scene.pickWithRay(
+    centerRay,
+    (m: AbstractMesh) =>
+      m.name !== "player" &&
+      m.name !== "enemyPhys" &&
+      m.name !== "laserBeam" &&
+      m.name !== "bhole" &&
+      m.name !== "pickup" &&
+      m.renderingGroupId !== 1,
   );
-  const overEnemy = centerHit?.hit && centerHit.pickedMesh &&
-    (centerHit.pickedMesh.name === "enemyBody" || centerHit.pickedMesh.name === "enemyHead") &&
-    g.enemies.some(e => e.physMesh === centerHit.pickedMesh!.parent);
+  const overEnemy =
+    centerHit?.hit &&
+    centerHit.pickedMesh &&
+    (centerHit.pickedMesh.name === "enemyBody" ||
+      centerHit.pickedMesh.name === "enemyHead") &&
+    g.enemies.some((e) => e.physMesh === centerHit.pickedMesh!.parent);
   const chColor = overEnemy ? "rgba(255,60,60,0.9)" : "rgba(255,255,255,0.85)";
   dom.chTop.style.background = chColor;
   dom.chBottom.style.background = chColor;
@@ -204,7 +317,11 @@ function updateTimers(dt: number): void {
         mat.emissiveColor = new Color3(1, 0.9 - 0.5 * s, 0.2 - 0.15 * s);
       } else {
         const s = (t - 0.5) / 0.5;
-        mat.emissiveColor = new Color3(1 - 0.4 * s, 0.4 - 0.35 * s, 0.05 - 0.03 * s);
+        mat.emissiveColor = new Color3(
+          1 - 0.4 * s,
+          0.4 - 0.35 * s,
+          0.05 - 0.03 * s,
+        );
       }
     }
   }
@@ -215,16 +332,23 @@ function updateTimers(dt: number): void {
     const p = g.pickups[i];
     const dist = Vector3.Distance(g.playerMesh.position, p.mesh.position);
     if (dist < PICKUP_COLLECT_RANGE) {
-      const maxReserve = PLAYER_MAX_RESERVE_MAGS * PLAYER_MAG_SIZE;
-      if (p.type === "health" && g.state.health >= PLAYER_MAX_HEALTH) continue;
+      const maxReserve = PLAYER_MAX_RESERVE_MAGS * effectiveMagSize();
+      if (p.type === "health" && g.state.health >= effectiveMaxHealth()) continue;
       if (p.type === "ammo" && g.state.reserve >= maxReserve) continue;
       if (p.type === "health") {
-        g.state.health = Math.min(PLAYER_MAX_HEALTH, g.state.health + PICKUP_HEALTH_AMOUNT);
+        g.state.health = Math.min(
+          effectiveMaxHealth(),
+          g.state.health + PICKUP_HEALTH_AMOUNT,
+        );
       } else {
-        g.state.reserve = Math.min(maxReserve, g.state.reserve + PLAYER_MAG_SIZE);
+        g.state.reserve = Math.min(
+          maxReserve,
+          g.state.reserve + effectiveMagSize(),
+        );
       }
       updateHUD();
-      if (p.type === "health") playHealthPickupSound(); else playAmmoPickupSound();
+      if (p.type === "health") playHealthPickupSound();
+      else playAmmoPickupSound();
       p.aggregate.dispose();
       p.mesh.dispose();
       g.pickups.splice(i, 1);
@@ -250,7 +374,8 @@ function updatePlayer(): void {
   if (g.pressedKeys.has("KeyA")) wish.subtractInPlace(right);
   if (g.pressedKeys.has("KeyD")) wish.addInPlace(right);
 
-  const sprintKey = g.pressedKeys.has("ShiftLeft") || g.pressedKeys.has("ShiftRight");
+  const sprintKey =
+    g.pressedKeys.has("ShiftLeft") || g.pressedKeys.has("ShiftRight");
   const nowSprinting = sprintKey && wish.lengthSquared() > 0;
 
   if (nowSprinting && !g.isSprinting && g.state.reloading) {
@@ -260,11 +385,17 @@ function updatePlayer(): void {
   }
   g.isSprinting = nowSprinting;
 
-  const maxSpeed = nowSprinting ? PLAYER_SPRINT_SPEED : PLAYER_WALK_SPEED;
+  const maxSpeed = nowSprinting ? effectiveSpeed() * PLAYER_SPRINT_MULTIPLIER : effectiveSpeed();
   const targetXZ =
-    wish.lengthSquared() > 0 ? wish.normalize().scale(maxSpeed) : Vector3.Zero();
+    wish.lengthSquared() > 0
+      ? wish.normalize().scale(maxSpeed)
+      : Vector3.Zero();
 
-  g.playerVelocityXZ = Vector3.Lerp(g.playerVelocityXZ, targetXZ, PLAYER_ACCELERATION);
+  g.playerVelocityXZ = Vector3.Lerp(
+    g.playerVelocityXZ,
+    targetXZ,
+    PLAYER_ACCELERATION,
+  );
 
   const vel = g.playerAggregate.body.getLinearVelocity();
   g.playerAggregate.body.setLinearVelocity(
@@ -319,7 +450,7 @@ function updateWeapon(dt: number): void {
     return;
   }
 
-  const progress = 1 - g.state.reloadTimeLeft / PLAYER_RELOAD_TIME;
+  const progress = 1 - g.state.reloadTimeLeft / effectiveReloadTime();
 
   const TILT = -0.7;
   let tilt: number;
@@ -374,7 +505,8 @@ function updateEnemies(): void {
       if (dirXZ.lengthSquared() > 0) dirXZ.normalize();
 
       // Zigzag lateral offset
-      e.zigzagTimer += (g.engine.getDeltaTime() / 1000) * ENEMY_ZIGZAG_FREQ * Math.PI * 2;
+      e.zigzagTimer +=
+        (g.engine.getDeltaTime() / 1000) * ENEMY_ZIGZAG_FREQ * Math.PI * 2;
       const lateral = new Vector3(-dirXZ.z, 0, dirXZ.x);
       const zigzag = Math.sin(e.zigzagTimer) * ENEMY_ZIGZAG_AMPLITUDE;
       const moveDir = dirXZ.add(lateral.scale(zigzag)).normalize();
@@ -405,7 +537,11 @@ function updateEnemies(): void {
       const dirXZ =
         toTargetXZ.length() > 0 ? toTargetXZ.normalize() : Vector3.Zero();
       e.aggregate.body.setLinearVelocity(
-        new Vector3(dirXZ.x * e.speed * 0.5, currentVel.y, dirXZ.z * e.speed * 0.5),
+        new Vector3(
+          dirXZ.x * e.speed * 0.5,
+          currentVel.y,
+          dirXZ.z * e.speed * 0.5,
+        ),
       );
     }
   }
@@ -419,10 +555,13 @@ function spawnEnemy(): void {
     x = (Math.random() * 2 - 1) * (ARENA_SIZE / 2 - 2);
     z = (Math.random() * 2 - 1) * (ARENA_SIZE / 2 - 2);
   } while (
-    (x - playerPos.x) ** 2 + (z - playerPos.z) ** 2 < ENEMY_MIN_SPAWN_DIST ** 2
+    (x - playerPos.x) ** 2 + (z - playerPos.z) ** 2 <
+    ENEMY_MIN_SPAWN_DIST ** 2
   );
 
-  const { mesh: physMesh, aggregate } = makeEnemyPhysCapsule(new Vector3(x, ARENA_CEIL - 0.5, z));
+  const { mesh: physMesh, aggregate } = makeEnemyPhysCapsule(
+    new Vector3(x, ARENA_CEIL - 0.5, z),
+  );
 
   const { bodyMat, headMat } = makeEnemyMats();
 
@@ -449,8 +588,12 @@ function spawnEnemy(): void {
     state: "patrol",
     patrolTarget: physMesh.position.clone(),
     attackCooldown: 0,
-    meleeDamage: ENEMY_MELEE_DAMAGE + ENEMY_MELEE_DAMAGE_PER_WAVE * (g.state.wave - 1),
-    meleeIntervalMs: 60000 / (ENEMY_MELEE_ATTACKS_PER_MIN + ENEMY_MELEE_ATTACKS_PER_MIN_PER_WAVE * (g.state.wave - 1)),
+    meleeDamage:
+      ENEMY_MELEE_DAMAGE + ENEMY_MELEE_DAMAGE_PER_WAVE * (g.state.wave - 1),
+    meleeIntervalMs:
+      60000 /
+      (ENEMY_MELEE_ATTACKS_PER_MIN +
+        ENEMY_MELEE_ATTACKS_PER_MIN_PER_WAVE * (g.state.wave - 1)),
     zigzagTimer: Math.random() * Math.PI * 2,
     flashTime: 0,
     flashMesh: null,
@@ -465,6 +608,8 @@ function waveEnemyCount(wave: number): number {
 }
 
 function startNextWave(): void {
+  // Auto-select first upgrade if player hasn't chosen
+  if (g.pendingUpgrades.length > 0) selectUpgrade(0);
   g.state.wave++;
   g.state.waveEnemiesLeft = waveEnemyCount(g.state.wave);
   g.state.waveSpawnTimer = 0;
@@ -504,6 +649,7 @@ function updateWaves(dt: number): void {
     spawnPickup(frontPos.clone(), "health");
     spawnPickup(new Vector3(frontPos.x + 0.6, frontPos.y, frontPos.z), "ammo");
     incrementScore(WAVE_COMPLETE_SCORE, frontPos);
+    showUpgradeMenu();
   }
 }
 
@@ -515,16 +661,22 @@ export function showWaveBanner(text: string): void {
 
 // ─── Shooting ─────────────────────────────────────────────────────────────────
 export function shoot(): void {
-  if (!g.state.running || g.state.reloading || g.isSprinting || g.state.overheated) return;
+  if (
+    !g.state.running ||
+    g.state.reloading ||
+    g.isSprinting ||
+    g.state.overheated
+  )
+    return;
   if (g.state.ammo <= 0) {
     startReload();
     return;
   }
 
   g.state.ammo--;
-  g.state.heat = Math.min(g.state.heat + PLAYER_HEAT_PER_SHOT, PLAYER_HEAT_MAX);
+  g.state.heat = Math.min(g.state.heat + PLAYER_HEAT_PER_SHOT, effectiveHeatMax());
   g.state.heatCooldownTimer = PLAYER_HEAT_COOLDOWN_DELAY;
-  if (g.state.heat >= PLAYER_HEAT_MAX) {
+  if (g.state.heat >= effectiveHeatMax()) {
     g.state.overheated = true;
     g.state.heatCooldownTimer = PLAYER_HEAT_COOLDOWN_DELAY * 2;
     dom.overheatMsg.classList.add("visible");
@@ -534,7 +686,7 @@ export function shoot(): void {
   updateHUD();
 
   const ray = g.camera.getForwardRay(100);
-  const shotSpread = Math.min(g.currentSpread + g.moveSpread, PLAYER_MAX_SPREAD);
+  const shotSpread = g.shootSpread + g.moveSpread;
   if (shotSpread > 0) {
     const angle = Math.random() * Math.PI * 2;
     const magnitude = Math.random() * shotSpread;
@@ -545,7 +697,10 @@ export function shoot(): void {
     ray.direction.addInPlace(trueUp.scale(Math.sin(angle) * magnitude));
     ray.direction.normalize();
   }
-  g.currentSpread = Math.min(g.currentSpread + PLAYER_SPREAD_PER_SHOT, PLAYER_MAX_SPREAD);
+  g.shootSpread = Math.min(
+    g.shootSpread + effectiveSpreadPerShot(),
+    PLAYER_MAX_SPREAD,
+  );
   const hit = g.scene.pickWithRay(
     ray,
     (m: AbstractMesh) =>
@@ -564,25 +719,53 @@ export function shoot(): void {
   spawnLaserBeam(g.barrelTip.getAbsolutePosition(), beamEnd);
 
   if (hit?.hit && hit.pickedMesh) {
-    if (hit.pickedMesh.name === "enemyBody" || hit.pickedMesh.name === "enemyHead") {
-      const enemy = g.enemies.find((e) => e.physMesh === hit.pickedMesh!.parent);
+    if (
+      hit.pickedMesh.name === "enemyBody" ||
+      hit.pickedMesh.name === "enemyHead"
+    ) {
+      const enemy = g.enemies.find(
+        (e) => e.physMesh === hit.pickedMesh!.parent,
+      );
       if (enemy) {
         hitEnemy(enemy, hit.pickedMesh as Mesh, hit.pickedPoint ?? undefined);
         if (hit.pickedPoint) {
           const hitNormal = hit.getNormal(true) ?? ray.direction.negate();
-          spawnHitParticle(hit.pickedPoint, new Color4(0.8, 0.0, 0.0, 1), hitNormal);
+          spawnHitParticle(
+            hit.pickedPoint,
+            new Color4(0.8, 0.0, 0.0, 1),
+            hitNormal,
+          );
           if (g.enemies.includes(enemy)) {
-            spawnBulletHole(hit.pickedPoint, hit.getNormal(true), hit.pickedMesh as Mesh);
+            spawnBulletHole(
+              hit.pickedPoint,
+              hit.getNormal(true),
+              hit.pickedMesh as Mesh,
+            );
           }
         }
       } else {
-        splitRagdoll(hit.pickedMesh as Mesh, ray.direction, hit.pickedPoint ?? undefined);
+        splitRagdoll(
+          hit.pickedMesh as Mesh,
+          ray.direction,
+          hit.pickedPoint ?? undefined,
+        );
       }
-    } else if (hit.pickedMesh.name === "bodyHalf" || hit.pickedMesh.name === "headHalf") {
-      hitDebris(hit.pickedMesh as Mesh, ray.direction, hit.pickedPoint ?? undefined);
+    } else if (
+      hit.pickedMesh.name === "bodyHalf" ||
+      hit.pickedMesh.name === "headHalf"
+    ) {
+      hitDebris(
+        hit.pickedMesh as Mesh,
+        ray.direction,
+        hit.pickedPoint ?? undefined,
+      );
       if (hit.pickedPoint) {
         const hitNormal = hit.getNormal(true) ?? ray.direction.negate();
-        spawnHitParticle(hit.pickedPoint, new Color4(0.8, 0.0, 0.0, 1), hitNormal);
+        spawnHitParticle(
+          hit.pickedPoint,
+          new Color4(0.8, 0.0, 0.0, 1),
+          hitNormal,
+        );
       }
     } else if (hit.pickedPoint) {
       spawnBulletHole(hit.pickedPoint, hit.getNormal(true));
@@ -594,15 +777,22 @@ export function shoot(): void {
 
 function hitEnemy(enemy: Enemy, hitMesh: Mesh, hitPoint?: Vector3): void {
   const headshot = hitMesh.name === "enemyHead";
-  const critHeat = PLAYER_HEAT_MAX * PLAYER_HEAT_CRITICAL;
-  const heatPenalty = g.state.heat >= critHeat
-    ? 1 - 0.6 * ((g.state.heat - critHeat) / (PLAYER_HEAT_MAX - critHeat))
-    : 1;
-  enemy.hp -= Math.round(PLAYER_BEAM_DAMAGE * (0.8 + Math.random() * 0.4) * (headshot ? 2 : 1) * heatPenalty);
+  const hMax = effectiveHeatMax();
+  const critHeat = hMax * PLAYER_HEAT_CRITICAL;
+  const heatPenalty =
+    g.state.heat >= critHeat
+      ? 1 - 0.6 * ((g.state.heat - critHeat) / (hMax - critHeat))
+      : 1;
+  enemy.hp -= Math.round(
+    effectiveDamage() *
+      (0.8 + Math.random() * 0.4) *
+      (headshot ? 2 : 1) *
+      heatPenalty,
+  );
 
   (hitMesh.material as StandardMaterial).emissiveColor = new Color3(1, 0, 0);
   enemy.flashMesh = hitMesh;
-  enemy.flashTime = PLAYER_SHOOT_COOLDOWN_MS * 0.6;
+  enemy.flashTime = (60000 / effectiveRateOfFire()) * 0.6;
 
   if (enemy.hp <= 0) killEnemy(enemy, hitMesh, hitPoint);
 }
@@ -617,7 +807,8 @@ function killEnemy(enemy: Enemy, killMesh: Mesh, hitPoint?: Vector3): void {
   spawnDeathParticle(isHeadshot ? headWorldPos : bodyWorldPos);
 
   if (enemy.flashMesh) {
-    (enemy.flashMesh.material as StandardMaterial).emissiveColor = enemy.baseEmissive.clone();
+    (enemy.flashMesh.material as StandardMaterial).emissiveColor =
+      enemy.baseEmissive.clone();
     enemy.flashMesh = null;
   }
 
@@ -634,37 +825,82 @@ function killEnemy(enemy: Enemy, killMesh: Mesh, hitPoint?: Vector3): void {
   g.enemies.splice(g.enemies.indexOf(enemy), 1);
 
   const awayDir = hitPoint
-    ? new Vector3(bodyWorldPos.x - hitPoint.x, 0, bodyWorldPos.z - hitPoint.z).normalizeToNew()
+    ? new Vector3(
+        bodyWorldPos.x - hitPoint.x,
+        0,
+        bodyWorldPos.z - hitPoint.z,
+      ).normalizeToNew()
     : new Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalizeToNew();
 
   if (isHeadshot) {
     enemy.headMesh.dispose();
     const [topHalf, bottomHalf] = makeHeadSplitHalves(headWorldPos, headMat);
     const topAgg = makeRagdollHalfAggregate(topHalf, 1);
-    topAgg.body.applyImpulse(new Vector3(awayDir.x * 4, 6 + Math.random() * 3, awayDir.z * 4), headWorldPos);
+    topAgg.body.applyImpulse(
+      new Vector3(awayDir.x * 4, 6 + Math.random() * 3, awayDir.z * 4),
+      headWorldPos,
+    );
     const bottomAgg = makeRagdollHalfAggregate(bottomHalf, 1);
-    bottomAgg.body.applyImpulse(new Vector3(awayDir.x * 2, 1 + Math.random() * 2, awayDir.z * 2), headWorldPos);
-    setTimeout(() => { topAgg.dispose(); topHalf.dispose(); bottomAgg.dispose(); bottomHalf.dispose(); }, 3500);
+    bottomAgg.body.applyImpulse(
+      new Vector3(awayDir.x * 2, 1 + Math.random() * 2, awayDir.z * 2),
+      headWorldPos,
+    );
+    setTimeout(() => {
+      topAgg.dispose();
+      topHalf.dispose();
+      bottomAgg.dispose();
+      bottomHalf.dispose();
+    }, 3500);
 
     const bodyAgg = makeRagdollBodyAggregate(enemy.bodyMesh);
-    bodyAgg.body.applyImpulse(awayDir.scale(40), bodyWorldPos.add(new Vector3(0, 0.7, 0)));
-    setTimeout(() => { bodyAgg.dispose(); enemy.bodyMesh.dispose(); }, 3500);
+    bodyAgg.body.applyImpulse(
+      awayDir.scale(40),
+      bodyWorldPos.add(new Vector3(0, 0.7, 0)),
+    );
+    setTimeout(() => {
+      bodyAgg.dispose();
+      enemy.bodyMesh.dispose();
+    }, 3500);
   } else {
     enemy.bodyMesh.dispose();
     const [topHalf, bottomHalf] = makeBodySplitHalves(bodyWorldPos, bodyMat);
     const topAgg = makeRagdollHalfAggregate(topHalf, 5);
-    topAgg.body.applyImpulse(new Vector3(awayDir.x * 22, 18, awayDir.z * 22), bodyWorldPos.add(new Vector3(0, 0.4, 0)));
+    topAgg.body.applyImpulse(
+      new Vector3(awayDir.x * 22, 18, awayDir.z * 22),
+      bodyWorldPos.add(new Vector3(0, 0.4, 0)),
+    );
     const bottomAgg = makeRagdollHalfAggregate(bottomHalf, 5);
-    bottomAgg.body.applyImpulse(new Vector3(awayDir.x * 14, -5, awayDir.z * 14), bodyWorldPos);
-    setTimeout(() => { topAgg.dispose(); topHalf.dispose(); bottomAgg.dispose(); bottomHalf.dispose(); }, 3500);
+    bottomAgg.body.applyImpulse(
+      new Vector3(awayDir.x * 14, -5, awayDir.z * 14),
+      bodyWorldPos,
+    );
+    setTimeout(() => {
+      topAgg.dispose();
+      topHalf.dispose();
+      bottomAgg.dispose();
+      bottomHalf.dispose();
+    }, 3500);
 
     const headAgg = makeRagdollHeadAggregate(enemy.headMesh);
-    headAgg.body.applyImpulse(new Vector3((Math.random() - 0.5) * 8, 3 + Math.random() * 4, (Math.random() - 0.5) * 8), headWorldPos);
-    setTimeout(() => { headAgg.dispose(); enemy.headMesh.dispose(); }, 3500);
+    headAgg.body.applyImpulse(
+      new Vector3(
+        (Math.random() - 0.5) * 8,
+        3 + Math.random() * 4,
+        (Math.random() - 0.5) * 8,
+      ),
+      headWorldPos,
+    );
+    setTimeout(() => {
+      headAgg.dispose();
+      enemy.headMesh.dispose();
+    }, 3500);
   }
 
   g.state.kills++;
-  incrementScore(isHeadshot ? Math.round(KILL_SCORE * 1.5) : KILL_SCORE, hitPoint);
+  incrementScore(
+    isHeadshot ? Math.round(KILL_SCORE * 1.5) : KILL_SCORE,
+    hitPoint,
+  );
 }
 
 function splitRagdoll(mesh: Mesh, beamDir: Vector3, hitPoint?: Vector3): void {
@@ -676,7 +912,11 @@ function splitRagdoll(mesh: Mesh, beamDir: Vector3, hitPoint?: Vector3): void {
   mesh.dispose();
 
   const awayDir = hitPoint
-    ? new Vector3(worldPos.x - hitPoint.x, 0, worldPos.z - hitPoint.z).normalizeToNew()
+    ? new Vector3(
+        worldPos.x - hitPoint.x,
+        0,
+        worldPos.z - hitPoint.z,
+      ).normalizeToNew()
     : beamDir.normalize();
 
   const [topHalf, bottomHalf] = isHead
@@ -684,13 +924,25 @@ function splitRagdoll(mesh: Mesh, beamDir: Vector3, hitPoint?: Vector3): void {
     : makeBodySplitHalves(worldPos, mat);
 
   const topAgg = makeRagdollHalfAggregate(topHalf, 1);
-  topAgg.body.applyImpulse(new Vector3(awayDir.x * 4, 6 + Math.random() * 3, awayDir.z * 4), worldPos);
+  topAgg.body.applyImpulse(
+    new Vector3(awayDir.x * 4, 6 + Math.random() * 3, awayDir.z * 4),
+    worldPos,
+  );
   const bottomAgg = makeRagdollHalfAggregate(bottomHalf, 1);
-  bottomAgg.body.applyImpulse(new Vector3(awayDir.x * 2, 1 + Math.random() * 2, awayDir.z * 2), worldPos);
+  bottomAgg.body.applyImpulse(
+    new Vector3(awayDir.x * 2, 1 + Math.random() * 2, awayDir.z * 2),
+    worldPos,
+  );
 
-  setTimeout(() => { topAgg.dispose(); topHalf.dispose(); bottomAgg.dispose(); bottomHalf.dispose(); }, 3500);
+  setTimeout(() => {
+    topAgg.dispose();
+    topHalf.dispose();
+    bottomAgg.dispose();
+    bottomHalf.dispose();
+  }, 3500);
 
-  if (hitPoint) spawnHitParticle(hitPoint, new Color4(0.8, 0.0, 0.0, 1), beamDir.negate());
+  if (hitPoint)
+    spawnHitParticle(hitPoint, new Color4(0.8, 0.0, 0.0, 1), beamDir.negate());
 
   incrementScore(1, hitPoint);
 }
@@ -728,23 +980,28 @@ function incrementScore(amount: number, hitPoint?: Vector3): void {
 
 function spawnPickup(position: Vector3, forceType?: "health" | "ammo"): void {
   const type = forceType ?? (Math.random() < 0.5 ? "health" : "ammo");
-  const { mesh, aggregate } = type === "health"
-    ? makeHealthPickup(position)
-    : makeAmmoPickup(position);
+  const { mesh, aggregate } =
+    type === "health" ? makeHealthPickup(position) : makeAmmoPickup(position);
   g.pickups.push({ mesh, aggregate, type });
 }
 
 export function startReload(): void {
-  if (g.state.reloading || g.state.reserve <= 0 || g.state.ammo >= PLAYER_MAG_SIZE || g.isSprinting || g.state.overheated)
+  if (
+    g.state.reloading ||
+    g.state.reserve <= 0 ||
+    g.state.ammo >= effectiveMagSize() ||
+    g.isSprinting ||
+    g.state.overheated
+  )
     return;
   g.state.reloading = true;
-  g.state.reloadTimeLeft = PLAYER_RELOAD_TIME;
+  g.state.reloadTimeLeft = effectiveReloadTime();
   dom.reloadMsg.classList.add("visible");
   playReloadSounds();
 }
 
 function completeReload(): void {
-  const take = Math.min(PLAYER_MAG_SIZE - g.state.ammo, g.state.reserve);
+  const take = Math.min(effectiveMagSize() - g.state.ammo, g.state.reserve);
   g.state.ammo += take;
   g.state.reserve -= take;
   g.state.reloading = false;
@@ -771,7 +1028,9 @@ export function updateHUD(): void {
   dom.scoreEl.textContent = String(g.state.score);
   dom.killsEl.textContent = String(g.state.kills);
   dom.waveValue.textContent = String(g.state.wave);
-  dom.waveRemaining.textContent = String(g.state.waveEnemiesLeft + g.enemies.length);
+  dom.waveRemaining.textContent = String(
+    g.state.waveEnemiesLeft + g.enemies.length,
+  );
 }
 
 // ─── Game flow ────────────────────────────────────────────────────────────────
@@ -810,17 +1069,26 @@ function spawnLaserBeam(from: Vector3, to: Vector3): void {
   playBeamSound();
 
   const beam = makeBeam(from, to);
-  const critHeat = PLAYER_HEAT_MAX * PLAYER_HEAT_CRITICAL;
+  const beamHeatMax = effectiveHeatMax();
+  const critHeat = beamHeatMax * PLAYER_HEAT_CRITICAL;
   if (g.state.heat >= critHeat) {
-    const t = (g.state.heat - critHeat) / (PLAYER_HEAT_MAX - critHeat);
+    const t = (g.state.heat - critHeat) / (beamHeatMax - critHeat);
     const mat = beam.material as StandardMaterial;
     mat.alpha = 1 - t * 0.6;
-    mat.emissiveColor = Color3.Lerp(mat.emissiveColor, new Color3(0.2, 0.3, 0.3), t);
+    mat.emissiveColor = Color3.Lerp(
+      mat.emissiveColor,
+      new Color3(0.2, 0.3, 0.3),
+      t,
+    );
   }
-  setTimeout(() => beam.dispose(), PLAYER_SHOOT_COOLDOWN_MS * 0.6);
+  setTimeout(() => beam.dispose(), (60000 / effectiveRateOfFire()) * 0.6);
 }
 
-function spawnHitParticle(position: Vector3, color: Color4, normal: Vector3): void {
+function spawnHitParticle(
+  position: Vector3,
+  color: Color4,
+  normal: Vector3,
+): void {
   const ps = new ParticleSystem("hit", 40, g.scene);
   ps.particleTexture = g.particleTex;
   ps.emitter = position;
@@ -882,7 +1150,11 @@ function spawnDeathParticle(position: Vector3): void {
 const BULLET_HOLE_GLOW_MS = 1500;
 const BULLET_HOLE_DARK = new Color3(0.02, 0.02, 0.02);
 
-function spawnBulletHole(position: Vector3, normal: Vector3 | null, parentMesh?: Mesh): void {
+function spawnBulletHole(
+  position: Vector3,
+  normal: Vector3 | null,
+  parentMesh?: Mesh,
+): void {
   if (!parentMesh && g.bulletHoles.length >= 200) {
     g.bulletHoles.shift()!.dispose();
     g.bulletHoleTimes.shift();
@@ -926,7 +1198,7 @@ function playReloadSounds(): void {
     gain.connect(ctx.destination);
     osc.start(now);
     osc.stop(now + 0.23);
-  }, PLAYER_RELOAD_TIME * 0.25);
+  }, effectiveReloadTime() * 0.25);
 
   setTimeout(() => {
     const now = ctx.currentTime;
@@ -955,7 +1227,7 @@ function playReloadSounds(): void {
     noise.connect(clickGain);
     clickGain.connect(ctx.destination);
     noise.start(now);
-  }, PLAYER_RELOAD_TIME * 0.65);
+  }, effectiveReloadTime() * 0.65);
 }
 
 function playEnemyDeathSound(): void {
@@ -997,7 +1269,7 @@ function playBeamSound(): void {
   if (g.beamAudioCtx.state === "suspended") g.beamAudioCtx.resume();
 
   const ctx = g.beamAudioCtx;
-  const duration = (PLAYER_SHOOT_COOLDOWN_MS * 0.6) / 1000;
+  const duration = ((60000 / effectiveRateOfFire()) * 0.6) / 1000;
   const now = ctx.currentTime;
 
   const osc = ctx.createOscillator();
@@ -1169,7 +1441,9 @@ function spawnSmokeParticles(): void {
   // Track barrel tip position while emitting
   const obs = g.scene.onBeforeRenderObservable.add(() => {
     const p = g.barrelTip.getAbsolutePosition();
-    emitPos.x = p.x; emitPos.y = p.y; emitPos.z = p.z;
+    emitPos.x = p.x;
+    emitPos.y = p.y;
+    emitPos.z = p.z;
   });
   setTimeout(() => {
     ps.stop();
