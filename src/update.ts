@@ -133,14 +133,14 @@ const UPGRADE_DEFS: UpgradeDef[] = [
   },
   {
     key: "heatCapacity",
-    label: `+${UPGRADE_HEAT_CAPACITY} Heat Cap`,
+    label: `+${Math.round(UPGRADE_HEAT_CAPACITY * 100)}% Heat Capacity`,
     apply: () => {
       g.upgrades.heatCapacity++;
     },
   },
   {
     key: "heatDecay",
-    label: `+${UPGRADE_HEAT_DECAY} Cooling`,
+    label: `+${Math.round(UPGRADE_HEAT_DECAY * 100)}% Cooling`,
     apply: () => {
       g.upgrades.heatDecay++;
     },
@@ -187,10 +187,12 @@ export function effectiveRateOfFire(): number {
   return PLAYER_RATE_OF_FIRE + g.upgrades.rateOfFire * UPGRADE_RATE_OF_FIRE;
 }
 function effectiveHeatMax(): number {
-  return PLAYER_HEAT_MAX + g.upgrades.heatCapacity * UPGRADE_HEAT_CAPACITY;
+  return (
+    PLAYER_HEAT_MAX * (1 + g.upgrades.heatCapacity * UPGRADE_HEAT_CAPACITY)
+  );
 }
 function effectiveHeatDecay(): number {
-  return PLAYER_HEAT_DECAY + g.upgrades.heatDecay * UPGRADE_HEAT_DECAY;
+  return PLAYER_HEAT_DECAY * (1 + g.upgrades.heatDecay * UPGRADE_HEAT_DECAY);
 }
 function effectiveBloom(): number {
   return (
