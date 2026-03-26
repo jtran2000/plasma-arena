@@ -195,16 +195,10 @@ function effectiveHeatDecay(): number {
   return PLAYER_HEAT_DECAY * (1 + g.upgrades.heatDecay * UPGRADE_HEAT_DECAY);
 }
 function effectiveBloom(): number {
-  return (
-    PLAYER_SPREAD_PER_SHOT *
-    Math.max(0.1, 1 - g.upgrades.bloom * UPGRADE_BLOOM_REDUCTION)
-  );
+  return PLAYER_SPREAD_PER_SHOT * Math.pow(1 - UPGRADE_BLOOM_REDUCTION, g.upgrades.bloom);
 }
 function effectiveMoveSpreadRate(): number {
-  return (
-    PLAYER_MOVE_SPREAD_RATE *
-    Math.max(0.1, 1 - g.upgrades.moveSpread * UPGRADE_MOVE_SPREAD_REDUCTION)
-  );
+  return PLAYER_MOVE_SPREAD_RATE * Math.pow(1 - UPGRADE_MOVE_SPREAD_REDUCTION, g.upgrades.moveSpread);
 }
 function effectiveDamage(): number {
   return PLAYER_BEAM_DAMAGE + g.upgrades.damage * UPGRADE_DAMAGE;
@@ -1294,6 +1288,17 @@ function spawnBulletHole(
 }
 
 // ─── Audio ────────────────────────────────────────────────────────────────────
+function audioDest(): AudioNode {
+  const ctx = g.beamAudioCtx!;
+  if (!g.masterGain) {
+    g.masterGain = ctx.createGain();
+    const saved = localStorage.getItem("fps_volume");
+    g.masterGain.gain.value = saved !== null ? Number(saved) / 100 : 0.5;
+    g.masterGain.connect(ctx.destination);
+  }
+  return g.masterGain;
+}
+
 function playReloadSounds(): void {
   if (!g.beamAudioCtx) g.beamAudioCtx = new AudioContext();
   if (g.beamAudioCtx.state === "suspended") g.beamAudioCtx.resume();
@@ -1309,7 +1314,7 @@ function playReloadSounds(): void {
     gain.gain.setValueAtTime(0.18, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(audioDest());
     osc.start(now);
     osc.stop(now + 0.23);
   }, effectiveReloadTime() * 0.25);
@@ -1325,7 +1330,7 @@ function playReloadSounds(): void {
     pingGain.gain.setValueAtTime(0.14, now);
     pingGain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
     osc.connect(pingGain);
-    pingGain.connect(ctx.destination);
+    pingGain.connect(audioDest());
     osc.start(now);
     osc.stop(now + 0.15);
 
@@ -1339,7 +1344,7 @@ function playReloadSounds(): void {
     clickGain.gain.setValueAtTime(0.2, now);
     clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
     noise.connect(clickGain);
-    clickGain.connect(ctx.destination);
+    clickGain.connect(audioDest());
     noise.start(now);
   }, effectiveReloadTime() * 0.65);
 }
@@ -1361,7 +1366,7 @@ function playEnemyDeathSound(): void {
   noiseGain.gain.setValueAtTime(0.5, now);
   noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
   noise.connect(noiseGain);
-  noiseGain.connect(ctx.destination);
+  noiseGain.connect(audioDest());
   noise.start(now);
 
   // Low descending tone
@@ -1373,7 +1378,7 @@ function playEnemyDeathSound(): void {
   oscGain.gain.setValueAtTime(0.25, now);
   oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
   osc.connect(oscGain);
-  oscGain.connect(ctx.destination);
+  oscGain.connect(audioDest());
   osc.start(now);
   osc.stop(now + 0.36);
 }
@@ -1396,7 +1401,7 @@ function playBeamSound(): void {
   gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
   osc.connect(gain);
-  gain.connect(ctx.destination);
+  gain.connect(audioDest());
   osc.start(now);
   osc.stop(now + duration + 0.01);
 }
@@ -1424,7 +1429,7 @@ function playEnemySpawnSound(): void {
   gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
   noise.connect(filter);
   filter.connect(gain);
-  gain.connect(ctx.destination);
+  gain.connect(audioDest());
   noise.start(now);
 }
 
@@ -1442,7 +1447,7 @@ function playHealthPickupSound(): void {
   g1.gain.setValueAtTime(0.2, now);
   g1.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
   osc1.connect(g1);
-  g1.connect(ctx.destination);
+  g1.connect(audioDest());
   osc1.start(now);
   osc1.stop(now + 0.16);
 
@@ -1454,7 +1459,7 @@ function playHealthPickupSound(): void {
   g2.gain.setValueAtTime(0.2, now + 0.08);
   g2.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
   osc2.connect(g2);
-  g2.connect(ctx.destination);
+  g2.connect(audioDest());
   osc2.start(now + 0.08);
   osc2.stop(now + 0.26);
 }
@@ -1474,7 +1479,7 @@ function playAmmoPickupSound(): void {
   gain.gain.setValueAtTime(0.15, now);
   gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
   osc.connect(gain);
-  gain.connect(ctx.destination);
+  gain.connect(audioDest());
   osc.start(now);
   osc.stop(now + 0.09);
 
@@ -1486,7 +1491,7 @@ function playAmmoPickupSound(): void {
   g2.gain.setValueAtTime(0.12, now + 0.06);
   g2.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
   osc2.connect(g2);
-  g2.connect(ctx.destination);
+  g2.connect(audioDest());
   osc2.start(now + 0.06);
   osc2.stop(now + 0.16);
 }
@@ -1513,7 +1518,7 @@ function playOverheatSound(): void {
   gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
   noise.connect(filter);
   filter.connect(gain);
-  gain.connect(ctx.destination);
+  gain.connect(audioDest());
   noise.start(now);
 
   // Low warning tone
@@ -1524,7 +1529,7 @@ function playOverheatSound(): void {
   oscGain.gain.setValueAtTime(0.15, now);
   oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
   osc.connect(oscGain);
-  oscGain.connect(ctx.destination);
+  oscGain.connect(audioDest());
   osc.start(now);
   osc.stop(now + 0.31);
 }

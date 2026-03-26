@@ -12,7 +12,8 @@
   <div id="overlay">
     <h1>FPS</h1>
     <p>WASD to move &bull; Mouse to look<br>Left click to shoot &bull; R to reload<br>Shift to sprint</p>
-    <button id="start-btn">Click to Play</button>
+    <button id="start-btn">&#9654; Play</button>
+    <button id="start-options-btn">&#9881; Options</button>
   </div>
 
   <div id="hud">
@@ -64,6 +65,22 @@
   <div id="pause-screen">
     <h2>Paused</h2>
     <button id="resume-btn">&#9654; Resume</button>
+    <button id="options-btn">&#9881; Options</button>
+  </div>
+
+  <div id="options-screen">
+    <h2>Options</h2>
+    <div class="option-row">
+      <label for="volume-slider">Volume</label>
+      <input type="range" id="volume-slider" min="0" max="100" value="50">
+      <span id="volume-value">50</span>
+    </div>
+    <div class="option-row">
+      <label for="sensitivity-slider">Mouse Sensitivity</label>
+      <input type="range" id="sensitivity-slider" min="1" max="100" value="50">
+      <span id="sensitivity-value">50</span>
+    </div>
+    <button id="options-back-btn">&#9664; Back</button>
   </div>
 
   <div id="game-over">

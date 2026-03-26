@@ -134,6 +134,14 @@ export const dom = {
   upgradeLabels: Array.from(document.querySelectorAll(".upgrade-label")) as HTMLElement[],
   upgradeCounts: Array.from(document.querySelectorAll(".upgrade-count")) as HTMLElement[],
   upgradeButtons: Array.from(document.querySelectorAll(".upgrade-option")) as HTMLButtonElement[],
+  optionsScreen: getEl("options-screen"),
+  optionsBtn: getEl("options-btn"),
+  startOptionsBtn: getEl("start-options-btn"),
+  optionsBackBtn: getEl("options-back-btn"),
+  volumeSlider: getEl("volume-slider") as HTMLInputElement,
+  volumeValue: getEl("volume-value"),
+  sensitivitySlider: getEl("sensitivity-slider") as HTMLInputElement,
+  sensitivityValue: getEl("sensitivity-value"),
 };
 
 // ─── Shared mutable game context ──────────────────────────────────────────────
@@ -162,6 +170,7 @@ export const g = {
   moveSpread: 0,
   isSprinting: false,
   beamAudioCtx: null as AudioContext | null,
+  masterGain: null as GainNode | null,
   sprintBobTime: 0,
   pressedKeys: new Set<string>(),
   upgrades: {

@@ -19,10 +19,11 @@ canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
 #overlay p { font-size: 1rem; color: #ccc; max-width: 380px; text-align: center; line-height: 1.6; }
 #overlay button {
   margin-top: 8px;
-  padding: 12px 36px;
-  font-size: 1.2rem;
+  padding: 16px 48px;
+  min-width: 260px;
+  font-size: 1.4rem;
   font-family: inherit;
-  background: #f80;
+  background: #fa0;
   color: #000;
   border: none;
   cursor: pointer;
@@ -30,7 +31,7 @@ canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
   letter-spacing: 0.1em;
   font-weight: bold;
 }
-#overlay button:hover { background: #fa0; }
+#overlay button:hover { background: #fb2; }
 
 #hud {
   position: fixed;
@@ -201,6 +202,7 @@ canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
 #pause-screen button {
   margin-top: 8px;
   padding: 16px 48px;
+  min-width: 260px;
   font-size: 1.4rem;
   font-family: inherit;
   background: #fa0;
@@ -212,6 +214,59 @@ canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
   font-weight: bold;
 }
 #pause-screen button:hover { background: #fb2; }
+
+#options-screen {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Courier New', monospace;
+  z-index: 16;
+  gap: 20px;
+}
+#options-screen h2 { font-size: 2.5rem; letter-spacing: 0.2em; text-transform: uppercase; color: #fa0; }
+.option-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.9rem;
+}
+.option-row label {
+  width: 160px;
+  text-align: right;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.75rem;
+  color: #ccc;
+}
+.option-row input[type="range"] {
+  width: 180px;
+  accent-color: #fa0;
+}
+.option-row span {
+  width: 30px;
+  text-align: left;
+  color: #fa0;
+  font-weight: bold;
+}
+#options-screen button {
+  margin-top: 8px;
+  padding: 16px 48px;
+  font-size: 1.4rem;
+  font-family: inherit;
+  background: #fa0;
+  color: #000;
+  border: none;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: bold;
+}
+#options-screen button:hover { background: #fb2; }
 
 #game-over {
   position: fixed;
