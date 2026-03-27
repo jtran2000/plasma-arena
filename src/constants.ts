@@ -66,11 +66,11 @@ export const PLAYER_HEAT_COOLDOWN_DELAY = 1000; // ms of not firing before heat 
 export const KILL_SCORE = 100;
 export const WAVE_COMPLETE_SCORE = 250;
 
-// ─── Pickups ────────────────────────────────────────────────────────────────
-export const PICKUP_SCORE_INTERVAL = 500; // score interval between pickup drop chances
-export const PICKUP_DROP_CHANCE = 0.5;
-export const PICKUP_HEALTH_AMOUNT = 25;
-export const PICKUP_COLLECT_RANGE = 1.5; // m
+// ─── Supplies ───────────────────────────────────────────────────────────────
+export const SUPPLY_SCORE_INTERVAL = 500; // score interval between supply drop chances
+export const SUPPLY_DROP_RATE = 0.25;
+export const SUPPLY_HEALTH_AMOUNT = 25;
+export const SUPPLY_COLLECT_RANGE = 1.5; // m
 
 // ─── Waves ──────────────────────────────────────────────────────────────────
 export const WAVE_BASE_ENEMIES = 5;
@@ -90,3 +90,4 @@ export const UPGRADE_HEAT_DECAY = 0.5; // +20% of base heat decay per upgrade
 export const UPGRADE_BLOOM_REDUCTION = 0.25; // 25% less bloom per shot per upgrade
 export const UPGRADE_MOVE_SPREAD_REDUCTION = 0.25; // 25% less spread from movement per upgrade
 export const UPGRADE_DAMAGE = 5;
+export const UPGRADE_SUPPLY_DROP_RATE = 0.05; // +5% absolute drop chance per upgrade

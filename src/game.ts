@@ -13,7 +13,7 @@ import {
   PLAYER_MAX_HEALTH,
   PLAYER_MAG_SIZE,
   PLAYER_RESERVE_MAGS,
-  PICKUP_SCORE_INTERVAL,
+  SUPPLY_SCORE_INTERVAL,
   WAVE_BASE_ENEMIES,
 } from "./constants.js";
 
@@ -34,7 +34,7 @@ export interface GameState {
   overheated: boolean;
   running: boolean;
   paused: boolean;
-  nextPickupThreshold: number;
+  nextSupplyThreshold: number;
   wave: number;
   waveEnemiesLeft: number;
   waveSpawnTimer: number;
@@ -42,7 +42,7 @@ export interface GameState {
   waveActive: boolean;
 }
 
-export interface Pickup {
+export interface Supply {
   mesh: Mesh;
   aggregate: PhysicsAggregate;
   type: "health" | "ammo";
@@ -85,7 +85,7 @@ export function makeState(): GameState {
     overheated: false,
     running: false,
     paused: false,
-    nextPickupThreshold: PICKUP_SCORE_INTERVAL,
+    nextSupplyThreshold: SUPPLY_SCORE_INTERVAL,
     wave: 1,
     waveEnemiesLeft: WAVE_BASE_ENEMIES,
     waveSpawnTimer: 0,
@@ -157,7 +157,7 @@ export const g = {
   playerAggregate: null as unknown as PhysicsAggregate,
   playerVelocityXZ: Vector3.Zero(),
   enemies: [] as Enemy[],
-  pickups: [] as Pickup[],
+  supplies: [] as Supply[],
   bulletHoles: [] as Mesh[],
   bulletHoleTimes: [] as number[],
   glowingHoles: [] as { mesh: Mesh; time: number }[],
@@ -185,6 +185,7 @@ export const g = {
     bloom: 0,
     moveSpread: 0,
     damage: 0,
+    supplyDropRate: 0,
   },
   pendingUpgrades: [] as string[],
 };

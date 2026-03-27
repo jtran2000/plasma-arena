@@ -9,7 +9,6 @@ import {
   Ray,
 } from "@babylonjs/core";
 import {
-  PLAYER_MAX_HEALTH,
   ENEMY_HP,
   ENEMY_HP_PER_WAVE,
   ENEMY_SPEED,
@@ -22,19 +21,13 @@ import {
   ENEMY_CHASE_RANGE,
   ENEMY_ZIGZAG_FREQ,
   ENEMY_ZIGZAG_AMPLITUDE,
-  PLAYER_BEAM_DAMAGE,
   KILL_SCORE,
-  PICKUP_SCORE_INTERVAL,
-  PICKUP_DROP_CHANCE,
-  PICKUP_HEALTH_AMOUNT,
-  PICKUP_COLLECT_RANGE,
-  PLAYER_RATE_OF_FIRE,
-  PLAYER_SPEED,
+  SUPPLY_SCORE_INTERVAL,
+  SUPPLY_HEALTH_AMOUNT,
+  SUPPLY_COLLECT_RANGE,
   PLAYER_SPRINT_MULTIPLIER,
   PLAYER_ACCELERATION,
   PLAYER_JUMP_SPEED,
-  PLAYER_MAG_SIZE,
-  PLAYER_RELOAD_TIME,
   WAVE_BASE_ENEMIES,
   WAVE_GROWTH,
   WAVE_SPAWN_INTERVAL_MS,
@@ -46,25 +39,13 @@ import {
   ENEMY_FOOTSTEP_INTERVAL_MS,
   WAVE_COMPLETE_SCORE,
   PLAYER_MAX_RESERVE_MAGS,
-  PLAYER_SPREAD_PER_SHOT,
   PLAYER_MAX_SPREAD,
   PLAYER_SPREAD_DECAY,
-  PLAYER_MOVE_SPREAD_RATE,
+  PLAYER_MAX_HEALTH,
   PLAYER_HEAT_PER_SHOT,
   PLAYER_HEAT_MAX,
   PLAYER_HEAT_CRITICAL,
-  PLAYER_HEAT_DECAY,
   PLAYER_HEAT_COOLDOWN_DELAY,
-  UPGRADE_MAX_HEALTH,
-  UPGRADE_SPEED,
-  UPGRADE_RELOAD_SPEED,
-  UPGRADE_MAG_SIZE,
-  UPGRADE_RATE_OF_FIRE,
-  UPGRADE_HEAT_CAPACITY,
-  UPGRADE_HEAT_DECAY,
-  UPGRADE_BLOOM_REDUCTION,
-  UPGRADE_MOVE_SPREAD_REDUCTION,
-  UPGRADE_DAMAGE,
 } from "./constants.js";
 import { g, dom, type Enemy } from "./game.js";
 import {
@@ -73,8 +54,8 @@ import {
   BULLET_HOLE_SURFACE_OFFSET,
   makeBodySplitHalves,
   makeHeadSplitHalves,
-  makeHealthPickup,
-  makeAmmoPickup,
+  makeHealthSupply,
+  makeAmmoSupply,
   makeEnemyMats,
   makeEnemyPhysCapsule,
   makeEnemyBodyMesh,
@@ -83,165 +64,38 @@ import {
   makeRagdollHeadAggregate,
   makeRagdollHalfAggregate,
 } from "./meshBuilders.js";
+import {
+  updateAudioListener,
+  playReloadSounds,
+  playBeamSound,
+  playOverheatSound,
+  playEnemyDeathSound,
+  playEnemySpawnSound,
+  playEnemyFootstep,
+  playEnemyAttackSound,
+  playHealthSupplySound,
+  playAmmoSupplySound,
+} from "./audio.js";
+import {
+  effectiveMaxHealth,
+  effectiveSpeed,
+  effectiveReloadTime,
+  effectiveMagSize,
+  effectiveRateOfFire,
+  effectiveHeatMax,
+  effectiveHeatDecay,
+  effectiveBloom,
+  effectiveMoveSpreadRate,
+  effectiveDamage,
+  showUpgradeMenu,
+  selectUpgrade,
+  effectiveSupplyDropRate,
+  setUpdateHUD,
+} from "./upgrades.js";
+export { selectUpgrade };
 
-// ─── Upgrades ────────────────────────────────────────────────────────────────
-interface UpgradeDef {
-  key: keyof typeof g.upgrades;
-  label: string;
-  apply: () => void;
-}
-
-const UPGRADE_DEFS: UpgradeDef[] = [
-  {
-    key: "maxHealth",
-    label: `+${UPGRADE_MAX_HEALTH} Max Health`,
-    apply: () => {
-      g.upgrades.maxHealth++;
-      g.state.health = Math.min(
-        g.state.health + UPGRADE_MAX_HEALTH,
-        effectiveMaxHealth(),
-      );
-      updateHUD();
-    },
-  },
-  {
-    key: "speed",
-    label: `+${UPGRADE_SPEED} Speed`,
-    apply: () => {
-      g.upgrades.speed++;
-    },
-  },
-  {
-    key: "reloadTime",
-    label: `+${Math.round(UPGRADE_RELOAD_SPEED * 100)}% Reload Speed`,
-    apply: () => {
-      g.upgrades.reloadTime++;
-    },
-  },
-  {
-    key: "magSize",
-    label: `+${UPGRADE_MAG_SIZE} Mag Size`,
-    apply: () => {
-      g.upgrades.magSize++;
-    },
-  },
-  {
-    key: "rateOfFire",
-    label: `+${UPGRADE_RATE_OF_FIRE} RPM`,
-    apply: () => {
-      g.upgrades.rateOfFire++;
-    },
-  },
-  {
-    key: "heatCapacity",
-    label: `+${Math.round(UPGRADE_HEAT_CAPACITY * 100)}% Heat Capacity`,
-    apply: () => {
-      g.upgrades.heatCapacity++;
-    },
-  },
-  {
-    key: "heatDecay",
-    label: `+${Math.round(UPGRADE_HEAT_DECAY * 100)}% Cooling`,
-    apply: () => {
-      g.upgrades.heatDecay++;
-    },
-  },
-  {
-    key: "bloom",
-    label: `-${Math.round(UPGRADE_BLOOM_REDUCTION * 100)}% Bloom`,
-    apply: () => {
-      g.upgrades.bloom++;
-    },
-  },
-  {
-    key: "moveSpread",
-    label: `+${Math.round(UPGRADE_MOVE_SPREAD_REDUCTION * 100)}% Accuracy While Moving`,
-    apply: () => {
-      g.upgrades.moveSpread++;
-    },
-  },
-  {
-    key: "damage",
-    label: `+${UPGRADE_DAMAGE} Damage`,
-    apply: () => {
-      g.upgrades.damage++;
-    },
-  },
-];
-
-function effectiveMaxHealth(): number {
-  return PLAYER_MAX_HEALTH + g.upgrades.maxHealth * UPGRADE_MAX_HEALTH;
-}
-function effectiveSpeed(): number {
-  return PLAYER_SPEED + g.upgrades.speed * UPGRADE_SPEED;
-}
-function effectiveReloadTime(): number {
-  return (
-    PLAYER_RELOAD_TIME *
-    Math.pow(1 - UPGRADE_RELOAD_SPEED, g.upgrades.reloadTime)
-  );
-}
-function effectiveMagSize(): number {
-  return PLAYER_MAG_SIZE + g.upgrades.magSize * UPGRADE_MAG_SIZE;
-}
-function effectiveRateOfFire(): number {
-  return PLAYER_RATE_OF_FIRE + g.upgrades.rateOfFire * UPGRADE_RATE_OF_FIRE;
-}
-function effectiveHeatMax(): number {
-  return (
-    PLAYER_HEAT_MAX * (1 + g.upgrades.heatCapacity * UPGRADE_HEAT_CAPACITY)
-  );
-}
-function effectiveHeatDecay(): number {
-  return PLAYER_HEAT_DECAY * (1 + g.upgrades.heatDecay * UPGRADE_HEAT_DECAY);
-}
-function effectiveBloom(): number {
-  return (
-    PLAYER_SPREAD_PER_SHOT *
-    Math.pow(1 - UPGRADE_BLOOM_REDUCTION, g.upgrades.bloom)
-  );
-}
-function effectiveMoveSpreadRate(): number {
-  return (
-    PLAYER_MOVE_SPREAD_RATE *
-    Math.pow(1 - UPGRADE_MOVE_SPREAD_REDUCTION, g.upgrades.moveSpread)
-  );
-}
-function effectiveDamage(): number {
-  return PLAYER_BEAM_DAMAGE + g.upgrades.damage * UPGRADE_DAMAGE;
-}
-
-function pickRandomUpgrades(): UpgradeDef[] {
-  const shuffled = [...UPGRADE_DEFS].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, 3);
-}
-
-function showUpgradeMenu(): void {
-  const choices = pickRandomUpgrades();
-  g.pendingUpgrades = choices.map((c) => c.key);
-  for (let i = 0; i < 3; i++) {
-    dom.upgradeLabels[i].textContent = choices[i].label;
-    const n = g.upgrades[choices[i].key];
-    dom.upgradeCounts[i].textContent = n > 0 ? `(${n}x)` : "";
-  }
-  dom.upgradeMenu.classList.add("visible");
-  g.mouseHeld = false;
-  document.exitPointerLock();
-}
-
-function hideUpgradeMenu(): void {
-  dom.upgradeMenu.classList.remove("visible");
-  g.pendingUpgrades = [];
-  dom.canvas.requestPointerLock();
-}
-
-export function selectUpgrade(index: number): void {
-  if (g.pendingUpgrades.length === 0) return;
-  const key = g.pendingUpgrades[index];
-  const def = UPGRADE_DEFS.find((d) => d.key === key);
-  if (def) def.apply();
-  hideUpgradeMenu();
-}
+// Register updateHUD callback for upgrades (defined below, but hoisted)
+setUpdateHUD(() => updateHUD());
 
 // ─── Game loop ────────────────────────────────────────────────────────────────
 export function update(): void {
@@ -376,7 +230,7 @@ function updateTimers(dt: number): void {
       m.name !== "enemyPhys" &&
       m.name !== "laserBeam" &&
       m.name !== "bhole" &&
-      m.name !== "pickup" &&
+      m.name !== "supply" &&
       m.renderingGroupId !== 1,
   );
   const overEnemy =
@@ -429,10 +283,10 @@ function updateTimers(dt: number): void {
 
   if (g.state.running) updateWaves(dt);
 
-  for (let i = g.pickups.length - 1; i >= 0; i--) {
-    const p = g.pickups[i];
+  for (let i = g.supplies.length - 1; i >= 0; i--) {
+    const p = g.supplies[i];
     const dist = Vector3.Distance(g.playerMesh.position, p.mesh.position);
-    if (dist < PICKUP_COLLECT_RANGE) {
+    if (dist < SUPPLY_COLLECT_RANGE) {
       const maxReserve = PLAYER_MAX_RESERVE_MAGS * effectiveMagSize();
       if (p.type === "health" && g.state.health >= effectiveMaxHealth())
         continue;
@@ -440,7 +294,7 @@ function updateTimers(dt: number): void {
       if (p.type === "health") {
         g.state.health = Math.min(
           effectiveMaxHealth(),
-          g.state.health + PICKUP_HEALTH_AMOUNT,
+          g.state.health + SUPPLY_HEALTH_AMOUNT,
         );
       } else {
         g.state.reserve = Math.min(
@@ -449,12 +303,12 @@ function updateTimers(dt: number): void {
         );
       }
       updateHUD();
-      const pickupPos = p.mesh.position.clone();
-      if (p.type === "health") playHealthPickupSound(pickupPos);
-      else playAmmoPickupSound(pickupPos);
+      const supplyPos = p.mesh.position.clone();
+      if (p.type === "health") playHealthSupplySound(supplyPos);
+      else playAmmoSupplySound(supplyPos);
       p.aggregate.dispose();
       p.mesh.dispose();
-      g.pickups.splice(i, 1);
+      g.supplies.splice(i, 1);
     }
   }
 }
@@ -523,7 +377,7 @@ export function tryJump(): void {
       m.name !== "enemyPhys" &&
       m.name !== "laserBeam" &&
       m.name !== "bhole" &&
-      m.name !== "pickup",
+      m.name !== "supply",
   );
   if (!hit?.hit) return;
 
@@ -756,12 +610,12 @@ function updateWaves(dt: number): void {
     g.state.wavePauseTimer = WAVE_PAUSE_MS;
     showWaveBanner(`Wave ${g.state.wave} Complete`);
 
-    // Reward: spawn pickups in front of player + score bonus
+    // Reward: spawn supplies in front of player + score bonus
     const fwd = g.camera.getForwardRay(3).direction;
     const frontPos = g.camera.position.add(fwd.scale(3));
     frontPos.y = 0.5;
-    spawnPickup(frontPos.clone(), "health");
-    spawnPickup(new Vector3(frontPos.x + 0.6, frontPos.y, frontPos.z), "ammo");
+    spawnSupply(frontPos.clone(), "health");
+    spawnSupply(new Vector3(frontPos.x + 0.6, frontPos.y, frontPos.z), "ammo");
     incrementScore(WAVE_COMPLETE_SCORE, frontPos);
     showUpgradeMenu();
   }
@@ -825,7 +679,7 @@ export function shoot(): void {
       m.name !== "enemyPhys" &&
       m.name !== "laserBeam" &&
       m.name !== "bhole" &&
-      m.name !== "pickup",
+      m.name !== "supply",
   );
 
   const beamEnd =
@@ -1085,19 +939,19 @@ function hitDebris(mesh: Mesh, beamDir: Vector3, hitPoint?: Vector3): void {
 function incrementScore(amount: number, hitPoint?: Vector3): void {
   g.state.score += amount;
   updateHUD();
-  while (g.state.score >= g.state.nextPickupThreshold) {
-    g.state.nextPickupThreshold += PICKUP_SCORE_INTERVAL;
-    if (Math.random() < PICKUP_DROP_CHANCE && hitPoint) {
-      spawnPickup(hitPoint.clone());
+  while (g.state.score >= g.state.nextSupplyThreshold) {
+    g.state.nextSupplyThreshold += SUPPLY_SCORE_INTERVAL;
+    if (Math.random() < effectiveSupplyDropRate() && hitPoint) {
+      spawnSupply(hitPoint.clone());
     }
   }
 }
 
-function spawnPickup(position: Vector3, forceType?: "health" | "ammo"): void {
+function spawnSupply(position: Vector3, forceType?: "health" | "ammo"): void {
   const type = forceType ?? (Math.random() < 0.5 ? "health" : "ammo");
   const { mesh, aggregate } =
-    type === "health" ? makeHealthPickup(position) : makeAmmoPickup(position);
-  g.pickups.push({ mesh, aggregate, type });
+    type === "health" ? makeHealthSupply(position) : makeAmmoSupply(position);
+  g.supplies.push({ mesh, aggregate, type });
 }
 
 export function startReload(): void {
@@ -1112,7 +966,7 @@ export function startReload(): void {
   g.state.reloading = true;
   g.state.reloadTimeLeft = effectiveReloadTime();
   dom.reloadMsg.classList.add("visible");
-  playReloadSounds();
+  playReloadSounds(effectiveReloadTime(), () => g.barrelTip.getAbsolutePosition());
 }
 
 function completeReload(): void {
@@ -1191,7 +1045,7 @@ function spawnLaserBeam(from: Vector3, to: Vector3): void {
   const dist = Vector3.Distance(from, to);
   if (dist < 0.05) return;
 
-  playBeamSound();
+  playBeamSound(((60000 / effectiveRateOfFire()) * 0.6) / 1000);
 
   const beam = makeBeam(from, to);
   const beamHeatMax = effectiveHeatMax();
@@ -1302,339 +1156,6 @@ function spawnBulletHole(
     g.bulletHoleTimes.push(60_000);
   }
   g.glowingHoles.push({ mesh: disc, time: BULLET_HOLE_GLOW_MS });
-}
-
-// ─── Audio ────────────────────────────────────────────────────────────────────
-function ensureAudioCtx(): AudioContext {
-  if (!g.beamAudioCtx) g.beamAudioCtx = new AudioContext();
-  if (g.beamAudioCtx.state === "suspended") g.beamAudioCtx.resume();
-  return g.beamAudioCtx;
-}
-
-function audioDest(): AudioNode {
-  const ctx = g.beamAudioCtx!;
-  if (!g.masterGain) {
-    g.masterGain = ctx.createGain();
-    const saved = localStorage.getItem("fps_volume");
-    g.masterGain.gain.value = saved !== null ? Number(saved) / 100 : 0.5;
-    g.masterGain.connect(ctx.destination);
-  }
-  return g.masterGain;
-}
-
-function makePanner(ctx: AudioContext, pos: Vector3): PannerNode {
-  const p = ctx.createPanner();
-  p.panningModel = "HRTF";
-  p.distanceModel = "inverse";
-  p.refDistance = 3;
-  p.maxDistance = 60;
-  p.rolloffFactor = 1;
-  p.positionX.value = pos.x;
-  p.positionY.value = pos.y;
-  p.positionZ.value = pos.z;
-  p.connect(audioDest());
-  return p;
-}
-
-function updateAudioListener(): void {
-  if (!g.beamAudioCtx) return;
-  const listener = g.beamAudioCtx.listener;
-  const pos = g.camera.position;
-  const fwd = g.camera.getForwardRay().direction;
-  if (listener.positionX !== undefined) {
-    listener.positionX.value = pos.x;
-    listener.positionY.value = pos.y;
-    listener.positionZ.value = pos.z;
-    listener.forwardX.value = fwd.x;
-    listener.forwardY.value = fwd.y;
-    listener.forwardZ.value = fwd.z;
-    listener.upX.value = 0;
-    listener.upY.value = 1;
-    listener.upZ.value = 0;
-  }
-}
-
-function playReloadSounds(): void {
-  const ctx = ensureAudioCtx();
-
-  setTimeout(() => {
-    const now = ctx.currentTime;
-    const panner = makePanner(ctx, g.barrelTip.getAbsolutePosition());
-    const osc = ctx.createOscillator();
-    osc.type = "sawtooth";
-    osc.frequency.setValueAtTime(320, now);
-    osc.frequency.exponentialRampToValueAtTime(55, now + 0.22);
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.18, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
-    osc.connect(gain);
-    gain.connect(panner);
-    osc.start(now);
-    osc.stop(now + 0.23);
-  }, effectiveReloadTime() * 0.25);
-
-  setTimeout(() => {
-    const now = ctx.currentTime;
-    const panner = makePanner(ctx, g.barrelTip.getAbsolutePosition());
-
-    const osc = ctx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(90, now);
-    osc.frequency.exponentialRampToValueAtTime(900, now + 0.1);
-    const pingGain = ctx.createGain();
-    pingGain.gain.setValueAtTime(0.14, now);
-    pingGain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
-    osc.connect(pingGain);
-    pingGain.connect(panner);
-    osc.start(now);
-    osc.stop(now + 0.15);
-
-    const bufSize = Math.floor(ctx.sampleRate * 0.03);
-    const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
-    const noise = ctx.createBufferSource();
-    noise.buffer = buf;
-    const clickGain = ctx.createGain();
-    clickGain.gain.setValueAtTime(0.2, now);
-    clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
-    noise.connect(clickGain);
-    clickGain.connect(panner);
-    noise.start(now);
-  }, effectiveReloadTime() * 0.65);
-}
-
-function playEnemyDeathSound(pos: Vector3): void {
-  const ctx = ensureAudioCtx();
-  const now = ctx.currentTime;
-  const panner = makePanner(ctx, pos);
-
-  const bufSize = Math.floor(ctx.sampleRate * 0.15);
-  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
-  const noise = ctx.createBufferSource();
-  noise.buffer = buf;
-  const noiseGain = ctx.createGain();
-  noiseGain.gain.setValueAtTime(0.5, now);
-  noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-  noise.connect(noiseGain);
-  noiseGain.connect(panner);
-  noise.start(now);
-
-  const osc = ctx.createOscillator();
-  osc.type = "sawtooth";
-  osc.frequency.setValueAtTime(180, now);
-  osc.frequency.exponentialRampToValueAtTime(35, now + 0.35);
-  const oscGain = ctx.createGain();
-  oscGain.gain.setValueAtTime(0.25, now);
-  oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-  osc.connect(oscGain);
-  oscGain.connect(panner);
-  osc.start(now);
-  osc.stop(now + 0.36);
-}
-
-function playBeamSound(): void {
-  const ctx = ensureAudioCtx();
-  const duration = ((60000 / effectiveRateOfFire()) * 0.6) / 1000;
-  const now = ctx.currentTime;
-  const panner = makePanner(ctx, g.barrelTip.getAbsolutePosition());
-
-  const osc = ctx.createOscillator();
-  osc.type = "square";
-  osc.frequency.setValueAtTime(380, now);
-  osc.frequency.exponentialRampToValueAtTime(160, now + duration * 0.8);
-
-  const gain = ctx.createGain();
-  gain.gain.setValueAtTime(0.12, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-
-  osc.connect(gain);
-  gain.connect(panner);
-  osc.start(now);
-  osc.stop(now + duration + 0.01);
-}
-
-function playEnemySpawnSound(pos: Vector3): void {
-  const ctx = ensureAudioCtx();
-  const now = ctx.currentTime;
-  const panner = makePanner(ctx, pos);
-
-  const bufSize = Math.floor(ctx.sampleRate * 0.3);
-  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
-  const noise = ctx.createBufferSource();
-  noise.buffer = buf;
-  const filter = ctx.createBiquadFilter();
-  filter.type = "bandpass";
-  filter.frequency.setValueAtTime(800, now);
-  filter.frequency.exponentialRampToValueAtTime(200, now + 0.3);
-  filter.Q.value = 2;
-  const gain = ctx.createGain();
-  gain.gain.setValueAtTime(0.9, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-  noise.connect(filter);
-  filter.connect(gain);
-  gain.connect(panner);
-  noise.start(now);
-}
-
-function playHealthPickupSound(pos: Vector3): void {
-  const ctx = ensureAudioCtx();
-  const now = ctx.currentTime;
-  const panner = makePanner(ctx, pos);
-
-  const osc1 = ctx.createOscillator();
-  osc1.type = "sine";
-  osc1.frequency.setValueAtTime(520, now);
-  const g1 = ctx.createGain();
-  g1.gain.setValueAtTime(0.2, now);
-  g1.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-  osc1.connect(g1);
-  g1.connect(panner);
-  osc1.start(now);
-  osc1.stop(now + 0.16);
-
-  const osc2 = ctx.createOscillator();
-  osc2.type = "sine";
-  osc2.frequency.setValueAtTime(780, now + 0.08);
-  const g2 = ctx.createGain();
-  g2.gain.setValueAtTime(0.001, now);
-  g2.gain.setValueAtTime(0.2, now + 0.08);
-  g2.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-  osc2.connect(g2);
-  g2.connect(panner);
-  osc2.start(now + 0.08);
-  osc2.stop(now + 0.26);
-}
-
-function playAmmoPickupSound(pos: Vector3): void {
-  const ctx = ensureAudioCtx();
-  const now = ctx.currentTime;
-  const panner = makePanner(ctx, pos);
-
-  const osc = ctx.createOscillator();
-  osc.type = "square";
-  osc.frequency.setValueAtTime(300, now);
-  osc.frequency.exponentialRampToValueAtTime(150, now + 0.06);
-  const gain = ctx.createGain();
-  gain.gain.setValueAtTime(0.15, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-  osc.connect(gain);
-  gain.connect(panner);
-  osc.start(now);
-  osc.stop(now + 0.09);
-
-  const osc2 = ctx.createOscillator();
-  osc2.type = "triangle";
-  osc2.frequency.setValueAtTime(450, now + 0.06);
-  const g2 = ctx.createGain();
-  g2.gain.setValueAtTime(0.001, now);
-  g2.gain.setValueAtTime(0.12, now + 0.06);
-  g2.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-  osc2.connect(g2);
-  g2.connect(panner);
-  osc2.start(now + 0.06);
-  osc2.stop(now + 0.16);
-}
-
-function playOverheatSound(): void {
-  const ctx = ensureAudioCtx();
-  const now = ctx.currentTime;
-  const panner = makePanner(ctx, g.barrelTip.getAbsolutePosition());
-
-  const bufSize = Math.floor(ctx.sampleRate * 0.5);
-  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
-  const noise = ctx.createBufferSource();
-  noise.buffer = buf;
-  const filter = ctx.createBiquadFilter();
-  filter.type = "highpass";
-  filter.frequency.setValueAtTime(3000, now);
-  filter.frequency.exponentialRampToValueAtTime(1000, now + 0.5);
-  const gain = ctx.createGain();
-  gain.gain.setValueAtTime(0.3, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
-  noise.connect(filter);
-  filter.connect(gain);
-  gain.connect(panner);
-  noise.start(now);
-
-  const osc = ctx.createOscillator();
-  osc.type = "sawtooth";
-  osc.frequency.setValueAtTime(120, now);
-  const oscGain = ctx.createGain();
-  oscGain.gain.setValueAtTime(0.15, now);
-  oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-  osc.connect(oscGain);
-  oscGain.connect(panner);
-  osc.start(now);
-  osc.stop(now + 0.31);
-}
-
-function playEnemyFootstep(pos: Vector3): void {
-  const ctx = ensureAudioCtx();
-  const now = ctx.currentTime;
-  const panner = makePanner(ctx, pos);
-
-  const bufSize = Math.floor(ctx.sampleRate * 0.06);
-  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
-  const noise = ctx.createBufferSource();
-  noise.buffer = buf;
-  const filter = ctx.createBiquadFilter();
-  filter.type = "lowpass";
-  filter.frequency.value = 400;
-  const gain = ctx.createGain();
-  gain.gain.setValueAtTime(0.32, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
-  noise.connect(filter);
-  filter.connect(gain);
-  gain.connect(panner);
-  noise.start(now);
-}
-
-function playEnemyAttackSound(pos: Vector3): void {
-  const ctx = ensureAudioCtx();
-  const now = ctx.currentTime;
-  const panner = makePanner(ctx, pos);
-
-  // Sharp impact swoosh
-  const bufSize = Math.floor(ctx.sampleRate * 0.12);
-  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
-  const noise = ctx.createBufferSource();
-  noise.buffer = buf;
-  const filter = ctx.createBiquadFilter();
-  filter.type = "bandpass";
-  filter.frequency.setValueAtTime(600, now);
-  filter.frequency.exponentialRampToValueAtTime(200, now + 0.12);
-  filter.Q.value = 3;
-  const gain = ctx.createGain();
-  gain.gain.setValueAtTime(0.25, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-  noise.connect(filter);
-  filter.connect(gain);
-  gain.connect(panner);
-  noise.start(now);
-
-  // Low thump
-  const osc = ctx.createOscillator();
-  osc.type = "sine";
-  osc.frequency.setValueAtTime(100, now);
-  osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
-  const oscGain = ctx.createGain();
-  oscGain.gain.setValueAtTime(1, now);
-  oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-  osc.connect(oscGain);
-  oscGain.connect(panner);
-  osc.start(now);
-  osc.stop(now + 0.11);
 }
 
 function spawnSmokeParticles(): void {
