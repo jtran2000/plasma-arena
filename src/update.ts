@@ -43,6 +43,7 @@ import {
   ARENA_CEIL,
   ARENA_SIZE,
   ENEMY_MIN_SPAWN_DIST,
+  ENEMY_FOOTSTEP_INTERVAL_MS,
   WAVE_COMPLETE_SCORE,
   PLAYER_MAX_RESERVE_MAGS,
   PLAYER_SPREAD_PER_SHOT,
@@ -246,6 +247,7 @@ export function selectUpgrade(index: number): void {
 export function update(): void {
   if (g.state.paused) return;
   const dt = g.engine.getDeltaTime();
+  updateAudioListener();
   updateTimers(dt);
   updatePlayer();
   updateEnemies();
@@ -447,8 +449,9 @@ function updateTimers(dt: number): void {
         );
       }
       updateHUD();
-      if (p.type === "health") playHealthPickupSound();
-      else playAmmoPickupSound();
+      const pickupPos = p.mesh.position.clone();
+      if (p.type === "health") playHealthPickupSound(pickupPos);
+      else playAmmoPickupSound(pickupPos);
       p.aggregate.dispose();
       p.mesh.dispose();
       g.pickups.splice(i, 1);
@@ -620,6 +623,7 @@ function updateEnemies(): void {
       if (dist < ENEMY_MELEE_RANGE) {
         e.attackCooldown -= g.engine.getDeltaTime();
         if (e.attackCooldown <= 0) {
+          playEnemyAttackSound(pos.clone());
           damagePlayer(e.meleeDamage);
           e.attackCooldown = e.meleeIntervalMs;
         }
@@ -645,6 +649,13 @@ function updateEnemies(): void {
           dirXZ.z * e.speed * 0.5,
         ),
       );
+    }
+
+    // Footstep sounds
+    e.footstepTimer -= g.engine.getDeltaTime();
+    if (e.footstepTimer <= 0) {
+      playEnemyFootstep(pos.clone());
+      e.footstepTimer = ENEMY_FOOTSTEP_INTERVAL_MS;
     }
   }
 }
@@ -700,8 +711,9 @@ function spawnEnemy(): void {
     flashTime: 0,
     flashMesh: null,
     baseEmissive: bodyMat.diffuseColor.scale(0.2),
+    footstepTimer: 0,
   });
-  playEnemySpawnSound();
+  playEnemySpawnSound(new Vector3(x, ARENA_CEIL - 0.5, z));
 }
 
 // ─── Waves ───────────────────────────────────────────────────────────────────
@@ -902,9 +914,8 @@ function hitEnemy(enemy: Enemy, hitMesh: Mesh, hitPoint?: Vector3): void {
 }
 
 function killEnemy(enemy: Enemy, killMesh: Mesh, hitPoint?: Vector3): void {
-  playEnemyDeathSound();
-
   const bodyWorldPos = enemy.bodyMesh.getAbsolutePosition().clone();
+  playEnemyDeathSound(bodyWorldPos);
   const headWorldPos = enemy.headMesh.getAbsolutePosition().clone();
   const isHeadshot = killMesh.name === "enemyHead";
 
@@ -1294,6 +1305,12 @@ function spawnBulletHole(
 }
 
 // ─── Audio ────────────────────────────────────────────────────────────────────
+function ensureAudioCtx(): AudioContext {
+  if (!g.beamAudioCtx) g.beamAudioCtx = new AudioContext();
+  if (g.beamAudioCtx.state === "suspended") g.beamAudioCtx.resume();
+  return g.beamAudioCtx;
+}
+
 function audioDest(): AudioNode {
   const ctx = g.beamAudioCtx!;
   if (!g.masterGain) {
@@ -1305,13 +1322,44 @@ function audioDest(): AudioNode {
   return g.masterGain;
 }
 
+function makePanner(ctx: AudioContext, pos: Vector3): PannerNode {
+  const p = ctx.createPanner();
+  p.panningModel = "HRTF";
+  p.distanceModel = "inverse";
+  p.refDistance = 3;
+  p.maxDistance = 60;
+  p.rolloffFactor = 1;
+  p.positionX.value = pos.x;
+  p.positionY.value = pos.y;
+  p.positionZ.value = pos.z;
+  p.connect(audioDest());
+  return p;
+}
+
+function updateAudioListener(): void {
+  if (!g.beamAudioCtx) return;
+  const listener = g.beamAudioCtx.listener;
+  const pos = g.camera.position;
+  const fwd = g.camera.getForwardRay().direction;
+  if (listener.positionX !== undefined) {
+    listener.positionX.value = pos.x;
+    listener.positionY.value = pos.y;
+    listener.positionZ.value = pos.z;
+    listener.forwardX.value = fwd.x;
+    listener.forwardY.value = fwd.y;
+    listener.forwardZ.value = fwd.z;
+    listener.upX.value = 0;
+    listener.upY.value = 1;
+    listener.upZ.value = 0;
+  }
+}
+
 function playReloadSounds(): void {
-  if (!g.beamAudioCtx) g.beamAudioCtx = new AudioContext();
-  if (g.beamAudioCtx.state === "suspended") g.beamAudioCtx.resume();
-  const ctx = g.beamAudioCtx;
+  const ctx = ensureAudioCtx();
 
   setTimeout(() => {
     const now = ctx.currentTime;
+    const panner = makePanner(ctx, g.barrelTip.getAbsolutePosition());
     const osc = ctx.createOscillator();
     osc.type = "sawtooth";
     osc.frequency.setValueAtTime(320, now);
@@ -1320,13 +1368,14 @@ function playReloadSounds(): void {
     gain.gain.setValueAtTime(0.18, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
     osc.connect(gain);
-    gain.connect(audioDest());
+    gain.connect(panner);
     osc.start(now);
     osc.stop(now + 0.23);
   }, effectiveReloadTime() * 0.25);
 
   setTimeout(() => {
     const now = ctx.currentTime;
+    const panner = makePanner(ctx, g.barrelTip.getAbsolutePosition());
 
     const osc = ctx.createOscillator();
     osc.type = "sine";
@@ -1336,7 +1385,7 @@ function playReloadSounds(): void {
     pingGain.gain.setValueAtTime(0.14, now);
     pingGain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
     osc.connect(pingGain);
-    pingGain.connect(audioDest());
+    pingGain.connect(panner);
     osc.start(now);
     osc.stop(now + 0.15);
 
@@ -1350,18 +1399,16 @@ function playReloadSounds(): void {
     clickGain.gain.setValueAtTime(0.2, now);
     clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
     noise.connect(clickGain);
-    clickGain.connect(audioDest());
+    clickGain.connect(panner);
     noise.start(now);
   }, effectiveReloadTime() * 0.65);
 }
 
-function playEnemyDeathSound(): void {
-  if (!g.beamAudioCtx) g.beamAudioCtx = new AudioContext();
-  if (g.beamAudioCtx.state === "suspended") g.beamAudioCtx.resume();
-  const ctx = g.beamAudioCtx;
+function playEnemyDeathSound(pos: Vector3): void {
+  const ctx = ensureAudioCtx();
   const now = ctx.currentTime;
+  const panner = makePanner(ctx, pos);
 
-  // Impact thud — filtered noise burst
   const bufSize = Math.floor(ctx.sampleRate * 0.15);
   const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
   const data = buf.getChannelData(0);
@@ -1372,10 +1419,9 @@ function playEnemyDeathSound(): void {
   noiseGain.gain.setValueAtTime(0.5, now);
   noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
   noise.connect(noiseGain);
-  noiseGain.connect(audioDest());
+  noiseGain.connect(panner);
   noise.start(now);
 
-  // Low descending tone
   const osc = ctx.createOscillator();
   osc.type = "sawtooth";
   osc.frequency.setValueAtTime(180, now);
@@ -1384,18 +1430,16 @@ function playEnemyDeathSound(): void {
   oscGain.gain.setValueAtTime(0.25, now);
   oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
   osc.connect(oscGain);
-  oscGain.connect(audioDest());
+  oscGain.connect(panner);
   osc.start(now);
   osc.stop(now + 0.36);
 }
 
 function playBeamSound(): void {
-  if (!g.beamAudioCtx) g.beamAudioCtx = new AudioContext();
-  if (g.beamAudioCtx.state === "suspended") g.beamAudioCtx.resume();
-
-  const ctx = g.beamAudioCtx;
+  const ctx = ensureAudioCtx();
   const duration = ((60000 / effectiveRateOfFire()) * 0.6) / 1000;
   const now = ctx.currentTime;
+  const panner = makePanner(ctx, g.barrelTip.getAbsolutePosition());
 
   const osc = ctx.createOscillator();
   osc.type = "square";
@@ -1407,18 +1451,16 @@ function playBeamSound(): void {
   gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
   osc.connect(gain);
-  gain.connect(audioDest());
+  gain.connect(panner);
   osc.start(now);
   osc.stop(now + duration + 0.01);
 }
 
-function playEnemySpawnSound(): void {
-  if (!g.beamAudioCtx) g.beamAudioCtx = new AudioContext();
-  if (g.beamAudioCtx.state === "suspended") g.beamAudioCtx.resume();
-  const ctx = g.beamAudioCtx;
+function playEnemySpawnSound(pos: Vector3): void {
+  const ctx = ensureAudioCtx();
   const now = ctx.currentTime;
+  const panner = makePanner(ctx, pos);
 
-  // Whoosh — filtered noise sweep
   const bufSize = Math.floor(ctx.sampleRate * 0.3);
   const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
   const data = buf.getChannelData(0);
@@ -1431,21 +1473,19 @@ function playEnemySpawnSound(): void {
   filter.frequency.exponentialRampToValueAtTime(200, now + 0.3);
   filter.Q.value = 2;
   const gain = ctx.createGain();
-  gain.gain.setValueAtTime(0.15, now);
+  gain.gain.setValueAtTime(0.9, now);
   gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
   noise.connect(filter);
   filter.connect(gain);
-  gain.connect(audioDest());
+  gain.connect(panner);
   noise.start(now);
 }
 
-function playHealthPickupSound(): void {
-  if (!g.beamAudioCtx) g.beamAudioCtx = new AudioContext();
-  if (g.beamAudioCtx.state === "suspended") g.beamAudioCtx.resume();
-  const ctx = g.beamAudioCtx;
+function playHealthPickupSound(pos: Vector3): void {
+  const ctx = ensureAudioCtx();
   const now = ctx.currentTime;
+  const panner = makePanner(ctx, pos);
 
-  // Bright ascending two-tone chime
   const osc1 = ctx.createOscillator();
   osc1.type = "sine";
   osc1.frequency.setValueAtTime(520, now);
@@ -1453,7 +1493,7 @@ function playHealthPickupSound(): void {
   g1.gain.setValueAtTime(0.2, now);
   g1.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
   osc1.connect(g1);
-  g1.connect(audioDest());
+  g1.connect(panner);
   osc1.start(now);
   osc1.stop(now + 0.16);
 
@@ -1465,18 +1505,16 @@ function playHealthPickupSound(): void {
   g2.gain.setValueAtTime(0.2, now + 0.08);
   g2.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
   osc2.connect(g2);
-  g2.connect(audioDest());
+  g2.connect(panner);
   osc2.start(now + 0.08);
   osc2.stop(now + 0.26);
 }
 
-function playAmmoPickupSound(): void {
-  if (!g.beamAudioCtx) g.beamAudioCtx = new AudioContext();
-  if (g.beamAudioCtx.state === "suspended") g.beamAudioCtx.resume();
-  const ctx = g.beamAudioCtx;
+function playAmmoPickupSound(pos: Vector3): void {
+  const ctx = ensureAudioCtx();
   const now = ctx.currentTime;
+  const panner = makePanner(ctx, pos);
 
-  // Metallic click-clack
   const osc = ctx.createOscillator();
   osc.type = "square";
   osc.frequency.setValueAtTime(300, now);
@@ -1485,7 +1523,7 @@ function playAmmoPickupSound(): void {
   gain.gain.setValueAtTime(0.15, now);
   gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
   osc.connect(gain);
-  gain.connect(audioDest());
+  gain.connect(panner);
   osc.start(now);
   osc.stop(now + 0.09);
 
@@ -1497,18 +1535,16 @@ function playAmmoPickupSound(): void {
   g2.gain.setValueAtTime(0.12, now + 0.06);
   g2.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
   osc2.connect(g2);
-  g2.connect(audioDest());
+  g2.connect(panner);
   osc2.start(now + 0.06);
   osc2.stop(now + 0.16);
 }
 
 function playOverheatSound(): void {
-  if (!g.beamAudioCtx) g.beamAudioCtx = new AudioContext();
-  if (g.beamAudioCtx.state === "suspended") g.beamAudioCtx.resume();
-  const ctx = g.beamAudioCtx;
+  const ctx = ensureAudioCtx();
   const now = ctx.currentTime;
+  const panner = makePanner(ctx, g.barrelTip.getAbsolutePosition());
 
-  // Hissing steam burst
   const bufSize = Math.floor(ctx.sampleRate * 0.5);
   const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
   const data = buf.getChannelData(0);
@@ -1524,10 +1560,9 @@ function playOverheatSound(): void {
   gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
   noise.connect(filter);
   filter.connect(gain);
-  gain.connect(audioDest());
+  gain.connect(panner);
   noise.start(now);
 
-  // Low warning tone
   const osc = ctx.createOscillator();
   osc.type = "sawtooth";
   osc.frequency.setValueAtTime(120, now);
@@ -1535,9 +1570,71 @@ function playOverheatSound(): void {
   oscGain.gain.setValueAtTime(0.15, now);
   oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
   osc.connect(oscGain);
-  oscGain.connect(audioDest());
+  oscGain.connect(panner);
   osc.start(now);
   osc.stop(now + 0.31);
+}
+
+function playEnemyFootstep(pos: Vector3): void {
+  const ctx = ensureAudioCtx();
+  const now = ctx.currentTime;
+  const panner = makePanner(ctx, pos);
+
+  const bufSize = Math.floor(ctx.sampleRate * 0.06);
+  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+  const noise = ctx.createBufferSource();
+  noise.buffer = buf;
+  const filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = 400;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.32, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+  noise.connect(filter);
+  filter.connect(gain);
+  gain.connect(panner);
+  noise.start(now);
+}
+
+function playEnemyAttackSound(pos: Vector3): void {
+  const ctx = ensureAudioCtx();
+  const now = ctx.currentTime;
+  const panner = makePanner(ctx, pos);
+
+  // Sharp impact swoosh
+  const bufSize = Math.floor(ctx.sampleRate * 0.12);
+  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+  const noise = ctx.createBufferSource();
+  noise.buffer = buf;
+  const filter = ctx.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.setValueAtTime(600, now);
+  filter.frequency.exponentialRampToValueAtTime(200, now + 0.12);
+  filter.Q.value = 3;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.25, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+  noise.connect(filter);
+  filter.connect(gain);
+  gain.connect(panner);
+  noise.start(now);
+
+  // Low thump
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(100, now);
+  osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
+  const oscGain = ctx.createGain();
+  oscGain.gain.setValueAtTime(1, now);
+  oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+  osc.connect(oscGain);
+  oscGain.connect(panner);
+  osc.start(now);
+  osc.stop(now + 0.11);
 }
 
 function spawnSmokeParticles(): void {

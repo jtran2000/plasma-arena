@@ -65,6 +65,7 @@ export interface Enemy {
   flashTime: number;
   flashMesh: Mesh | null;
   baseEmissive: Color3;
+  footstepTimer: number;
 }
 
 export function makeState(): GameState {
