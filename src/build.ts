@@ -13,9 +13,27 @@ import {
 import HavokPhysics from "@babylonjs/havok";
 import { g } from "./game.js";
 import {
+  AMBIENT_INTENSITY,
+  AMBIENT_GROUND_R,
+  AMBIENT_GROUND_G,
+  AMBIENT_GROUND_B,
+  SPOT_ANGLE,
+  SPOT_EXPONENT,
+  SPOT_INTENSITY,
+  SPOT_RANGE,
+  FOG_DENSITY,
+} from "./constants.js";
+import {
   makePlayerMesh,
-  setupArenaFloor, setupArenaCeil, setupArenaWalls, setupArenaPillars, setupArenaCrates, setupArenaAccentStrips,
-  setupWeaponRoot, setupWeaponParts, setupLamppost,
+  setupArenaFloor,
+  setupArenaCeil,
+  setupArenaWalls,
+  setupArenaPillars,
+  setupArenaCrates,
+  setupArenaAccentStrips,
+  setupWeaponRoot,
+  setupWeaponParts,
+  setupLamppost,
 } from "./meshBuilders.js";
 
 // ─── Scene builder ────────────────────────────────────────────────────────────
@@ -25,7 +43,10 @@ export async function buildScene(): Promise<void> {
   g.bulletHoles = [];
   g.bulletHoleTimes = [];
   g.glowingHoles = [];
-  for (const p of g.pickups) { p.aggregate.dispose(); p.mesh.dispose(); }
+  for (const p of g.pickups) {
+    p.aggregate.dispose();
+    p.mesh.dispose();
+  }
   g.pickups = [];
   g.playerVelocityXZ = Vector3.Zero();
   g.pressedKeys.clear();
@@ -35,7 +56,7 @@ export async function buildScene(): Promise<void> {
   g.scene.clearColor = new Color4(0.05, 0.05, 0.1, 1);
   g.scene.fogMode = Scene.FOGMODE_EXP2;
   g.scene.fogColor = new Color3(0.05, 0.05, 0.1);
-  g.scene.fogDensity = 0.035;
+  g.scene.fogDensity = FOG_DENSITY;
 
   // Camera must exist before the first render — create before the async Havok await
   g.camera = new UniversalCamera("fps", new Vector3(0, 1.6, 0), g.scene);
@@ -43,7 +64,11 @@ export async function buildScene(): Promise<void> {
   g.camera.minZ = 0.1;
   g.camera.fov = 1.2;
   g.camera.angularSensibility = 800;
-  g.camera.keysUp = g.camera.keysDown = g.camera.keysLeft = g.camera.keysRight = [];
+  g.camera.keysUp =
+    g.camera.keysDown =
+    g.camera.keysLeft =
+    g.camera.keysRight =
+      [];
 
   const havok = await HavokPhysics();
   const havokPlugin = new HavokPlugin(true, havok);
@@ -54,20 +79,36 @@ export async function buildScene(): Promise<void> {
   g.playerAggregate = player.aggregate;
 
   const ambient = new HemisphericLight("amb", new Vector3(0, 1, 0), g.scene);
-  ambient.intensity = 0.15;
-  ambient.groundColor = new Color3(0.03, 0.03, 0.06);
+  ambient.intensity = AMBIENT_INTENSITY;
+  ambient.groundColor = new Color3(
+    AMBIENT_GROUND_R,
+    AMBIENT_GROUND_G,
+    AMBIENT_GROUND_B,
+  );
 
   const { lightY } = setupLamppost();
 
-  const lamp = new SpotLight("lamp", new Vector3(0, lightY, 0), new Vector3(0, -1, 0), Math.PI * 0.8, 1.5, g.scene);
-  lamp.intensity = 2.0;
+  const lamp = new SpotLight(
+    "lamp",
+    new Vector3(0, lightY, 0),
+    new Vector3(0, -1, 0),
+    SPOT_ANGLE,
+    SPOT_EXPONENT,
+    g.scene,
+  );
+  lamp.intensity = SPOT_INTENSITY;
   lamp.diffuse = new Color3(1, 0.9, 0.7);
-  lamp.range = 35;
+  lamp.range = SPOT_RANGE;
 
   g.shadowGenerator = new ShadowGenerator(1024, lamp);
   g.shadowGenerator.useBlurExponentialShadowMap = true;
 
-  g.particleTex = new DynamicTexture("ptex", { width: 32, height: 32 }, g.scene, false);
+  g.particleTex = new DynamicTexture(
+    "ptex",
+    { width: 32, height: 32 },
+    g.scene,
+    false,
+  );
   const ctx = g.particleTex.getContext();
   ctx.fillStyle = "white";
   ctx.beginPath();
@@ -104,4 +145,3 @@ function buildWeapon(): void {
   g.weaponBarrel = barrel;
   g.barrelTip = barrelTip;
 }
-

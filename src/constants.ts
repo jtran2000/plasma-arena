@@ -1,19 +1,30 @@
 // ─── Arena ───────────────────────────────────────────────────────────────────
-export const ARENA_SIZE = 30; // square arena side length (m)
-export const ARENA_CEIL = 5; // ceiling height (m)
+export const ARENA_SIZE = 50; // square arena side length (m)
+export const ARENA_CEIL = 8; // ceiling height (m)
+
+// ─── Lighting & Fog ─────────────────────────────────────────────────────────
+export const AMBIENT_INTENSITY = 0.12;
+export const AMBIENT_GROUND_R = 0.03;
+export const AMBIENT_GROUND_G = 0.03;
+export const AMBIENT_GROUND_B = 0.06;
+export const SPOT_ANGLE = Math.PI * 0.8; // radians
+export const SPOT_EXPONENT = 1.5;
+export const SPOT_INTENSITY = 3.0;
+export const SPOT_RANGE = 55; // m
+export const FOG_DENSITY = 0.03;
 
 // ─── Enemy — Base Stats ─────────────────────────────────────────────────────
 export const ENEMY_HP = 50;
-export const ENEMY_SPEED = 3; // m/s
+export const ENEMY_SPEED = 2; // m/s
 export const ENEMY_MELEE_RANGE = 1.8; // m
 export const ENEMY_MELEE_DAMAGE = 10;
 export const ENEMY_MELEE_ATTACKS_PER_MIN = 50;
-export const ENEMY_CHASE_RANGE = 20; // m
+export const ENEMY_CHASE_RANGE = 35; // m
 export const ENEMY_MIN_SPAWN_DIST = 8; // min distance from player when spawning (m)
 
 // ─── Enemy — Per-Wave Scaling ───────────────────────────────────────────────
 export const ENEMY_HP_PER_WAVE = 15;
-export const ENEMY_SPEED_PER_WAVE = 0.2; // m/s per wave after wave 1
+export const ENEMY_SPEED_PER_WAVE = 0.1; // m/s per wave after wave 1
 export const ENEMY_MELEE_DAMAGE_PER_WAVE = 2;
 export const ENEMY_MELEE_ATTACKS_PER_MIN_PER_WAVE = 3;
 
@@ -73,8 +84,8 @@ export const UPGRADE_SPEED = 0.5; // m/s
 export const UPGRADE_RELOAD_SPEED = 0.15; // 15% faster per upgrade (exponential decay)
 export const UPGRADE_MAG_SIZE = 25; // rounds
 export const UPGRADE_RATE_OF_FIRE = 150; // RPM
-export const UPGRADE_HEAT_CAPACITY = 0.2; // +20% of base heat cap per upgrade
-export const UPGRADE_HEAT_DECAY = 0.2; // +20% of base heat decay per upgrade
+export const UPGRADE_HEAT_CAPACITY = 0.5; // +20% of base heat cap per upgrade
+export const UPGRADE_HEAT_DECAY = 0.5; // +20% of base heat decay per upgrade
 export const UPGRADE_BLOOM_REDUCTION = 0.25; // 25% less bloom per shot per upgrade
 export const UPGRADE_MOVE_SPREAD_REDUCTION = 0.25; // 25% less spread from movement per upgrade
 export const UPGRADE_DAMAGE = 5;

@@ -195,10 +195,16 @@ function effectiveHeatDecay(): number {
   return PLAYER_HEAT_DECAY * (1 + g.upgrades.heatDecay * UPGRADE_HEAT_DECAY);
 }
 function effectiveBloom(): number {
-  return PLAYER_SPREAD_PER_SHOT * Math.pow(1 - UPGRADE_BLOOM_REDUCTION, g.upgrades.bloom);
+  return (
+    PLAYER_SPREAD_PER_SHOT *
+    Math.pow(1 - UPGRADE_BLOOM_REDUCTION, g.upgrades.bloom)
+  );
 }
 function effectiveMoveSpreadRate(): number {
-  return PLAYER_MOVE_SPREAD_RATE * Math.pow(1 - UPGRADE_MOVE_SPREAD_REDUCTION, g.upgrades.moveSpread);
+  return (
+    PLAYER_MOVE_SPREAD_RATE *
+    Math.pow(1 - UPGRADE_MOVE_SPREAD_REDUCTION, g.upgrades.moveSpread)
+  );
 }
 function effectiveDamage(): number {
   return PLAYER_BEAM_DAMAGE + g.upgrades.damage * UPGRADE_DAMAGE;
