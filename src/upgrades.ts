@@ -23,6 +23,10 @@ import {
   PLAYER_ORB_DAMAGE,
   UPGRADE_SUPPLY_DROP_RATE,
   SUPPLY_DROP_RATE,
+  PLAYER_CRIT_CHANCE,
+  PLAYER_CRIT_DAMAGE,
+  UPGRADE_CRIT_CHANCE,
+  UPGRADE_CRIT_DAMAGE,
 } from "./constants.js";
 import { g, dom } from "./game.js";
 
@@ -62,6 +66,12 @@ export function effectiveOrbDamage(): number {
 }
 export function effectiveSupplyDropRate(): number {
   return SUPPLY_DROP_RATE + g.upgrades.supplyDropRate * UPGRADE_SUPPLY_DROP_RATE;
+}
+export function effectiveCritChance(): number {
+  return PLAYER_CRIT_CHANCE + g.upgrades.critChance * UPGRADE_CRIT_CHANCE;
+}
+export function effectiveCritDamage(): number {
+  return PLAYER_CRIT_DAMAGE + g.upgrades.critDamage * UPGRADE_CRIT_DAMAGE;
 }
 
 // ─── HUD callback ─────────────────────────────────────────────────────────────
@@ -144,6 +154,16 @@ const UPGRADE_DEFS: UpgradeDef[] = [
     key: "supplyDropRate",
     label: `+${Math.round(UPGRADE_SUPPLY_DROP_RATE * 100)}% Supply Drop Rate`,
     apply: () => { g.upgrades.supplyDropRate++; },
+  },
+  {
+    key: "critChance",
+    label: `+${Math.round(UPGRADE_CRIT_CHANCE * 100)}% Crit Chance`,
+    apply: () => { g.upgrades.critChance++; },
+  },
+  {
+    key: "critDamage",
+    label: `+${UPGRADE_CRIT_DAMAGE}x Crit Damage`,
+    apply: () => { g.upgrades.critDamage++; },
   },
 ];
 

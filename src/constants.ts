@@ -102,3 +102,9 @@ export const UPGRADE_MOVE_SPREAD_REDUCTION = 0.25; // % less spread from movemen
 export const UPGRADE_BEAM_DAMAGE = 5;
 export const UPGRADE_ORB_DAMAGE = 12;
 export const UPGRADE_SUPPLY_DROP_RATE = 0.05; // + % absolute drop chance per upgrade
+
+// ─── Critical Hits ─────────────────────────────────────────────────────────
+export const PLAYER_CRIT_CHANCE = 0.5; // 5% base crit chance
+export const PLAYER_CRIT_DAMAGE = 2; // 2x base crit damage multiplier
+export const UPGRADE_CRIT_CHANCE = 0.03; // +3% per upgrade
+export const UPGRADE_CRIT_DAMAGE = 0.25; // +0.25x per upgrade

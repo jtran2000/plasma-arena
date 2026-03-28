@@ -80,13 +80,14 @@ async function startGame(): Promise<void> {
   dom.optionsScreen.style.display = "none";
   dom.upgradeMenu.classList.remove("visible");
   dom.hud.style.display = "block";
-  g.upgrades = { maxHealth: 0, speed: 0, reloadTime: 0, magSize: 0, rateOfFire: 0, heatCapacity: 0, heatDecay: 0, bloom: 0, moveSpread: 0, beamDamage: 0, orbDamage: 0, supplyDropRate: 0 };
+  g.upgrades = { maxHealth: 0, speed: 0, reloadTime: 0, magSize: 0, rateOfFire: 0, heatCapacity: 0, heatDecay: 0, bloom: 0, moveSpread: 0, beamDamage: 0, orbDamage: 0, supplyDropRate: 0, critChance: 0, critDamage: 0 };
   g.pendingUpgrades = [];
   if (g.orbCharging) {
     stopOrbChargeSound();
     if (g.orbChargeMesh) { g.orbChargeMesh.dispose(); g.orbChargeMesh = null; }
     g.orbCharging = false;
   }
+  g.orbChargeCrit = false;
   g.mouse2Held = false;
   for (const orb of g.orbs) orb.mesh.dispose();
   g.orbs = [];

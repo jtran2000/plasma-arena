@@ -55,6 +55,7 @@ export interface Orb {
   age: number;
   heatPenalty: number;
   chargeMultiplier: number;
+  isCrit: boolean;
 }
 
 export interface Enemy {
@@ -190,6 +191,7 @@ export const g = {
   orbChargeMesh: null as Mesh | null,
   orbChargeOsc: null as OscillatorNode | null,
   orbChargeGain: null as GainNode | null,
+  orbChargeCrit: false,
   shootSpread: 0,
   moveSpread: 0,
   isSprinting: false,
@@ -210,6 +212,8 @@ export const g = {
     beamDamage: 0,
     orbDamage: 0,
     supplyDropRate: 0,
+    critChance: 0,
+    critDamage: 0,
   },
   pendingUpgrades: [] as string[],
 };

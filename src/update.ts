@@ -107,6 +107,8 @@ import {
   showUpgradeMenu,
   selectUpgrade,
   effectiveSupplyDropRate,
+  effectiveCritChance,
+  effectiveCritDamage,
   setUpdateHUD,
 } from "./upgrades.js";
 export { selectUpgrade };
@@ -765,28 +767,102 @@ export function shoot(): void {
     ray.direction.normalize();
   }
   g.shootSpread = Math.min(g.shootSpread + effectiveBloom(), PLAYER_MAX_SPREAD);
-  const hit = g.scene.pickWithRay(
-    ray,
-    (m: AbstractMesh) =>
-      m.renderingGroupId !== 1 &&
-      m.name !== "player" &&
-      m.name !== "enemyPhys" &&
-      m.name !== "laserBeam" &&
-      m.name !== "bhole" &&
-      m.name !== "supply",
-  );
+  const isCrit = Math.random() < effectiveCritChance();
 
-  const beamEnd =
-    hit?.hit && hit.pickedPoint
-      ? hit.pickedPoint
-      : ray.origin.add(ray.direction.scale(100));
-  spawnLaserBeam(g.barrelTip.getAbsolutePosition(), beamEnd);
+  const rayFilter = (m: AbstractMesh) =>
+    m.renderingGroupId !== 1 &&
+    m.name !== "player" &&
+    m.name !== "enemyPhys" &&
+    m.name !== "laserBeam" &&
+    m.name !== "bhole" &&
+    m.name !== "supply";
 
-  if (hit?.hit && hit.pickedMesh) {
-    if (isEnemyPart(hit.pickedMesh.name)) {
-      const result = findEnemyByMesh(hit.pickedMesh);
-      if (result) {
-        hitEnemy(result.enemy, result.hitMesh, hit.pickedPoint ?? undefined);
+  if (isCrit) {
+    // Crit beam: penetrate through enemies
+    const hits = g.scene.multiPickWithRay(ray, rayFilter) ?? [];
+    hits.sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0));
+
+    let beamEnd = ray.origin.add(ray.direction.scale(100));
+    for (const h of hits) {
+      if (!h.hit || !h.pickedMesh || !h.pickedPoint) continue;
+      const name = h.pickedMesh.name;
+
+      if (isEnemyPart(name)) {
+        const result = findEnemyByMesh(h.pickedMesh);
+        if (result) {
+          hitEnemy(result.enemy, result.hitMesh, h.pickedPoint, true);
+          const hitNormal = h.getNormal(true) ?? ray.direction.negate();
+          spawnHitParticle(h.pickedPoint, new Color4(0.8, 0.0, 0.0, 1), hitNormal);
+          if (g.enemies.includes(result.enemy)) {
+            spawnBulletHole(h.pickedPoint, h.getNormal(true), h.pickedMesh as Mesh);
+          }
+        } else {
+          splitRagdoll(h.pickedMesh as Mesh, ray.direction, h.pickedPoint);
+        }
+      } else if (name === "bodyHalf" || name === "headHalf") {
+        hitDebris(h.pickedMesh as Mesh, ray.direction, h.pickedPoint);
+        const hitNormal = h.getNormal(true) ?? ray.direction.negate();
+        spawnHitParticle(h.pickedPoint, new Color4(0.8, 0.0, 0.0, 1), hitNormal);
+      } else if (name === "orb") {
+        const orbIdx = g.orbs.findIndex((o) => o.mesh === h.pickedMesh);
+        if (orbIdx !== -1) {
+          detonateOrb(g.orbs[orbIdx], h.pickedPoint);
+          g.orbs.splice(orbIdx, 1);
+        }
+      } else {
+        // Wall/floor — beam stops here
+        beamEnd = h.pickedPoint;
+        spawnBulletHole(h.pickedPoint, h.getNormal(true));
+        break;
+      }
+    }
+    spawnLaserBeam(g.barrelTip.getAbsolutePosition(), beamEnd, true);
+  } else {
+    // Normal beam: single hit
+    const hit = g.scene.pickWithRay(ray, rayFilter);
+
+    const beamEnd =
+      hit?.hit && hit.pickedPoint
+        ? hit.pickedPoint
+        : ray.origin.add(ray.direction.scale(100));
+    spawnLaserBeam(g.barrelTip.getAbsolutePosition(), beamEnd, false);
+
+    if (hit?.hit && hit.pickedMesh) {
+      if (isEnemyPart(hit.pickedMesh.name)) {
+        const result = findEnemyByMesh(hit.pickedMesh);
+        if (result) {
+          hitEnemy(result.enemy, result.hitMesh, hit.pickedPoint ?? undefined);
+          if (hit.pickedPoint) {
+            const hitNormal = hit.getNormal(true) ?? ray.direction.negate();
+            spawnHitParticle(
+              hit.pickedPoint,
+              new Color4(0.8, 0.0, 0.0, 1),
+              hitNormal,
+            );
+            if (g.enemies.includes(result.enemy)) {
+              spawnBulletHole(
+                hit.pickedPoint,
+                hit.getNormal(true),
+                hit.pickedMesh as Mesh,
+              );
+            }
+          }
+        } else {
+          splitRagdoll(
+            hit.pickedMesh as Mesh,
+            ray.direction,
+            hit.pickedPoint ?? undefined,
+          );
+        }
+      } else if (
+        hit.pickedMesh.name === "bodyHalf" ||
+        hit.pickedMesh.name === "headHalf"
+      ) {
+        hitDebris(
+          hit.pickedMesh as Mesh,
+          ray.direction,
+          hit.pickedPoint ?? undefined,
+        );
         if (hit.pickedPoint) {
           const hitNormal = hit.getNormal(true) ?? ray.direction.negate();
           spawnHitParticle(
@@ -794,48 +870,18 @@ export function shoot(): void {
             new Color4(0.8, 0.0, 0.0, 1),
             hitNormal,
           );
-          if (g.enemies.includes(result.enemy)) {
-            spawnBulletHole(
-              hit.pickedPoint,
-              hit.getNormal(true),
-              hit.pickedMesh as Mesh,
-            );
-          }
         }
-      } else {
-        splitRagdoll(
-          hit.pickedMesh as Mesh,
-          ray.direction,
-          hit.pickedPoint ?? undefined,
-        );
+      } else if (hit.pickedMesh.name === "orb") {
+        const orbIdx = g.orbs.findIndex((o) => o.mesh === hit.pickedMesh);
+        if (orbIdx !== -1) {
+          const orb = g.orbs[orbIdx];
+          const detonatePos = hit.pickedPoint ?? orb.mesh.position.clone();
+          detonateOrb(orb, detonatePos);
+          g.orbs.splice(orbIdx, 1);
+        }
+      } else if (hit.pickedPoint) {
+        spawnBulletHole(hit.pickedPoint, hit.getNormal(true));
       }
-    } else if (
-      hit.pickedMesh.name === "bodyHalf" ||
-      hit.pickedMesh.name === "headHalf"
-    ) {
-      hitDebris(
-        hit.pickedMesh as Mesh,
-        ray.direction,
-        hit.pickedPoint ?? undefined,
-      );
-      if (hit.pickedPoint) {
-        const hitNormal = hit.getNormal(true) ?? ray.direction.negate();
-        spawnHitParticle(
-          hit.pickedPoint,
-          new Color4(0.8, 0.0, 0.0, 1),
-          hitNormal,
-        );
-      }
-    } else if (hit.pickedMesh.name === "orb") {
-      const orbIdx = g.orbs.findIndex((o) => o.mesh === hit.pickedMesh);
-      if (orbIdx !== -1) {
-        const orb = g.orbs[orbIdx];
-        const detonatePos = hit.pickedPoint ?? orb.mesh.position.clone();
-        detonateOrb(orb, detonatePos);
-        g.orbs.splice(orbIdx, 1);
-      }
-    } else if (hit.pickedPoint) {
-      spawnBulletHole(hit.pickedPoint, hit.getNormal(true));
     }
   }
 
@@ -858,6 +904,8 @@ export function startOrbCharge(): void {
     return;
   }
 
+  const isCrit = Math.random() < effectiveCritChance();
+
   // Instant-fire if only base ammo available
   if (g.state.ammo === PLAYER_ORB_AMMO_COST) {
     g.state.ammo -= PLAYER_ORB_AMMO_COST;
@@ -866,7 +914,7 @@ export function startOrbCharge(): void {
       effectiveHeatMax(),
     );
     g.state.heatCooldownTimer = PLAYER_HEAT_COOLDOWN_DELAY;
-    fireOrb(1.0);
+    fireOrb(1.0, isCrit);
     return;
   }
 
@@ -878,13 +926,19 @@ export function startOrbCharge(): void {
   );
   g.state.heatCooldownTimer = PLAYER_HEAT_COOLDOWN_DELAY;
   if (g.state.heat >= effectiveHeatMax()) {
-    fireOrb(1.0);
+    fireOrb(1.0, isCrit);
     return;
   }
+  g.orbChargeCrit = isCrit;
   g.orbCharging = true;
   g.orbChargeTime = 0;
   g.orbChargeAmmo = PLAYER_ORB_AMMO_COST;
   g.orbChargeMesh = makeOrbChargeMesh();
+  if (isCrit) {
+    const mat = g.orbChargeMesh.material as StandardMaterial;
+    mat.diffuseColor = new Color3(0.6, 0, 1);
+    mat.emissiveColor = new Color3(0.5, 0, 0.9);
+  }
   startOrbChargeSound();
   updateHUD();
 }
@@ -943,11 +997,20 @@ function updateOrbCharge(dt: number): void {
     g.orbChargeMesh.position.z = PLAYER_ORB_RADIUS * s;
     const mat = g.orbChargeMesh.material as StandardMaterial;
     const t = s - 1;
-    mat.emissiveColor = Color3.Lerp(
-      new Color3(0, 0.9, 1),
-      new Color3(0.5, 1, 1),
-      t,
-    );
+    if (g.orbChargeCrit) {
+      mat.diffuseColor = new Color3(0.6, 0, 1);
+      mat.emissiveColor = Color3.Lerp(
+        new Color3(0.5, 0, 0.9),
+        new Color3(0.7, 0.3, 1),
+        t,
+      );
+    } else {
+      mat.emissiveColor = Color3.Lerp(
+        new Color3(0, 0.9, 1),
+        new Color3(0.5, 1, 1),
+        t,
+      );
+    }
   }
 
   // Update sound
@@ -971,10 +1034,12 @@ export function releaseOrbCharge(): void {
     g.orbChargeMesh = null;
   }
   g.orbCharging = false;
-  fireOrb(chargeMultiplier);
+  const isCrit = g.orbChargeCrit;
+  g.orbChargeCrit = false;
+  fireOrb(chargeMultiplier, isCrit);
 }
 
-function fireOrb(chargeMultiplier: number): void {
+function fireOrb(chargeMultiplier: number, isCrit = false): void {
   g.state.orbCooldown =
     effectiveCooldown() * PLAYER_ORB_COOLDOWN_MULTIPLIER * chargeMultiplier;
   g.state.shootCooldown = Math.max(g.state.shootCooldown, g.state.orbCooldown);
@@ -1015,12 +1080,16 @@ function fireOrb(chargeMultiplier: number): void {
   playOrbLaunchSound(spawnPos, chargeMultiplier);
   const mesh = makeOrbMesh(spawnPos);
   mesh.scaling.setAll(chargeMultiplier);
+  const orbMat = mesh.material as StandardMaterial;
+  if (isCrit) {
+    orbMat.diffuseColor = new Color3(0.6, 0, 1);
+    orbMat.emissiveColor = new Color3(0.5, 0, 0.9);
+  }
   if (heatPenalty < 1) {
-    const mat = mesh.material as StandardMaterial;
     const t = 1 - heatPenalty;
-    mat.alpha = 1 - t * 0.6;
-    mat.emissiveColor = Color3.Lerp(
-      mat.emissiveColor,
+    orbMat.alpha = 1 - t * 0.6;
+    orbMat.emissiveColor = Color3.Lerp(
+      orbMat.emissiveColor,
       new Color3(0.2, 0.3, 0.3),
       t,
     );
@@ -1031,6 +1100,7 @@ function fireOrb(chargeMultiplier: number): void {
     age: 0,
     heatPenalty,
     chargeMultiplier,
+    isCrit,
   });
 
   if (g.state.ammo === 0 && g.state.reserve > 0) g.state.autoReloadDelay = 300;
@@ -1112,6 +1182,8 @@ function updateOrbs(dt: number): void {
         orb.heatPenalty,
         orb.mesh,
         orb.chargeMultiplier,
+        false,
+        orb.isCrit,
       );
       g.orbs.splice(i, 1);
     }
@@ -1120,7 +1192,7 @@ function updateOrbs(dt: number): void {
 
 function detonateOrb(orb: Orb, pos: Vector3): void {
   const directHits = new Map<Enemy, Mesh>();
-  explodeOrb(pos, directHits, orb.heatPenalty, orb.mesh, orb.chargeMultiplier, true);
+  explodeOrb(pos, directHits, orb.heatPenalty, orb.mesh, orb.chargeMultiplier, true, orb.isCrit);
 }
 
 function explodeOrb(
@@ -1130,19 +1202,24 @@ function explodeOrb(
   orbMesh: Mesh,
   chargeMultiplier: number,
   beamDetonated = false,
+  isCrit = false,
 ): void {
   playOrbExplosionSound(pos, chargeMultiplier);
-  spawnExplosionParticle(pos);
+  spawnExplosionParticle(pos, isCrit);
 
   // Animate the orb mesh as an expanding, fading blast sphere
   orbMesh.position = pos.clone();
   orbMesh.isPickable = false;
   const mat = orbMesh.material as StandardMaterial;
+  if (isCrit) {
+    mat.diffuseColor = new Color3(0.6, 0, 1);
+    mat.emissiveColor = new Color3(0.5, 0, 0.9);
+  }
   mat.alpha = 0.6;
   const expandDurationMs = 300;
   const startTime = performance.now();
   const startScale = orbMesh.scaling.x;
-  const explosionRadius = PLAYER_ORB_EXPLOSION_RADIUS * chargeMultiplier;
+  const explosionRadius = PLAYER_ORB_EXPLOSION_RADIUS * chargeMultiplier * (isCrit ? 2 : 1);
   const endScale = (explosionRadius * 2) / 0.3; // diameter ratio
   const obs = g.scene.onBeforeRenderObservable.add(() => {
     const t = Math.min((performance.now() - startTime) / expandDurationMs, 1);
@@ -1155,8 +1232,9 @@ function explodeOrb(
     }
   });
 
-  const damage = effectiveOrbDamage() * chargeMultiplier
-    + (beamDetonated ? effectiveBeamDamage() : 0);
+  const critMult = isCrit ? effectiveCritDamage() : 1;
+  const damage = (effectiveOrbDamage() * chargeMultiplier
+    + (beamDetonated ? effectiveBeamDamage() : 0)) * critMult;
 
   for (const enemy of [...g.enemies]) {
     let dmg: number;
@@ -1279,15 +1357,15 @@ function explodeOrb(
   }
 }
 
-function spawnExplosionParticle(position: Vector3): void {
+function spawnExplosionParticle(position: Vector3, isCrit = false): void {
   const ps = new ParticleSystem("explosion", 120, g.scene);
   ps.particleTexture = g.particleTex;
   ps.emitter = position;
   ps.minEmitBox = new Vector3(-0.3, -0.3, -0.3);
   ps.maxEmitBox = new Vector3(0.3, 0.3, 0.3);
-  ps.color1 = new Color4(0, 1, 1, 1);
-  ps.color2 = new Color4(0, 0.5, 1, 0.8);
-  ps.colorDead = new Color4(0.1, 0.15, 0.2, 0);
+  ps.color1 = isCrit ? new Color4(0.7, 0.1, 1, 1) : new Color4(0, 1, 1, 1);
+  ps.color2 = isCrit ? new Color4(0.4, 0, 0.8, 0.8) : new Color4(0, 0.5, 1, 0.8);
+  ps.colorDead = isCrit ? new Color4(0.15, 0, 0.2, 0) : new Color4(0.1, 0.15, 0.2, 0);
   ps.minSize = 0.15;
   ps.maxSize = 0.5;
   ps.minLifeTime = 0.3;
@@ -1304,7 +1382,7 @@ function spawnExplosionParticle(position: Vector3): void {
   setTimeout(() => ps.dispose(false), 1200);
 }
 
-function hitEnemy(enemy: Enemy, hitMesh: Mesh, hitPoint?: Vector3): void {
+function hitEnemy(enemy: Enemy, hitMesh: Mesh, hitPoint?: Vector3, isCrit = false): void {
   const headshot = hitMesh.name === "enemyHead";
   const hMax = effectiveHeatMax();
   const critHeat = hMax * PLAYER_HEAT_CRITICAL;
@@ -1312,11 +1390,13 @@ function hitEnemy(enemy: Enemy, hitMesh: Mesh, hitPoint?: Vector3): void {
     g.state.heat >= critHeat
       ? 1 - 0.6 * ((g.state.heat - critHeat) / (hMax - critHeat))
       : 1;
+  const critMult = isCrit ? effectiveCritDamage() : 1;
   enemy.hp -= Math.round(
     effectiveBeamDamage() *
       (0.8 + Math.random() * 0.4) *
       (headshot ? 2 : 1) *
-      heatPenalty,
+      heatPenalty *
+      critMult,
   );
 
   (hitMesh.material as StandardMaterial).emissiveColor = new Color3(1, 0, 0);
@@ -1654,18 +1734,22 @@ export function endGame(): void {
 }
 
 // ─── Spawn effects ────────────────────────────────────────────────────────────
-function spawnLaserBeam(from: Vector3, to: Vector3): void {
+function spawnLaserBeam(from: Vector3, to: Vector3, isCrit = false): void {
   const dist = Vector3.Distance(from, to);
   if (dist < 0.05) return;
 
   playBeamSound((effectiveCooldown() * 0.6) / 1000);
 
   const beam = makeBeam(from, to);
+  const mat = beam.material as StandardMaterial;
+  if (isCrit) {
+    mat.diffuseColor = new Color3(0.6, 0, 1);
+    mat.emissiveColor = new Color3(0.5, 0, 0.9);
+  }
   const beamHeatMax = effectiveHeatMax();
   const critHeat = beamHeatMax * PLAYER_HEAT_CRITICAL;
   if (g.state.heat >= critHeat) {
     const t = (g.state.heat - critHeat) / (beamHeatMax - critHeat);
-    const mat = beam.material as StandardMaterial;
     mat.alpha = 1 - t * 0.6;
     mat.emissiveColor = Color3.Lerp(
       mat.emissiveColor,
