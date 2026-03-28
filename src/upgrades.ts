@@ -40,7 +40,7 @@ export function effectiveMagSize(): number {
   return PLAYER_MAG_SIZE + g.upgrades.magSize * UPGRADE_MAG_SIZE;
 }
 export function effectiveCooldown(): number {
-  return 60000 / (PLAYER_RATE_OF_FIRE + g.upgrades.rateOfFire * UPGRADE_RATE_OF_FIRE);
+  return 60000 / (PLAYER_RATE_OF_FIRE * (1 + g.upgrades.rateOfFire * UPGRADE_RATE_OF_FIRE));
 }
 export function effectiveHeatMax(): number {
   return PLAYER_HEAT_MAX * (1 + g.upgrades.heatCapacity * UPGRADE_HEAT_CAPACITY);
@@ -107,7 +107,7 @@ const UPGRADE_DEFS: UpgradeDef[] = [
   },
   {
     key: "rateOfFire",
-    label: `+${UPGRADE_RATE_OF_FIRE} RPM`,
+    label: `+${UPGRADE_RATE_OF_FIRE * 100}% Fire Rate`,
     apply: () => { g.upgrades.rateOfFire++; },
   },
   {

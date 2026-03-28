@@ -55,7 +55,7 @@ import {
   PLAYER_ORB_EXPLOSION_RADIUS,
   PLAYER_ORB_SPLASH_FALLOFF,
 } from "./constants.js";
-import { g, dom, type Enemy } from "./game.js";
+import { g, dom, type Enemy, type Orb } from "./game.js";
 import {
   makeBeam,
   makeBulletHoleDisc,
@@ -222,7 +222,11 @@ function updateTimers(dt: number): void {
     if (g.state.shootCooldown <= 0) {
       shoot();
     }
-  } else if (g.shootSpread > 0 && g.state.shootCooldown <= 0 && !g.orbCharging) {
+  } else if (
+    g.shootSpread > 0 &&
+    g.state.shootCooldown <= 0 &&
+    !g.orbCharging
+  ) {
     g.shootSpread = Math.max(
       0,
       g.shootSpread - (PLAYER_SPREAD_DECAY * dt) / 1000,
@@ -822,6 +826,14 @@ export function shoot(): void {
           hitNormal,
         );
       }
+    } else if (hit.pickedMesh.name === "orb") {
+      const orbIdx = g.orbs.findIndex((o) => o.mesh === hit.pickedMesh);
+      if (orbIdx !== -1) {
+        const orb = g.orbs[orbIdx];
+        const detonatePos = hit.pickedPoint ?? orb.mesh.position.clone();
+        detonateOrb(orb, detonatePos);
+        g.orbs.splice(orbIdx, 1);
+      }
     } else if (hit.pickedPoint) {
       spawnBulletHole(hit.pickedPoint, hit.getNormal(true));
     }
@@ -908,7 +920,9 @@ function updateOrbCharge(dt: number): void {
     g.state.ammo--;
     g.orbChargeAmmo++;
     g.state.heat = Math.min(
-      g.state.heat + PLAYER_HEAT_PER_SHOT * PLAYER_ORB_HEAT_MULTIPLIER / PLAYER_ORB_AMMO_COST,
+      g.state.heat +
+        (PLAYER_HEAT_PER_SHOT * PLAYER_ORB_HEAT_MULTIPLIER) /
+          PLAYER_ORB_AMMO_COST,
       effectiveHeatMax(),
     );
     g.state.heatCooldownTimer = PLAYER_HEAT_COOLDOWN_DELAY;
@@ -920,12 +934,15 @@ function updateOrbCharge(dt: number): void {
 
   const chargeMultiplier = g.orbChargeAmmo / PLAYER_ORB_AMMO_COST;
 
-  // Update visual: scale and brighten
+  // Update visual: lerp scale and brightness smoothly toward target
   if (g.orbChargeMesh) {
-    g.orbChargeMesh.scaling.setAll(chargeMultiplier);
-    g.orbChargeMesh.position.z = PLAYER_ORB_RADIUS * chargeMultiplier;
+    const lerpRate = 1 - Math.pow(0.001, dt / 1000); // ~smooth over ~150ms
+    const curScale = g.orbChargeMesh.scaling.x;
+    const s = curScale + (chargeMultiplier - curScale) * lerpRate;
+    g.orbChargeMesh.scaling.setAll(s);
+    g.orbChargeMesh.position.z = PLAYER_ORB_RADIUS * s;
     const mat = g.orbChargeMesh.material as StandardMaterial;
-    const t = chargeMultiplier - 1;
+    const t = s - 1;
     mat.emissiveColor = Color3.Lerp(
       new Color3(0, 0.9, 1),
       new Color3(0.5, 1, 1),
@@ -1101,12 +1118,18 @@ function updateOrbs(dt: number): void {
   }
 }
 
+function detonateOrb(orb: Orb, pos: Vector3): void {
+  const directHits = new Map<Enemy, Mesh>();
+  explodeOrb(pos, directHits, orb.heatPenalty, orb.mesh, orb.chargeMultiplier, true);
+}
+
 function explodeOrb(
   pos: Vector3,
   directHits: Map<Enemy, Mesh>,
   heatPenalty: number,
   orbMesh: Mesh,
   chargeMultiplier: number,
+  beamDetonated = false,
 ): void {
   playOrbExplosionSound(pos, chargeMultiplier);
   spawnExplosionParticle(pos);
@@ -1132,7 +1155,8 @@ function explodeOrb(
     }
   });
 
-  const damage = effectiveOrbDamage() * chargeMultiplier;
+  const damage = effectiveOrbDamage() * chargeMultiplier
+    + (beamDetonated ? effectiveBeamDamage() : 0);
 
   for (const enemy of [...g.enemies]) {
     let dmg: number;
@@ -1148,7 +1172,7 @@ function explodeOrb(
       const dist = Vector3.Distance(pos, enemyPos);
       if (dist > explosionRadius) continue;
       const falloff = 1 - dist / explosionRadius;
-      dmg = damage * PLAYER_ORB_SPLASH_FALLOFF * falloff;
+      dmg = damage * (beamDetonated ? 1 : PLAYER_ORB_SPLASH_FALLOFF) * falloff;
       flashMesh = enemy.bodyMesh;
     }
 
@@ -1239,7 +1263,7 @@ function explodeOrb(
     const selfDmg = Math.round(
       PLAYER_ORB_DAMAGE *
         chargeMultiplier *
-        PLAYER_ORB_SPLASH_FALLOFF *
+        (beamDetonated ? 1 : PLAYER_ORB_SPLASH_FALLOFF) *
         falloff,
     );
     if (selfDmg > 0) damagePlayer(selfDmg);
