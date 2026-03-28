@@ -277,6 +277,84 @@ export function playEnemyAttackSound(pos: Vector3): void {
   osc.stop(now + 0.11);
 }
 
+// ─── Orb sounds ──────────────────────────────────────────────────────────────
+export function playOrbLaunchSound(pos: Vector3): void {
+  const ctx = ensureAudioCtx();
+  const now = ctx.currentTime;
+  const panner = makePanner(ctx, pos);
+
+  // Deep thump
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(80, now);
+  osc.frequency.exponentialRampToValueAtTime(40, now + 0.2);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.35, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+  osc.connect(gain);
+  gain.connect(panner);
+  osc.start(now);
+  osc.stop(now + 0.26);
+
+  // Whoosh
+  const bufSize = Math.floor(ctx.sampleRate * 0.15);
+  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+  const noise = ctx.createBufferSource();
+  noise.buffer = buf;
+  const filter = ctx.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.setValueAtTime(400, now);
+  filter.frequency.exponentialRampToValueAtTime(150, now + 0.15);
+  filter.Q.value = 2;
+  const nGain = ctx.createGain();
+  nGain.gain.setValueAtTime(0.25, now);
+  nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+  noise.connect(filter);
+  filter.connect(nGain);
+  nGain.connect(panner);
+  noise.start(now);
+}
+
+export function playOrbExplosionSound(pos: Vector3): void {
+  const ctx = ensureAudioCtx();
+  const now = ctx.currentTime;
+  const panner = makePanner(ctx, pos);
+
+  // Low boom
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(60, now);
+  osc.frequency.exponentialRampToValueAtTime(20, now + 0.4);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.5, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+  osc.connect(gain);
+  gain.connect(panner);
+  osc.start(now);
+  osc.stop(now + 0.51);
+
+  // Explosion noise
+  const bufSize = Math.floor(ctx.sampleRate * 0.4);
+  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+  const noise = ctx.createBufferSource();
+  noise.buffer = buf;
+  const filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.setValueAtTime(2000, now);
+  filter.frequency.exponentialRampToValueAtTime(200, now + 0.4);
+  const nGain = ctx.createGain();
+  nGain.gain.setValueAtTime(0.6, now);
+  nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+  noise.connect(filter);
+  filter.connect(nGain);
+  nGain.connect(panner);
+  noise.start(now);
+}
+
 // ─── Supply sounds ────────────────────────────────────────────────────────────
 export function playHealthSupplySound(pos: Vector3): void {
   const ctx = ensureAudioCtx();

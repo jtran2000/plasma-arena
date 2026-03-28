@@ -5,6 +5,7 @@ import {
   update,
   tryJump,
   shoot,
+  shootOrb,
   startReload,
   updateHUD,
   pause,
@@ -20,12 +21,17 @@ window.addEventListener("keyup", (e) => g.pressedKeys.delete(e.code));
 // ─── Input setup ──────────────────────────────────────────────────────────────
 function setupInput(): void {
   g.scene.onPointerObservable.add((info) => {
-    if (info.event.button !== 0) return;
-    if (info.type === PointerEventTypes.POINTERDOWN) {
-      g.mouseHeld = true;
-      shoot();
-    } else if (info.type === PointerEventTypes.POINTERUP) {
-      g.mouseHeld = false;
+    if (info.event.button === 0) {
+      if (info.type === PointerEventTypes.POINTERDOWN) {
+        g.mouseHeld = true;
+        shoot();
+      } else if (info.type === PointerEventTypes.POINTERUP) {
+        g.mouseHeld = false;
+      }
+    } else if (info.event.button === 2) {
+      if (info.type === PointerEventTypes.POINTERDOWN) {
+        shootOrb();
+      }
     }
   });
 
@@ -68,8 +74,10 @@ async function startGame(): Promise<void> {
   dom.optionsScreen.style.display = "none";
   dom.upgradeMenu.classList.remove("visible");
   dom.hud.style.display = "block";
-  g.upgrades = { maxHealth: 0, speed: 0, reloadTime: 0, magSize: 0, rateOfFire: 0, heatCapacity: 0, heatDecay: 0, bloom: 0, moveSpread: 0, beamDamage: 0, supplyDropRate: 0 };
+  g.upgrades = { maxHealth: 0, speed: 0, reloadTime: 0, magSize: 0, rateOfFire: 0, heatCapacity: 0, heatDecay: 0, bloom: 0, moveSpread: 0, beamDamage: 0, orbDamage: 0, supplyDropRate: 0 };
   g.pendingUpgrades = [];
+  for (const orb of g.orbs) orb.mesh.dispose();
+  g.orbs = [];
 
   g.state = makeState();
   await buildScene();
@@ -85,6 +93,7 @@ async function startGame(): Promise<void> {
 }
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
+dom.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 dom.startBtn.addEventListener("click", () => startGame().catch(console.error));
 dom.restartBtn.addEventListener("click", () => startGame().catch(console.error));
 

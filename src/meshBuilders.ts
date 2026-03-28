@@ -1,5 +1,5 @@
 import { Vector3, MeshBuilder, StandardMaterial, Mesh, Color3, PhysicsAggregate, PhysicsShapeType, Quaternion } from "@babylonjs/core";
-import { PLAYER_SPAWN_Y, ARENA_SIZE, ARENA_CEIL } from "./constants.js";
+import { PLAYER_SPAWN_Y, ARENA_SIZE, ARENA_CEIL, PLAYER_ORB_RADIUS } from "./constants.js";
 import { g } from "./game.js";
 
 // ─── Mesh definitions ────────────────────────────────────────────────────────
@@ -564,4 +564,21 @@ export function makeBulletHoleDisc(): Mesh {
   disc.material = mat;
   disc.isPickable = false;
   return disc;
+}
+
+// ─── Orb projectile (exported) ──────────────────────────────────────────────
+export function makeOrbMesh(pos: Vector3): Mesh {
+  const mat = new StandardMaterial("orbMat", g.scene);
+  mat.diffuseColor = new Color3(0, 1, 1);
+  mat.emissiveColor = new Color3(0, 0.9, 1);
+  mat.disableLighting = true;
+  const orb = MeshBuilder.CreateSphere(
+    "orb",
+    { diameter: PLAYER_ORB_RADIUS * 2, segments: 8 },
+    g.scene,
+  );
+  orb.material = mat;
+  orb.position = pos.clone();
+  orb.isPickable = false;
+  return orb;
 }

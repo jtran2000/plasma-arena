@@ -44,7 +44,7 @@ export const PLAYER_JUMP_SPEED = 13; // m/s upward — with gravity -20 this rea
 // ─── Player — Weapon ────────────────────────────────────────────────────────
 export const PLAYER_BEAM_DAMAGE = 25;
 export const PLAYER_RATE_OF_FIRE = 600; // rounds per minute
-export const PLAYER_MAG_SIZE = 50; // rounds per magazine
+export const PLAYER_MAG_SIZE = 48; // rounds per magazine
 export const PLAYER_RESERVE_MAGS = 4; // starting reserve magazines
 export const PLAYER_MAX_RESERVE_MAGS = 5;
 export const PLAYER_RELOAD_TIME = 3000; // ms
@@ -79,15 +79,26 @@ export const WAVE_SPAWN_INTERVAL_MS = 1500; // ms between enemy spawns
 export const WAVE_PAUSE_MS = 10000; // ms pause between waves
 export const MAX_ENEMIES_ALIVE = 10;
 
+// ─── Player — Orb (Alt-Fire) ────────────────────────────────────────────────
+export const PLAYER_ORB_DAMAGE = 75;
+export const PLAYER_ORB_SPEED = 20; // m/s
+export const PLAYER_ORB_RADIUS = 0.15; // visual radius (m)
+export const PLAYER_ORB_EXPLOSION_RADIUS = 5; // m — splash damage range
+export const PLAYER_ORB_AMMO_COST = 8;
+export const PLAYER_ORB_HEAT_MULTIPLIER = 6; // heat per shot multiplied by this
+export const PLAYER_ORB_COOLDOWN_MULTIPLIER = 5; // cooldown multiplied by this
+export const PLAYER_ORB_SPLASH_FALLOFF = 0.5; // max splash damage = direct * this
+
 // ─── Upgrades — Amount Gained Per Upgrade ───────────────────────────────────
 export const UPGRADE_MAX_HEALTH = 25;
 export const UPGRADE_SPEED = 0.5; // m/s
 export const UPGRADE_RELOAD_SPEED = 0.15; // 15% faster per upgrade (exponential decay)
-export const UPGRADE_MAG_SIZE = 25; // rounds
+export const UPGRADE_MAG_SIZE = 24; // rounds
 export const UPGRADE_RATE_OF_FIRE = 150; // RPM
 export const UPGRADE_HEAT_CAPACITY = 0.5; // +20% of base heat cap per upgrade
 export const UPGRADE_HEAT_DECAY = 0.5; // +20% of base heat decay per upgrade
 export const UPGRADE_BLOOM_REDUCTION = 0.25; // 25% less bloom per shot per upgrade
 export const UPGRADE_MOVE_SPREAD_REDUCTION = 0.25; // 25% less spread from movement per upgrade
 export const UPGRADE_BEAM_DAMAGE = 5;
+export const UPGRADE_ORB_DAMAGE = 15;
 export const UPGRADE_SUPPLY_DROP_RATE = 0.05; // +5% absolute drop chance per upgrade

@@ -29,6 +29,7 @@ export interface GameState {
   autoReloadDelay: number;
   hitFlashTime: number;
   shootCooldown: number;
+  orbCooldown: number;
   heat: number;
   heatCooldownTimer: number;
   overheated: boolean;
@@ -46,6 +47,13 @@ export interface Supply {
   mesh: Mesh;
   aggregate: PhysicsAggregate;
   type: "health" | "ammo";
+}
+
+export interface Orb {
+  mesh: Mesh;
+  velocity: Vector3;
+  age: number;
+  heatPenalty: number;
 }
 
 export interface Enemy {
@@ -80,6 +88,7 @@ export function makeState(): GameState {
     autoReloadDelay: 0,
     hitFlashTime: 0,
     shootCooldown: 0,
+    orbCooldown: 0,
     heat: 0,
     heatCooldownTimer: 0,
     overheated: false,
@@ -157,6 +166,7 @@ export const g = {
   playerAggregate: null as unknown as PhysicsAggregate,
   playerVelocityXZ: Vector3.Zero(),
   enemies: [] as Enemy[],
+  orbs: [] as Orb[],
   supplies: [] as Supply[],
   bulletHoles: [] as Mesh[],
   bulletHoleTimes: [] as number[],
@@ -185,6 +195,7 @@ export const g = {
     bloom: 0,
     moveSpread: 0,
     beamDamage: 0,
+    orbDamage: 0,
     supplyDropRate: 0,
   },
   pendingUpgrades: [] as string[],
