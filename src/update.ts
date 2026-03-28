@@ -86,7 +86,7 @@ import {
   effectiveHeatDecay,
   effectiveBloom,
   effectiveMoveSpreadRate,
-  effectiveDamage,
+  effectiveBeamDamage,
   showUpgradeMenu,
   selectUpgrade,
   effectiveSupplyDropRate,
@@ -754,7 +754,7 @@ function hitEnemy(enemy: Enemy, hitMesh: Mesh, hitPoint?: Vector3): void {
       ? 1 - 0.6 * ((g.state.heat - critHeat) / (hMax - critHeat))
       : 1;
   enemy.hp -= Math.round(
-    effectiveDamage() *
+    effectiveBeamDamage() *
       (0.8 + Math.random() * 0.4) *
       (headshot ? 2 : 1) *
       heatPenalty,

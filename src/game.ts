@@ -184,7 +184,7 @@ export const g = {
     heatDecay: 0,
     bloom: 0,
     moveSpread: 0,
-    damage: 0,
+    beamDamage: 0,
     supplyDropRate: 0,
   },
   pendingUpgrades: [] as string[],

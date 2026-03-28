@@ -89,5 +89,5 @@ export const UPGRADE_HEAT_CAPACITY = 0.5; // +20% of base heat cap per upgrade
 export const UPGRADE_HEAT_DECAY = 0.5; // +20% of base heat decay per upgrade
 export const UPGRADE_BLOOM_REDUCTION = 0.25; // 25% less bloom per shot per upgrade
 export const UPGRADE_MOVE_SPREAD_REDUCTION = 0.25; // 25% less spread from movement per upgrade
-export const UPGRADE_DAMAGE = 5;
+export const UPGRADE_BEAM_DAMAGE = 5;
 export const UPGRADE_SUPPLY_DROP_RATE = 0.05; // +5% absolute drop chance per upgrade

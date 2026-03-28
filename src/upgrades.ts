@@ -18,7 +18,7 @@ import {
   UPGRADE_HEAT_DECAY,
   UPGRADE_BLOOM_REDUCTION,
   UPGRADE_MOVE_SPREAD_REDUCTION,
-  UPGRADE_DAMAGE,
+  UPGRADE_BEAM_DAMAGE,
   UPGRADE_SUPPLY_DROP_RATE,
   SUPPLY_DROP_RATE,
 } from "./constants.js";
@@ -52,8 +52,8 @@ export function effectiveBloom(): number {
 export function effectiveMoveSpreadRate(): number {
   return PLAYER_MOVE_SPREAD_RATE * Math.pow(1 - UPGRADE_MOVE_SPREAD_REDUCTION, g.upgrades.moveSpread);
 }
-export function effectiveDamage(): number {
-  return PLAYER_BEAM_DAMAGE + g.upgrades.damage * UPGRADE_DAMAGE;
+export function effectiveBeamDamage(): number {
+  return PLAYER_BEAM_DAMAGE + g.upgrades.beamDamage * UPGRADE_BEAM_DAMAGE;
 }
 export function effectiveSupplyDropRate(): number {
   return SUPPLY_DROP_RATE + g.upgrades.supplyDropRate * UPGRADE_SUPPLY_DROP_RATE;
@@ -126,9 +126,9 @@ const UPGRADE_DEFS: UpgradeDef[] = [
     apply: () => { g.upgrades.moveSpread++; },
   },
   {
-    key: "damage",
-    label: `+${UPGRADE_DAMAGE} Damage`,
-    apply: () => { g.upgrades.damage++; },
+    key: "beamDamage",
+    label: `+${UPGRADE_BEAM_DAMAGE} Beam Damage`,
+    apply: () => { g.upgrades.beamDamage++; },
   },
   {
     key: "supplyDropRate",
