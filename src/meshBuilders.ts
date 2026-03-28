@@ -117,7 +117,7 @@ const ENEMY_COLOR = new Color3(0.45, 0.45, 0.45);
 
 const ENEMY_MESH = {
   capsule: { height: 2.2, radius: 0.4 } as const,
-  body: { width: 0.8, height: 1.1, depth: 0.8 } as const,
+  body: { width: 0.8, height: 1.1, depth: 0.4 } as const,
   bodyOffset: new Vector3(0, 0.15, 0),
   head: { height: 0.55, radius: 0.22 } as const,
   headOffset: new Vector3(0, 0.887, 0),

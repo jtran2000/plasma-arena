@@ -1,5 +1,6 @@
 import { PointerEventTypes, ActionManager, ExecuteCodeAction } from "@babylonjs/core";
 import { g, dom, makeState } from "./game.js";
+import { MASTER_VOLUME_MULT } from "./audio.js";
 import { buildScene } from "./build.js";
 import {
   update,
@@ -178,7 +179,7 @@ dom.optionsBackBtn.addEventListener("click", () => {
 dom.volumeSlider.addEventListener("input", () => {
   const val = Number(dom.volumeSlider.value);
   dom.volumeValue.textContent = String(val);
-  if (g.masterGain) g.masterGain.gain.value = val / 100;
+  if (g.masterGain) g.masterGain.gain.value = (val / 100) * MASTER_VOLUME_MULT;
   localStorage.setItem("fps_volume", String(val));
 });
 

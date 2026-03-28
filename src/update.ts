@@ -19,6 +19,7 @@ import {
   ENEMY_MELEE_ATTACKS_PER_MIN_PER_WAVE,
   ENEMY_SPEED_PER_WAVE,
   ENEMY_CHASE_RANGE,
+  ENEMY_TURN_SPEED,
   ENEMY_ZIGZAG_FREQ,
   ENEMY_ZIGZAG_AMPLITUDE,
   KILL_SCORE,
@@ -489,7 +490,7 @@ function updateEnemies(): void {
     const toPlayer = camPos.subtract(pos);
     const dist = toPlayer.length();
     const dtSec = g.engine.getDeltaTime() / 1000;
-    const turnSpeed = 6; // radians per second
+    const turnSpeed = ENEMY_TURN_SPEED;
 
     if (dist < ENEMY_CHASE_RANGE) e.state = "chase";
 

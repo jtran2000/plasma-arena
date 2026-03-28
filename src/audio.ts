@@ -8,12 +8,14 @@ function ensureAudioCtx(): AudioContext {
   return g.beamAudioCtx;
 }
 
+export const MASTER_VOLUME_MULT = 4; // all sounds scaled up by this factor
+
 function audioDest(): AudioNode {
   const ctx = g.beamAudioCtx!;
   if (!g.masterGain) {
     g.masterGain = ctx.createGain();
     const saved = localStorage.getItem("fps_volume");
-    g.masterGain.gain.value = saved !== null ? Number(saved) / 100 : 0.5;
+    g.masterGain.gain.value = (saved !== null ? Number(saved) / 100 : 0.5) * MASTER_VOLUME_MULT;
     g.masterGain.connect(ctx.destination);
   }
   return g.masterGain;
@@ -161,7 +163,7 @@ export function playOverheatSound(): void {
 // ─── Enemy sounds ─────────────────────────────────────────────────────────────
 export function playEnemyDeathSound(pos: Vector3): void {
   const ctx = ensureAudioCtx();
-  const now = ctx.currentTime;
+  const now = ctx.currentTime + 0.15;
   const panner = makePanner(ctx, pos);
 
   const bufSize = Math.floor(ctx.sampleRate * 0.15);

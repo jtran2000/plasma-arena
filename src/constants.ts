@@ -29,9 +29,9 @@ export const ENEMY_MELEE_DAMAGE_PER_WAVE = 2;
 export const ENEMY_MELEE_ATTACKS_PER_MIN_PER_WAVE = 3;
 
 // ─── Enemy — Movement ───────────────────────────────────────────────────────
+export const ENEMY_TURN_SPEED = 2; // radians per second
 export const ENEMY_ZIGZAG_FREQ = 1; // full zigzag cycles per second
-export const ENEMY_ZIGZAG_AMPLITUDE = 0; // lateral offset strength (0-1)
-export const ENEMY_FOOTSTEP_INTERVAL_MS = 400; // ms between footstep sounds
+export const ENEMY_ZIGZAG_AMPLITUDE = 0.8; // lateral offset strength (0-1)
 
 // ─── Player — Health & Movement ─────────────────────────────────────────────
 export const PLAYER_MAX_HEALTH = 100;
