@@ -49,6 +49,7 @@ import {
   PLAYER_ORB_HEAT_MULTIPLIER,
   PLAYER_ORB_COOLDOWN_MULTIPLIER,
   PLAYER_ORB_DAMAGE,
+  PLAYER_ORB_RADIUS,
   PLAYER_ORB_SPEED,
   PLAYER_ORB_EXPLOSION_RADIUS,
   PLAYER_ORB_SPLASH_FALLOFF,
@@ -905,31 +906,52 @@ function updateOrbs(dt: number): void {
     const step = orb.velocity.scale(dtSec);
     orb.mesh.position.addInPlace(step);
 
-    // Check collision with scene geometry
-    const ray = new Ray(orb.mesh.position, orb.velocity.normalizeToNew(), orb.velocity.length() * dtSec + 0.2);
-    const hit = g.scene.pickWithRay(
-      ray,
-      (m: AbstractMesh) =>
-        m.renderingGroupId !== 1 &&
-        m.name !== "player" &&
-        m.name !== "enemyPhys" &&
-        m.name !== "laserBeam" &&
-        m.name !== "bhole" &&
-        m.name !== "supply" &&
-        m.name !== "orb",
-    );
+    // 5-ray collision: center + 4 edges of the orb sphere
+    const rayDir = orb.velocity.normalizeToNew();
+    const rayLen = orb.velocity.length() * dtSec + 0.2;
+    const up = Vector3.Cross(rayDir, new Vector3(1, 0, 0));
+    if (up.lengthSquared() < 0.01) up.copyFrom(Vector3.Cross(rayDir, new Vector3(0, 0, 1)));
+    up.normalize();
+    const right = Vector3.Cross(rayDir, up).normalize();
+
+    const rayOrigins = [
+      orb.mesh.position,
+      orb.mesh.position.add(up.scale(PLAYER_ORB_RADIUS)),
+      orb.mesh.position.add(up.scale(-PLAYER_ORB_RADIUS)),
+      orb.mesh.position.add(right.scale(PLAYER_ORB_RADIUS)),
+      orb.mesh.position.add(right.scale(-PLAYER_ORB_RADIUS)),
+    ];
+
+    const rayFilter = (m: AbstractMesh) =>
+      m.renderingGroupId !== 1 &&
+      m.name !== "player" &&
+      m.name !== "enemyPhys" &&
+      m.name !== "laserBeam" &&
+      m.name !== "bhole" &&
+      m.name !== "supply" &&
+      m.name !== "orb";
 
     let explode = false;
     let explodePos = orb.mesh.position.clone();
-    let directHitMesh: Mesh | null = null;
+    const directHits = new Map<Enemy, Mesh>();
 
-    // Hit something
-    if (hit?.hit && hit.pickedPoint && hit.distance < orb.velocity.length() * dtSec + 0.2) {
-      explode = true;
-      explodePos = hit.pickedPoint;
-      if (hit.pickedMesh && isEnemyPart(hit.pickedMesh.name)) {
-        const result = findEnemyByMesh(hit.pickedMesh);
-        if (result) directHitMesh = result.hitMesh;
+    for (const origin of rayOrigins) {
+      const ray = new Ray(origin, rayDir, rayLen);
+      const hit = g.scene.pickWithRay(ray, rayFilter);
+      if (hit?.hit && hit.pickedPoint && hit.distance < rayLen) {
+        if (hit.pickedMesh && isEnemyPart(hit.pickedMesh.name)) {
+          const result = findEnemyByMesh(hit.pickedMesh);
+          if (result) {
+            const prev = directHits.get(result.enemy);
+            if (!prev || result.hitMesh.name === "enemyHead") {
+              directHits.set(result.enemy, result.hitMesh);
+            }
+          }
+          if (!explode) { explode = true; explodePos = hit.pickedPoint; }
+        } else if (!explode) {
+          explode = true;
+          explodePos = hit.pickedPoint;
+        }
       }
     }
 
@@ -937,13 +959,13 @@ function updateOrbs(dt: number): void {
     if (orb.age > 5000) explode = true;
 
     if (explode) {
-      explodeOrb(explodePos, directHitMesh, orb.heatPenalty, orb.mesh);
+      explodeOrb(explodePos, directHits, orb.heatPenalty, orb.mesh);
       g.orbs.splice(i, 1);
     }
   }
 }
 
-function explodeOrb(pos: Vector3, directHitMesh: Mesh | null, heatPenalty: number, orbMesh: Mesh): void {
+function explodeOrb(pos: Vector3, directHits: Map<Enemy, Mesh>, heatPenalty: number, orbMesh: Mesh): void {
   playOrbExplosionSound(pos);
   spawnExplosionParticle(pos);
 
@@ -968,18 +990,16 @@ function explodeOrb(pos: Vector3, directHitMesh: Mesh | null, heatPenalty: numbe
   });
 
   const damage = effectiveOrbDamage();
-  const directEnemy = directHitMesh
-    ? g.enemies.find((e) => e.visualRoot === directHitMesh.parent)
-    : null;
 
   for (const enemy of [...g.enemies]) {
     let dmg: number;
     let flashMesh: Mesh;
+    const directMesh = directHits.get(enemy);
 
-    if (enemy === directEnemy && directHitMesh) {
-      const headshot = directHitMesh.name === "enemyHead";
+    if (directMesh) {
+      const headshot = directMesh.name === "enemyHead";
       dmg = damage * (headshot ? 2 : 1);
-      flashMesh = directHitMesh;
+      flashMesh = directMesh;
     } else {
       const enemyPos = enemy.bodyMesh.getAbsolutePosition();
       const dist = Vector3.Distance(pos, enemyPos);
