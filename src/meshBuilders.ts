@@ -119,7 +119,7 @@ const ENEMY_MESH = {
   capsule: { height: 1.6, radius: 0.4 } as const,
   body: { width: 0.8, height: 1.6, depth: 0.8 } as const,
   head: { height: 0.55, radius: 0.22 } as const,
-  headOffset: new Vector3(0, 1.05, 0),
+  headOffset: new Vector3(0, 0.987, 0),
 };
 
 // Laser beam
@@ -428,7 +428,15 @@ export function makeEnemyBodyMesh(): Mesh {
 }
 
 export function makeEnemyHeadMesh(): Mesh {
-  const mesh = MeshBuilder.CreateCapsule("enemyHead", ENEMY_MESH.head, g.scene);
+  const { height, radius } = ENEMY_MESH.head;
+  const mesh = MeshBuilder.CreateCapsule("enemyHead", { height, radius, capSubdivisions: 6, subdivisions: 1, tessellation: 12 }, g.scene);
+  // Truncate the bottom cap — flatten all vertices below the cutoff
+  const cutY = -height / 2 + radius * 0.4;
+  const positions = mesh.getVerticesData("position")!;
+  for (let i = 1; i < positions.length; i += 3) {
+    if (positions[i] < cutY) positions[i] = cutY;
+  }
+  mesh.setVerticesData("position", positions);
   mesh.position = ENEMY_MESH.headOffset.clone();
   return mesh;
 }
