@@ -1,12 +1,13 @@
 import { PointerEventTypes, ActionManager, ExecuteCodeAction } from "@babylonjs/core";
 import { g, dom, makeState } from "./game.js";
-import { MASTER_VOLUME_MULT } from "./audio.js";
+import { MASTER_VOLUME_MULT, stopOrbChargeSound } from "./audio.js";
 import { buildScene } from "./build.js";
 import {
   update,
   tryJump,
   shoot,
-  shootOrb,
+  startOrbCharge,
+  releaseOrbCharge,
   startReload,
   updateHUD,
   pause,
@@ -31,7 +32,11 @@ function setupInput(): void {
       }
     } else if (info.event.button === 2) {
       if (info.type === PointerEventTypes.POINTERDOWN) {
-        shootOrb();
+        g.mouse2Held = true;
+        startOrbCharge();
+      } else if (info.type === PointerEventTypes.POINTERUP) {
+        g.mouse2Held = false;
+        if (g.orbCharging) releaseOrbCharge();
       }
     }
   });
@@ -77,6 +82,12 @@ async function startGame(): Promise<void> {
   dom.hud.style.display = "block";
   g.upgrades = { maxHealth: 0, speed: 0, reloadTime: 0, magSize: 0, rateOfFire: 0, heatCapacity: 0, heatDecay: 0, bloom: 0, moveSpread: 0, beamDamage: 0, orbDamage: 0, supplyDropRate: 0 };
   g.pendingUpgrades = [];
+  if (g.orbCharging) {
+    stopOrbChargeSound();
+    if (g.orbChargeMesh) { g.orbChargeMesh.dispose(); g.orbChargeMesh = null; }
+    g.orbCharging = false;
+  }
+  g.mouse2Held = false;
   for (const orb of g.orbs) orb.mesh.dispose();
   g.orbs = [];
 

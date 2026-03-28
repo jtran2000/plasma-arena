@@ -612,3 +612,22 @@ export function makeOrbMesh(pos: Vector3): Mesh {
   orb.isPickable = false;
   return orb;
 }
+
+export function makeOrbChargeMesh(): Mesh {
+  const mat = new StandardMaterial("orbChargeMat", g.scene);
+  mat.diffuseColor = new Color3(0, 1, 1);
+  mat.emissiveColor = new Color3(0, 0.9, 1);
+  mat.disableLighting = true;
+  mat.alpha = 0.5;
+  const orb = MeshBuilder.CreateSphere(
+    "orbCharge",
+    { diameter: PLAYER_ORB_RADIUS * 2, segments: 8 },
+    g.scene,
+  );
+  orb.material = mat;
+  orb.renderingGroupId = 1;
+  orb.parent = g.barrelTip;
+  orb.position.setAll(0);
+  orb.isPickable = false;
+  return orb;
+}

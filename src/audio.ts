@@ -279,27 +279,65 @@ export function playEnemyAttackSound(pos: Vector3): void {
   osc.stop(now + 0.11);
 }
 
+// ─── Orb charge sounds ───────────────────────────────────────────────────────
+export function startOrbChargeSound(): void {
+  const ctx = ensureAudioCtx();
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(60, now);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.05, now);
+  osc.connect(gain);
+  gain.connect(audioDest());
+  osc.start(now);
+  g.orbChargeOsc = osc;
+  g.orbChargeGain = gain;
+}
+
+export function updateOrbChargeSound(t: number): void {
+  if (!g.orbChargeOsc || !g.orbChargeGain) return;
+  const ctx = g.beamAudioCtx!;
+  const now = ctx.currentTime;
+  g.orbChargeOsc.frequency.setTargetAtTime(60 + 140 * t, now, 0.05);
+  g.orbChargeGain.gain.setTargetAtTime(0.05 + 0.3 * t, now, 0.05);
+}
+
+export function stopOrbChargeSound(): void {
+  if (g.orbChargeOsc) {
+    g.orbChargeOsc.stop();
+    g.orbChargeOsc.disconnect();
+    g.orbChargeOsc = null;
+  }
+  if (g.orbChargeGain) {
+    g.orbChargeGain.disconnect();
+    g.orbChargeGain = null;
+  }
+}
+
 // ─── Orb sounds ──────────────────────────────────────────────────────────────
-export function playOrbLaunchSound(pos: Vector3): void {
+export function playOrbLaunchSound(pos: Vector3, chargeMultiplier = 1): void {
   const ctx = ensureAudioCtx();
   const now = ctx.currentTime;
   const panner = makePanner(ctx, pos);
 
-  // Deep thump
+  // Deep thump — deeper and louder with charge
+  const dur = 0.25 * chargeMultiplier;
   const osc = ctx.createOscillator();
   osc.type = "sine";
-  osc.frequency.setValueAtTime(80, now);
-  osc.frequency.exponentialRampToValueAtTime(40, now + 0.2);
+  osc.frequency.setValueAtTime(80 / chargeMultiplier, now);
+  osc.frequency.exponentialRampToValueAtTime(40 / chargeMultiplier, now + dur);
   const gain = ctx.createGain();
-  gain.gain.setValueAtTime(0.35, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+  gain.gain.setValueAtTime(0.35 * chargeMultiplier, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
   osc.connect(gain);
   gain.connect(panner);
   osc.start(now);
-  osc.stop(now + 0.26);
+  osc.stop(now + dur + 0.01);
 
   // Whoosh
-  const bufSize = Math.floor(ctx.sampleRate * 0.15);
+  const whooshDur = 0.15 * chargeMultiplier;
+  const bufSize = Math.floor(ctx.sampleRate * whooshDur);
   const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
   const data = buf.getChannelData(0);
   for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
@@ -308,37 +346,39 @@ export function playOrbLaunchSound(pos: Vector3): void {
   const filter = ctx.createBiquadFilter();
   filter.type = "bandpass";
   filter.frequency.setValueAtTime(400, now);
-  filter.frequency.exponentialRampToValueAtTime(150, now + 0.15);
+  filter.frequency.exponentialRampToValueAtTime(150, now + whooshDur);
   filter.Q.value = 2;
   const nGain = ctx.createGain();
-  nGain.gain.setValueAtTime(0.25, now);
-  nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+  nGain.gain.setValueAtTime(0.25 * chargeMultiplier, now);
+  nGain.gain.exponentialRampToValueAtTime(0.001, now + whooshDur);
   noise.connect(filter);
   filter.connect(nGain);
   nGain.connect(panner);
   noise.start(now);
 }
 
-export function playOrbExplosionSound(pos: Vector3): void {
+export function playOrbExplosionSound(pos: Vector3, chargeMultiplier = 1): void {
   const ctx = ensureAudioCtx();
   const now = ctx.currentTime;
   const panner = makePanner(ctx, pos);
 
-  // Low boom
+  // Low boom — deeper and louder with charge
+  const boomDur = 0.5 * chargeMultiplier;
   const osc = ctx.createOscillator();
   osc.type = "sine";
-  osc.frequency.setValueAtTime(60, now);
-  osc.frequency.exponentialRampToValueAtTime(20, now + 0.4);
+  osc.frequency.setValueAtTime(60 / chargeMultiplier, now);
+  osc.frequency.exponentialRampToValueAtTime(20 / chargeMultiplier, now + boomDur * 0.8);
   const gain = ctx.createGain();
-  gain.gain.setValueAtTime(0.5, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+  gain.gain.setValueAtTime(0.5 * chargeMultiplier, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + boomDur);
   osc.connect(gain);
   gain.connect(panner);
   osc.start(now);
-  osc.stop(now + 0.51);
+  osc.stop(now + boomDur + 0.01);
 
   // Explosion noise
-  const bufSize = Math.floor(ctx.sampleRate * 0.4);
+  const noiseDur = 0.4 * chargeMultiplier;
+  const bufSize = Math.floor(ctx.sampleRate * noiseDur);
   const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
   const data = buf.getChannelData(0);
   for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
@@ -347,10 +387,10 @@ export function playOrbExplosionSound(pos: Vector3): void {
   const filter = ctx.createBiquadFilter();
   filter.type = "lowpass";
   filter.frequency.setValueAtTime(2000, now);
-  filter.frequency.exponentialRampToValueAtTime(200, now + 0.4);
+  filter.frequency.exponentialRampToValueAtTime(200, now + noiseDur);
   const nGain = ctx.createGain();
-  nGain.gain.setValueAtTime(0.6, now);
-  nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+  nGain.gain.setValueAtTime(0.6 * chargeMultiplier, now);
+  nGain.gain.exponentialRampToValueAtTime(0.001, now + noiseDur);
   noise.connect(filter);
   filter.connect(nGain);
   nGain.connect(panner);

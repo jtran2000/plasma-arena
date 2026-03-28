@@ -65,6 +65,7 @@ import {
   makeHealthSupply,
   makeAmmoSupply,
   makeOrbMesh,
+  makeOrbChargeMesh,
   makeEnemyMats,
   makeEnemyPhysCapsule,
   makeEnemyBodyMesh,
@@ -87,13 +88,16 @@ import {
   playAmmoSupplySound,
   playOrbLaunchSound,
   playOrbExplosionSound,
+  startOrbChargeSound,
+  updateOrbChargeSound,
+  stopOrbChargeSound,
 } from "./audio.js";
 import {
   effectiveMaxHealth,
   effectiveSpeed,
   effectiveReloadTime,
   effectiveMagSize,
-  effectiveRateOfFire,
+  effectiveCooldown,
   effectiveHeatMax,
   effectiveHeatDecay,
   effectiveBloom,
@@ -114,7 +118,9 @@ function isEnemyPart(name: string): boolean {
   return name === "enemyBody" || name === "enemyHead" || name === "enemyLeg";
 }
 
-function findEnemyByMesh(mesh: AbstractMesh): { enemy: Enemy; hitMesh: Mesh } | null {
+function findEnemyByMesh(
+  mesh: AbstractMesh,
+): { enemy: Enemy; hitMesh: Mesh } | null {
   // body/head: parent is visualRoot
   // leg: parent is pivot, pivot.parent is visualRoot
   const parent = mesh.parent;
@@ -162,8 +168,8 @@ function updateTimers(dt: number): void {
     }
   }
 
-  // Heat decay
-  if (g.state.heat > 0) {
+  // Heat decay (blocked while charging orb)
+  if (g.state.heat > 0 && !g.orbCharging) {
     if (g.state.heatCooldownTimer > 0) {
       g.state.heatCooldownTimer -= dt;
     } else {
@@ -216,7 +222,7 @@ function updateTimers(dt: number): void {
     if (g.state.shootCooldown <= 0) {
       shoot();
     }
-  } else if (g.shootSpread > 0 && g.state.shootCooldown <= 0) {
+  } else if (g.shootSpread > 0 && g.state.shootCooldown <= 0 && !g.orbCharging) {
     g.shootSpread = Math.max(
       0,
       g.shootSpread - (PLAYER_SPREAD_DECAY * dt) / 1000,
@@ -227,6 +233,7 @@ function updateTimers(dt: number): void {
   }
 
   if (g.state.orbCooldown > 0) g.state.orbCooldown -= dt;
+  if (g.orbCharging) updateOrbCharge(dt);
   updateOrbs(dt);
 
   // Movement spread: increase while moving, decay when stopped
@@ -503,8 +510,7 @@ function updateEnemies(): void {
       if (dirXZ.lengthSquared() > 0) dirXZ.normalize();
 
       // Zigzag lateral offset
-      e.zigzagTimer +=
-        dtSec * ENEMY_ZIGZAG_FREQ * Math.PI * 2;
+      e.zigzagTimer += dtSec * ENEMY_ZIGZAG_FREQ * Math.PI * 2;
       const lateral = new Vector3(-dirXZ.z, 0, dirXZ.x);
       const zigzag = Math.sin(e.zigzagTimer) * ENEMY_ZIGZAG_AMPLITUDE;
       const moveDir = dirXZ.add(lateral.scale(zigzag)).normalize();
@@ -727,7 +733,7 @@ export function shoot(): void {
   }
 
   g.state.ammo--;
-  g.state.shootCooldown = 60000 / effectiveRateOfFire();
+  g.state.shootCooldown = effectiveCooldown();
   g.state.heat = Math.min(
     g.state.heat + PLAYER_HEAT_PER_SHOT,
     effectiveHeatMax(),
@@ -825,7 +831,7 @@ export function shoot(): void {
 }
 
 // ─── Alt-fire: Orb ──────────────────────────────────────────────────────────
-export function shootOrb(): void {
+export function startOrbCharge(): void {
   if (
     !g.state.running ||
     g.state.reloading ||
@@ -840,13 +846,121 @@ export function shootOrb(): void {
     return;
   }
 
+  // Instant-fire if only base ammo available
+  if (g.state.ammo === PLAYER_ORB_AMMO_COST) {
+    g.state.ammo -= PLAYER_ORB_AMMO_COST;
+    g.state.heat = Math.min(
+      g.state.heat + PLAYER_HEAT_PER_SHOT * PLAYER_ORB_HEAT_MULTIPLIER,
+      effectiveHeatMax(),
+    );
+    g.state.heatCooldownTimer = PLAYER_HEAT_COOLDOWN_DELAY;
+    fireOrb(1.0);
+    return;
+  }
+
+  // Begin charging — apply base heat immediately
   g.state.ammo -= PLAYER_ORB_AMMO_COST;
-  g.state.orbCooldown = (60000 / effectiveRateOfFire()) * PLAYER_ORB_COOLDOWN_MULTIPLIER;
-  g.state.shootCooldown = Math.max(g.state.shootCooldown, g.state.orbCooldown);
   g.state.heat = Math.min(
     g.state.heat + PLAYER_HEAT_PER_SHOT * PLAYER_ORB_HEAT_MULTIPLIER,
     effectiveHeatMax(),
   );
+  g.state.heatCooldownTimer = PLAYER_HEAT_COOLDOWN_DELAY;
+  if (g.state.heat >= effectiveHeatMax()) {
+    fireOrb(1.0);
+    return;
+  }
+  g.orbCharging = true;
+  g.orbChargeTime = 0;
+  g.orbChargeAmmo = PLAYER_ORB_AMMO_COST;
+  g.orbChargeMesh = makeOrbChargeMesh();
+  startOrbChargeSound();
+  updateHUD();
+}
+
+function updateOrbCharge(dt: number): void {
+  // Interruption: fire immediately at current charge
+  if (
+    g.state.reloading ||
+    g.isSprinting ||
+    g.state.overheated ||
+    !g.state.running ||
+    g.state.paused
+  ) {
+    releaseOrbCharge();
+    return;
+  }
+
+  g.orbChargeTime += dt;
+
+  // Drain extra ammo over time
+  const targetExtra = Math.min(
+    Math.floor(
+      g.orbChargeTime / (effectiveCooldown() * PLAYER_ORB_COOLDOWN_MULTIPLIER),
+    ),
+    PLAYER_ORB_AMMO_COST, // max 8 additional
+  );
+  const currentExtra = g.orbChargeAmmo - PLAYER_ORB_AMMO_COST;
+  for (let i = currentExtra; i < targetExtra; i++) {
+    if (g.state.ammo <= 0) {
+      releaseOrbCharge();
+      return;
+    }
+    g.state.ammo--;
+    g.orbChargeAmmo++;
+    g.state.heat = Math.min(
+      g.state.heat + PLAYER_HEAT_PER_SHOT * PLAYER_ORB_HEAT_MULTIPLIER / PLAYER_ORB_AMMO_COST,
+      effectiveHeatMax(),
+    );
+    g.state.heatCooldownTimer = PLAYER_HEAT_COOLDOWN_DELAY;
+    if (g.state.heat >= effectiveHeatMax()) {
+      releaseOrbCharge();
+      return;
+    }
+  }
+
+  const chargeMultiplier = g.orbChargeAmmo / PLAYER_ORB_AMMO_COST;
+
+  // Update visual: scale and brighten
+  if (g.orbChargeMesh) {
+    g.orbChargeMesh.scaling.setAll(chargeMultiplier);
+    g.orbChargeMesh.position.z = PLAYER_ORB_RADIUS * chargeMultiplier;
+    const mat = g.orbChargeMesh.material as StandardMaterial;
+    const t = chargeMultiplier - 1;
+    mat.emissiveColor = Color3.Lerp(
+      new Color3(0, 0.9, 1),
+      new Color3(0.5, 1, 1),
+      t,
+    );
+  }
+
+  // Update sound
+  updateOrbChargeSound(chargeMultiplier - 1);
+
+  // Auto-fire at max charge
+  if (g.orbChargeAmmo >= PLAYER_ORB_AMMO_COST * 2) {
+    releaseOrbCharge();
+    return;
+  }
+
+  updateHUD();
+}
+
+export function releaseOrbCharge(): void {
+  if (!g.orbCharging) return;
+  const chargeMultiplier = g.orbChargeAmmo / PLAYER_ORB_AMMO_COST;
+  stopOrbChargeSound();
+  if (g.orbChargeMesh) {
+    g.orbChargeMesh.dispose();
+    g.orbChargeMesh = null;
+  }
+  g.orbCharging = false;
+  fireOrb(chargeMultiplier);
+}
+
+function fireOrb(chargeMultiplier: number): void {
+  g.state.orbCooldown =
+    effectiveCooldown() * PLAYER_ORB_COOLDOWN_MULTIPLIER * chargeMultiplier;
+  g.state.shootCooldown = Math.max(g.state.shootCooldown, g.state.orbCooldown);
   g.state.heatCooldownTimer = PLAYER_HEAT_COOLDOWN_DELAY;
   if (g.state.heat >= effectiveHeatMax()) {
     g.state.overheated = true;
@@ -855,7 +969,6 @@ export function shootOrb(): void {
     playOverheatSound();
     spawnSmokeParticles();
   }
-  updateHUD();
 
   const ray = g.camera.getForwardRay(100);
   const shotSpread = g.shootSpread + g.moveSpread;
@@ -869,7 +982,10 @@ export function shootOrb(): void {
     ray.direction.addInPlace(trueUp.scale(Math.sin(angle) * magnitude));
     ray.direction.normalize();
   }
-  g.shootSpread = Math.min(g.shootSpread + effectiveBloom() * 6, PLAYER_MAX_SPREAD);
+  g.shootSpread = Math.min(
+    g.shootSpread + effectiveBloom() * 6 * chargeMultiplier,
+    PLAYER_MAX_SPREAD,
+  );
 
   const hMax = effectiveHeatMax();
   const critHeat = hMax * PLAYER_HEAT_CRITICAL;
@@ -879,22 +995,29 @@ export function shootOrb(): void {
       : 1;
 
   const spawnPos = g.barrelTip.getAbsolutePosition();
-  playOrbLaunchSound(spawnPos);
+  playOrbLaunchSound(spawnPos, chargeMultiplier);
   const mesh = makeOrbMesh(spawnPos);
+  mesh.scaling.setAll(chargeMultiplier);
   if (heatPenalty < 1) {
     const mat = mesh.material as StandardMaterial;
     const t = 1 - heatPenalty;
     mat.alpha = 1 - t * 0.6;
-    mat.emissiveColor = Color3.Lerp(mat.emissiveColor, new Color3(0.2, 0.3, 0.3), t);
+    mat.emissiveColor = Color3.Lerp(
+      mat.emissiveColor,
+      new Color3(0.2, 0.3, 0.3),
+      t,
+    );
   }
   g.orbs.push({
     mesh,
-    velocity: ray.direction.scale(PLAYER_ORB_SPEED),
+    velocity: ray.direction.scale(PLAYER_ORB_SPEED / chargeMultiplier),
     age: 0,
     heatPenalty,
+    chargeMultiplier,
   });
 
   if (g.state.ammo === 0 && g.state.reserve > 0) g.state.autoReloadDelay = 300;
+  updateHUD();
 }
 
 function updateOrbs(dt: number): void {
@@ -911,16 +1034,18 @@ function updateOrbs(dt: number): void {
     const rayDir = orb.velocity.normalizeToNew();
     const rayLen = orb.velocity.length() * dtSec + 0.2;
     const up = Vector3.Cross(rayDir, new Vector3(1, 0, 0));
-    if (up.lengthSquared() < 0.01) up.copyFrom(Vector3.Cross(rayDir, new Vector3(0, 0, 1)));
+    if (up.lengthSquared() < 0.01)
+      up.copyFrom(Vector3.Cross(rayDir, new Vector3(0, 0, 1)));
     up.normalize();
     const right = Vector3.Cross(rayDir, up).normalize();
 
+    const orbR = PLAYER_ORB_RADIUS * orb.chargeMultiplier;
     const rayOrigins = [
       orb.mesh.position,
-      orb.mesh.position.add(up.scale(PLAYER_ORB_RADIUS)),
-      orb.mesh.position.add(up.scale(-PLAYER_ORB_RADIUS)),
-      orb.mesh.position.add(right.scale(PLAYER_ORB_RADIUS)),
-      orb.mesh.position.add(right.scale(-PLAYER_ORB_RADIUS)),
+      orb.mesh.position.add(up.scale(orbR)),
+      orb.mesh.position.add(up.scale(-orbR)),
+      orb.mesh.position.add(right.scale(orbR)),
+      orb.mesh.position.add(right.scale(-orbR)),
     ];
 
     const rayFilter = (m: AbstractMesh) =>
@@ -930,7 +1055,8 @@ function updateOrbs(dt: number): void {
       m.name !== "laserBeam" &&
       m.name !== "bhole" &&
       m.name !== "supply" &&
-      m.name !== "orb";
+      m.name !== "orb" &&
+      m.name !== "orbCharge";
 
     let explode = false;
     let explodePos = orb.mesh.position.clone();
@@ -948,7 +1074,10 @@ function updateOrbs(dt: number): void {
               directHits.set(result.enemy, result.hitMesh);
             }
           }
-          if (!explode) { explode = true; explodePos = hit.pickedPoint; }
+          if (!explode) {
+            explode = true;
+            explodePos = hit.pickedPoint;
+          }
         } else if (!explode) {
           explode = true;
           explodePos = hit.pickedPoint;
@@ -960,14 +1089,26 @@ function updateOrbs(dt: number): void {
     if (orb.age > 5000) explode = true;
 
     if (explode) {
-      explodeOrb(explodePos, directHits, orb.heatPenalty, orb.mesh);
+      explodeOrb(
+        explodePos,
+        directHits,
+        orb.heatPenalty,
+        orb.mesh,
+        orb.chargeMultiplier,
+      );
       g.orbs.splice(i, 1);
     }
   }
 }
 
-function explodeOrb(pos: Vector3, directHits: Map<Enemy, Mesh>, heatPenalty: number, orbMesh: Mesh): void {
-  playOrbExplosionSound(pos);
+function explodeOrb(
+  pos: Vector3,
+  directHits: Map<Enemy, Mesh>,
+  heatPenalty: number,
+  orbMesh: Mesh,
+  chargeMultiplier: number,
+): void {
+  playOrbExplosionSound(pos, chargeMultiplier);
   spawnExplosionParticle(pos);
 
   // Animate the orb mesh as an expanding, fading blast sphere
@@ -978,7 +1119,8 @@ function explodeOrb(pos: Vector3, directHits: Map<Enemy, Mesh>, heatPenalty: num
   const expandDurationMs = 300;
   const startTime = performance.now();
   const startScale = orbMesh.scaling.x;
-  const endScale = PLAYER_ORB_EXPLOSION_RADIUS * 2 / 0.3; // diameter ratio
+  const explosionRadius = PLAYER_ORB_EXPLOSION_RADIUS * chargeMultiplier;
+  const endScale = (explosionRadius * 2) / 0.3; // diameter ratio
   const obs = g.scene.onBeforeRenderObservable.add(() => {
     const t = Math.min((performance.now() - startTime) / expandDurationMs, 1);
     const s = startScale + (endScale - startScale) * t;
@@ -990,7 +1132,7 @@ function explodeOrb(pos: Vector3, directHits: Map<Enemy, Mesh>, heatPenalty: num
     }
   });
 
-  const damage = effectiveOrbDamage();
+  const damage = effectiveOrbDamage() * chargeMultiplier;
 
   for (const enemy of [...g.enemies]) {
     let dmg: number;
@@ -1004,8 +1146,8 @@ function explodeOrb(pos: Vector3, directHits: Map<Enemy, Mesh>, heatPenalty: num
     } else {
       const enemyPos = enemy.bodyMesh.getAbsolutePosition();
       const dist = Vector3.Distance(pos, enemyPos);
-      if (dist > PLAYER_ORB_EXPLOSION_RADIUS) continue;
-      const falloff = 1 - dist / PLAYER_ORB_EXPLOSION_RADIUS;
+      if (dist > explosionRadius) continue;
+      const falloff = 1 - dist / explosionRadius;
       dmg = damage * PLAYER_ORB_SPLASH_FALLOFF * falloff;
       flashMesh = enemy.bodyMesh;
     }
@@ -1013,7 +1155,11 @@ function explodeOrb(pos: Vector3, directHits: Map<Enemy, Mesh>, heatPenalty: num
     dmg = Math.round(dmg * (0.8 + Math.random() * 0.4) * heatPenalty);
     enemy.hp -= dmg;
 
-    (flashMesh.material as StandardMaterial).emissiveColor = new Color3(1, 0, 0);
+    (flashMesh.material as StandardMaterial).emissiveColor = new Color3(
+      1,
+      0,
+      0,
+    );
     enemy.flashMesh = flashMesh;
     enemy.flashTime = 200;
 
@@ -1022,7 +1168,7 @@ function explodeOrb(pos: Vector3, directHits: Map<Enemy, Mesh>, heatPenalty: num
     const awayE = ePos.subtract(pos);
     const distE = awayE.length();
     if (distE > 0.01) {
-      const strength = 50 * (1 - distE / PLAYER_ORB_EXPLOSION_RADIUS);
+      const strength = 50 * chargeMultiplier * (1 - distE / explosionRadius);
       enemy.aggregate.body.applyImpulse(
         awayE.normalize().scale(strength),
         ePos,
@@ -1039,16 +1185,21 @@ function explodeOrb(pos: Vector3, directHits: Map<Enemy, Mesh>, heatPenalty: num
       mesh.name !== "headHalf" &&
       mesh.name !== "enemyBody" &&
       mesh.name !== "enemyHead"
-    ) continue;
+    )
+      continue;
     // Skip meshes still parented to a live enemy
-    if (mesh.parent && g.enemies.some((e) => e.visualRoot === mesh.parent)) continue;
+    if (mesh.parent && g.enemies.some((e) => e.visualRoot === mesh.parent))
+      continue;
     const dPos = mesh.getAbsolutePosition();
     const dist = Vector3.Distance(pos, dPos);
-    if (dist > PLAYER_ORB_EXPLOSION_RADIUS) continue;
+    if (dist > explosionRadius) continue;
     const away = dPos.subtract(pos);
-    const falloff = 1 - dist / PLAYER_ORB_EXPLOSION_RADIUS;
+    const falloff = 1 - dist / explosionRadius;
     if (mesh.physicsBody && away.length() > 0.01) {
-      mesh.physicsBody.applyImpulse(away.normalize().scale(40 * falloff), dPos);
+      mesh.physicsBody.applyImpulse(
+        away.normalize().scale(40 * chargeMultiplier * falloff),
+        dPos,
+      );
     }
     if (mesh.name === "bodyHalf" || mesh.name === "headHalf") {
       // Shrink like hitDebris, dispose if too small
@@ -1060,7 +1211,11 @@ function explodeOrb(pos: Vector3, directHits: Map<Enemy, Mesh>, heatPenalty: num
       incrementScore(1, pos);
     } else {
       // Unsplit body/head — split them
-      splitRagdoll(mesh as Mesh, away.length() > 0.01 ? away.normalize() : Vector3.Up(), pos);
+      splitRagdoll(
+        mesh as Mesh,
+        away.length() > 0.01 ? away.normalize() : Vector3.Up(),
+        pos,
+      );
     }
   }
 
@@ -1068,10 +1223,10 @@ function explodeOrb(pos: Vector3, directHits: Map<Enemy, Mesh>, heatPenalty: num
   for (const s of g.supplies) {
     const sPos = s.mesh.getAbsolutePosition();
     const dist = Vector3.Distance(pos, sPos);
-    if (dist > PLAYER_ORB_EXPLOSION_RADIUS) continue;
+    if (dist > explosionRadius) continue;
     const away = sPos.subtract(pos);
     if (away.length() > 0.01) {
-      const strength = 40 * (1 - dist / PLAYER_ORB_EXPLOSION_RADIUS);
+      const strength = 40 * chargeMultiplier * (1 - dist / explosionRadius);
       s.aggregate.body.applyImpulse(away.normalize().scale(strength), sPos);
     }
   }
@@ -1079,14 +1234,19 @@ function explodeOrb(pos: Vector3, directHits: Map<Enemy, Mesh>, heatPenalty: num
   // Player self-damage and knockback (uses base damage, no upgrades)
   const playerPos = g.camera.position;
   const playerDist = Vector3.Distance(pos, playerPos);
-  if (playerDist < PLAYER_ORB_EXPLOSION_RADIUS) {
-    const falloff = 1 - playerDist / PLAYER_ORB_EXPLOSION_RADIUS;
-    const selfDmg = Math.round(PLAYER_ORB_DAMAGE * PLAYER_ORB_SPLASH_FALLOFF * falloff);
+  if (playerDist < explosionRadius) {
+    const falloff = 1 - playerDist / explosionRadius;
+    const selfDmg = Math.round(
+      PLAYER_ORB_DAMAGE *
+        chargeMultiplier *
+        PLAYER_ORB_SPLASH_FALLOFF *
+        falloff,
+    );
     if (selfDmg > 0) damagePlayer(selfDmg);
 
     const away = playerPos.subtract(pos);
     if (away.length() > 0.01) {
-      const strength = 60 * falloff;
+      const strength = 60 * chargeMultiplier * falloff;
       g.playerAggregate.body.applyImpulse(
         away.normalize().scale(strength),
         playerPos,
@@ -1137,12 +1297,17 @@ function hitEnemy(enemy: Enemy, hitMesh: Mesh, hitPoint?: Vector3): void {
 
   (hitMesh.material as StandardMaterial).emissiveColor = new Color3(1, 0, 0);
   enemy.flashMesh = hitMesh;
-  enemy.flashTime = (60000 / effectiveRateOfFire()) * 0.6;
+  enemy.flashTime = effectiveCooldown() * 0.6;
 
   if (enemy.hp <= 0) killEnemy(enemy, hitMesh, hitPoint);
 }
 
-function killEnemy(enemy: Enemy, killMesh: Mesh, hitPoint?: Vector3, orbKill = false): void {
+function killEnemy(
+  enemy: Enemy,
+  killMesh: Mesh,
+  hitPoint?: Vector3,
+  orbKill = false,
+): void {
   const bodyWorldPos = enemy.bodyMesh.getAbsolutePosition().clone();
   playEnemyDeathSound(bodyWorldPos);
   const headWorldPos = enemy.headMesh.getAbsolutePosition().clone();
@@ -1197,7 +1362,12 @@ function killEnemy(enemy: Enemy, killMesh: Mesh, hitPoint?: Vector3, orbKill = f
       new Vector3(awayDir.x * 14, -5, awayDir.z * 14),
       bodyWorldPos,
     );
-    setTimeout(() => { bTopAgg.dispose(); bTop.dispose(); bBotAgg.dispose(); bBot.dispose(); }, 3500);
+    setTimeout(() => {
+      bTopAgg.dispose();
+      bTop.dispose();
+      bBotAgg.dispose();
+      bBot.dispose();
+    }, 3500);
 
     enemy.headMesh.dispose();
     const [hTop, hBot] = makeHeadSplitHalves(headWorldPos, headMat);
@@ -1211,7 +1381,12 @@ function killEnemy(enemy: Enemy, killMesh: Mesh, hitPoint?: Vector3, orbKill = f
       new Vector3(awayDir.x * 2, 1 + Math.random() * 2, awayDir.z * 2),
       headWorldPos,
     );
-    setTimeout(() => { hTopAgg.dispose(); hTop.dispose(); hBotAgg.dispose(); hBot.dispose(); }, 3500);
+    setTimeout(() => {
+      hTopAgg.dispose();
+      hTop.dispose();
+      hBotAgg.dispose();
+      hBot.dispose();
+    }, 3500);
   } else if (isHeadshot) {
     enemy.headMesh.dispose();
     const [topHalf, bottomHalf] = makeHeadSplitHalves(headWorldPos, headMat);
@@ -1377,7 +1552,9 @@ export function startReload(): void {
   g.state.reloading = true;
   g.state.reloadTimeLeft = effectiveReloadTime();
   dom.reloadMsg.classList.add("visible");
-  playReloadSounds(effectiveReloadTime(), () => g.barrelTip.getAbsolutePosition());
+  playReloadSounds(effectiveReloadTime(), () =>
+    g.barrelTip.getAbsolutePosition(),
+  );
 }
 
 function completeReload(): void {
@@ -1457,7 +1634,7 @@ function spawnLaserBeam(from: Vector3, to: Vector3): void {
   const dist = Vector3.Distance(from, to);
   if (dist < 0.05) return;
 
-  playBeamSound(((60000 / effectiveRateOfFire()) * 0.6) / 1000);
+  playBeamSound((effectiveCooldown() * 0.6) / 1000);
 
   const beam = makeBeam(from, to);
   const beamHeatMax = effectiveHeatMax();
@@ -1472,7 +1649,7 @@ function spawnLaserBeam(from: Vector3, to: Vector3): void {
       t,
     );
   }
-  setTimeout(() => beam.dispose(), (60000 / effectiveRateOfFire()) * 0.6);
+  setTimeout(() => beam.dispose(), effectiveCooldown() * 0.6);
 }
 
 function spawnHitParticle(

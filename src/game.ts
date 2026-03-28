@@ -54,6 +54,7 @@ export interface Orb {
   velocity: Vector3;
   age: number;
   heatPenalty: number;
+  chargeMultiplier: number;
 }
 
 export interface Enemy {
@@ -182,6 +183,13 @@ export const g = {
   barrelTip: null as unknown as Mesh,
   weaponCell: null as unknown as Mesh,
   mouseHeld: false,
+  mouse2Held: false,
+  orbCharging: false,
+  orbChargeTime: 0,
+  orbChargeAmmo: 0,
+  orbChargeMesh: null as Mesh | null,
+  orbChargeOsc: null as OscillatorNode | null,
+  orbChargeGain: null as GainNode | null,
   shootSpread: 0,
   moveSpread: 0,
   isSprinting: false,
