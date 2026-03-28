@@ -58,8 +58,11 @@ export interface Orb {
 
 export interface Enemy {
   physMesh: Mesh;
+  visualRoot: Mesh;
   bodyMesh: Mesh;
   headMesh: Mesh;
+  leftLeg: Mesh;
+  rightLeg: Mesh;
   aggregate: PhysicsAggregate;
   hp: number;
   maxHp: number;
@@ -73,7 +76,9 @@ export interface Enemy {
   flashTime: number;
   flashMesh: Mesh | null;
   baseEmissive: Color3;
-  footstepTimer: number;
+  walkPhase: number;
+  lastFootLeft: boolean;
+  facingYaw: number;
 }
 
 export function makeState(): GameState {

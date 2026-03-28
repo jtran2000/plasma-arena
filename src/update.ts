@@ -36,7 +36,6 @@ import {
   ARENA_CEIL,
   ARENA_SIZE,
   ENEMY_MIN_SPAWN_DIST,
-  ENEMY_FOOTSTEP_INTERVAL_MS,
   WAVE_COMPLETE_SCORE,
   PLAYER_MAX_RESERVE_MAGS,
   PLAYER_MAX_SPREAD,
@@ -68,6 +67,7 @@ import {
   makeEnemyPhysCapsule,
   makeEnemyBodyMesh,
   makeEnemyHeadMesh,
+  makeEnemyLegMesh,
   makeRagdollBodyAggregate,
   makeRagdollHeadAggregate,
   makeRagdollHalfAggregate,
@@ -107,6 +107,25 @@ export { selectUpgrade };
 
 // Register updateHUD callback for upgrades (defined below, but hoisted)
 setUpdateHUD(() => updateHUD());
+
+function isEnemyPart(name: string): boolean {
+  return name === "enemyBody" || name === "enemyHead" || name === "enemyLeg";
+}
+
+function findEnemyByMesh(mesh: AbstractMesh): { enemy: Enemy; hitMesh: Mesh } | null {
+  // body/head: parent is visualRoot
+  // leg: parent is pivot, pivot.parent is visualRoot
+  const parent = mesh.parent;
+  if (!parent) return null;
+  let enemy = g.enemies.find((e) => e.visualRoot === parent);
+  if (!enemy && parent.parent) {
+    enemy = g.enemies.find((e) => e.visualRoot === parent.parent);
+  }
+  if (!enemy) return null;
+  // For leg hits, use bodyMesh as the flash target
+  const hitMesh = mesh.name === "enemyLeg" ? enemy.bodyMesh : (mesh as Mesh);
+  return { enemy, hitMesh };
+}
 
 // ─── Game loop ────────────────────────────────────────────────────────────────
 export function update(): void {
@@ -253,9 +272,8 @@ function updateTimers(dt: number): void {
   const overEnemy =
     centerHit?.hit &&
     centerHit.pickedMesh &&
-    (centerHit.pickedMesh.name === "enemyBody" ||
-      centerHit.pickedMesh.name === "enemyHead") &&
-    g.enemies.some((e) => e.physMesh === centerHit.pickedMesh!.parent);
+    isEnemyPart(centerHit.pickedMesh.name) &&
+    findEnemyByMesh(centerHit.pickedMesh) !== null;
   const chColor = overEnemy ? "rgba(255,60,60,0.9)" : "rgba(255,255,255,0.85)";
   dom.chTop.style.background = chColor;
   dom.chBottom.style.background = chColor;
@@ -469,12 +487,14 @@ function updateEnemies(): void {
     const pos = e.physMesh.position;
     const toPlayer = camPos.subtract(pos);
     const dist = toPlayer.length();
-
-    e.bodyMesh.lookAt(new Vector3(camPos.x, pos.y, camPos.z));
+    const dtSec = g.engine.getDeltaTime() / 1000;
+    const turnSpeed = 6; // radians per second
 
     if (dist < ENEMY_CHASE_RANGE) e.state = "chase";
 
     const currentVel = e.aggregate.body.getLinearVelocity();
+    let targetYaw = e.facingYaw;
+    let moveSpeed = e.speed;
 
     if (e.state === "chase") {
       const dirXZ = new Vector3(toPlayer.x, 0, toPlayer.z);
@@ -482,14 +502,12 @@ function updateEnemies(): void {
 
       // Zigzag lateral offset
       e.zigzagTimer +=
-        (g.engine.getDeltaTime() / 1000) * ENEMY_ZIGZAG_FREQ * Math.PI * 2;
+        dtSec * ENEMY_ZIGZAG_FREQ * Math.PI * 2;
       const lateral = new Vector3(-dirXZ.z, 0, dirXZ.x);
       const zigzag = Math.sin(e.zigzagTimer) * ENEMY_ZIGZAG_AMPLITUDE;
       const moveDir = dirXZ.add(lateral.scale(zigzag)).normalize();
 
-      e.aggregate.body.setLinearVelocity(
-        new Vector3(moveDir.x * e.speed, currentVel.y, moveDir.z * e.speed),
-      );
+      targetYaw = Math.atan2(moveDir.x, moveDir.z);
 
       if (dist < ENEMY_MELEE_RANGE) {
         e.attackCooldown -= g.engine.getDeltaTime();
@@ -511,22 +529,47 @@ function updateEnemies(): void {
         );
       }
 
-      const dirXZ =
-        toTargetXZ.length() > 0 ? toTargetXZ.normalize() : Vector3.Zero();
-      e.aggregate.body.setLinearVelocity(
-        new Vector3(
-          dirXZ.x * e.speed * 0.5,
-          currentVel.y,
-          dirXZ.z * e.speed * 0.5,
-        ),
-      );
+      if (toTargetXZ.length() > 0) {
+        const dirXZ = toTargetXZ.normalize();
+        targetYaw = Math.atan2(dirXZ.x, dirXZ.z);
+      }
+      moveSpeed = e.speed * 0.5;
     }
 
-    // Footstep sounds
-    e.footstepTimer -= g.engine.getDeltaTime();
-    if (e.footstepTimer <= 0) {
+    // Smooth turning — find shortest angular difference
+    let yawDiff = targetYaw - e.facingYaw;
+    while (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
+    while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
+    const maxTurn = turnSpeed * dtSec;
+    e.facingYaw += Math.max(-maxTurn, Math.min(maxTurn, yawDiff));
+
+    // Apply facing rotation to visual root (not physMesh — physics controls that)
+    e.visualRoot.rotation.y = e.facingYaw;
+
+    // Move in the direction the enemy is facing
+    const fwd = new Vector3(Math.sin(e.facingYaw), 0, Math.cos(e.facingYaw));
+    e.aggregate.body.setLinearVelocity(
+      new Vector3(fwd.x * moveSpeed, currentVel.y, fwd.z * moveSpeed),
+    );
+
+    // Walk animation — phase advances proportional to actual speed
+    const actualSpeed = e.state === "chase" ? e.speed : e.speed * 0.5;
+    const strideRate = actualSpeed * 2.0; // radians per second
+    const prevPhase = e.walkPhase;
+    e.walkPhase += (strideRate * g.engine.getDeltaTime()) / 1000;
+    const swing = Math.sin(e.walkPhase) * 0.45; // max ~26 degrees
+    e.leftLeg.rotation.x = swing;
+    e.rightLeg.rotation.x = -swing;
+
+    // Footstep at each zero-crossing (leg hitting ground)
+    const prevSin = Math.sin(prevPhase);
+    const currSin = Math.sin(e.walkPhase);
+    if (prevSin >= 0 && currSin < 0) {
       playEnemyFootstep(pos.clone());
-      e.footstepTimer = ENEMY_FOOTSTEP_INTERVAL_MS;
+      e.lastFootLeft = true;
+    } else if (prevSin <= 0 && currSin > 0) {
+      playEnemyFootstep(pos.clone());
+      e.lastFootLeft = false;
     }
   }
 }
@@ -549,22 +592,42 @@ function spawnEnemy(): void {
 
   const { bodyMat, headMat } = makeEnemyMats();
 
+  // Visual root sits between physics capsule and visual meshes so we can rotate it
+  const visualRoot = new Mesh("enemyVisual", g.scene);
+  visualRoot.parent = physMesh;
+  visualRoot.isVisible = false;
+  visualRoot.isPickable = false;
+
   const bodyMesh = makeEnemyBodyMesh();
-  bodyMesh.parent = physMesh;
-  bodyMesh.position = Vector3.Zero();
+  bodyMesh.parent = visualRoot;
   bodyMesh.material = bodyMat;
 
   const head = makeEnemyHeadMesh();
-  head.parent = physMesh;
+  head.parent = visualRoot;
   head.material = headMat;
+
+  const leftLeg = makeEnemyLegMesh("left");
+  leftLeg.parent = visualRoot;
+  const leftLegBox = leftLeg.getChildMeshes()[0] as Mesh;
+  leftLegBox.material = bodyMat;
+
+  const rightLeg = makeEnemyLegMesh("right");
+  rightLeg.parent = visualRoot;
+  const rightLegBox = rightLeg.getChildMeshes()[0] as Mesh;
+  rightLegBox.material = bodyMat;
 
   g.shadowGenerator.addShadowCaster(bodyMesh);
   g.shadowGenerator.addShadowCaster(head);
+  g.shadowGenerator.addShadowCaster(leftLegBox);
+  g.shadowGenerator.addShadowCaster(rightLegBox);
 
   g.enemies.push({
     physMesh,
+    visualRoot,
     bodyMesh,
     headMesh: head,
+    leftLeg,
+    rightLeg,
     aggregate,
     hp: ENEMY_HP + ENEMY_HP_PER_WAVE * (g.state.wave - 1),
     maxHp: ENEMY_HP + ENEMY_HP_PER_WAVE * (g.state.wave - 1),
@@ -582,7 +645,9 @@ function spawnEnemy(): void {
     flashTime: 0,
     flashMesh: null,
     baseEmissive: bodyMat.diffuseColor.scale(0.2),
-    footstepTimer: 0,
+    walkPhase: Math.random() * Math.PI * 2,
+    lastFootLeft: false,
+    facingYaw: Math.random() * Math.PI * 2,
   });
   playEnemySpawnSound(new Vector3(x, ARENA_CEIL - 0.5, z));
 }
@@ -706,15 +771,10 @@ export function shoot(): void {
   spawnLaserBeam(g.barrelTip.getAbsolutePosition(), beamEnd);
 
   if (hit?.hit && hit.pickedMesh) {
-    if (
-      hit.pickedMesh.name === "enemyBody" ||
-      hit.pickedMesh.name === "enemyHead"
-    ) {
-      const enemy = g.enemies.find(
-        (e) => e.physMesh === hit.pickedMesh!.parent,
-      );
-      if (enemy) {
-        hitEnemy(enemy, hit.pickedMesh as Mesh, hit.pickedPoint ?? undefined);
+    if (isEnemyPart(hit.pickedMesh.name)) {
+      const result = findEnemyByMesh(hit.pickedMesh);
+      if (result) {
+        hitEnemy(result.enemy, result.hitMesh, hit.pickedPoint ?? undefined);
         if (hit.pickedPoint) {
           const hitNormal = hit.getNormal(true) ?? ray.direction.negate();
           spawnHitParticle(
@@ -722,7 +782,7 @@ export function shoot(): void {
             new Color4(0.8, 0.0, 0.0, 1),
             hitNormal,
           );
-          if (g.enemies.includes(enemy)) {
+          if (g.enemies.includes(result.enemy)) {
             spawnBulletHole(
               hit.pickedPoint,
               hit.getNormal(true),
@@ -852,6 +912,7 @@ function updateOrbs(dt: number): void {
       (m: AbstractMesh) =>
         m.renderingGroupId !== 1 &&
         m.name !== "player" &&
+        m.name !== "enemyPhys" &&
         m.name !== "laserBeam" &&
         m.name !== "bhole" &&
         m.name !== "supply" &&
@@ -866,8 +927,9 @@ function updateOrbs(dt: number): void {
     if (hit?.hit && hit.pickedPoint && hit.distance < orb.velocity.length() * dtSec + 0.2) {
       explode = true;
       explodePos = hit.pickedPoint;
-      if (hit.pickedMesh && (hit.pickedMesh.name === "enemyBody" || hit.pickedMesh.name === "enemyHead")) {
-        directHitMesh = hit.pickedMesh as Mesh;
+      if (hit.pickedMesh && isEnemyPart(hit.pickedMesh.name)) {
+        const result = findEnemyByMesh(hit.pickedMesh);
+        if (result) directHitMesh = result.hitMesh;
       }
     }
 
@@ -907,7 +969,7 @@ function explodeOrb(pos: Vector3, directHitMesh: Mesh | null, heatPenalty: numbe
 
   const damage = effectiveOrbDamage();
   const directEnemy = directHitMesh
-    ? g.enemies.find((e) => e.physMesh === directHitMesh.parent)
+    ? g.enemies.find((e) => e.visualRoot === directHitMesh.parent)
     : null;
 
   for (const enemy of [...g.enemies]) {
@@ -958,7 +1020,7 @@ function explodeOrb(pos: Vector3, directHitMesh: Mesh | null, heatPenalty: numbe
       mesh.name !== "enemyHead"
     ) continue;
     // Skip meshes still parented to a live enemy
-    if (mesh.parent && g.enemies.some((e) => e.physMesh === mesh.parent)) continue;
+    if (mesh.parent && g.enemies.some((e) => e.visualRoot === mesh.parent)) continue;
     const dPos = mesh.getAbsolutePosition();
     const dist = Vector3.Distance(pos, dPos);
     if (dist > PLAYER_ORB_EXPLOSION_RADIUS) continue;
@@ -1073,13 +1135,20 @@ function killEnemy(enemy: Enemy, killMesh: Mesh, hitPoint?: Vector3, orbKill = f
     enemy.flashMesh = null;
   }
 
-  // Unparent both meshes before disposing the capsule so they aren't recursively destroyed
+  // Dispose legs and visual root before the capsule
+  enemy.leftLeg.getChildMeshes().forEach((m) => m.dispose());
+  enemy.leftLeg.dispose();
+  enemy.rightLeg.getChildMeshes().forEach((m) => m.dispose());
+  enemy.rightLeg.dispose();
+
+  // Unparent body/head from visual root, then dispose visual root and capsule
   const bodyMat = enemy.bodyMesh.material as StandardMaterial;
   const headMat = enemy.headMesh.material as StandardMaterial;
   enemy.bodyMesh.parent = null;
   enemy.bodyMesh.position = bodyWorldPos;
   enemy.headMesh.parent = null;
   enemy.headMesh.position = headWorldPos;
+  enemy.visualRoot.dispose();
 
   enemy.aggregate.dispose();
   enemy.physMesh.dispose();

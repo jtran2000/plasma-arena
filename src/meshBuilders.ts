@@ -116,10 +116,14 @@ const WEAPON = {
 const ENEMY_COLOR = new Color3(0.45, 0.45, 0.45);
 
 const ENEMY_MESH = {
-  capsule: { height: 1.6, radius: 0.4 } as const,
-  body: { width: 0.8, height: 1.6, depth: 0.8 } as const,
+  capsule: { height: 2.2, radius: 0.4 } as const,
+  body: { width: 0.8, height: 1.1, depth: 0.8 } as const,
+  bodyOffset: new Vector3(0, 0.15, 0),
   head: { height: 0.55, radius: 0.22 } as const,
-  headOffset: new Vector3(0, 0.987, 0),
+  headOffset: new Vector3(0, 0.887, 0),
+  leg: { width: 0.2, height: 0.8, depth: 0.2 } as const,
+  legOffsetY: -0.4,   // top of leg (pivot) relative to capsule center
+  legSpacing: 0.18,   // lateral offset from center
 };
 
 // Laser beam
@@ -424,7 +428,25 @@ export function makeEnemyPhysCapsule(position: Vector3): { mesh: Mesh; aggregate
 }
 
 export function makeEnemyBodyMesh(): Mesh {
-  return MeshBuilder.CreateBox("enemyBody", ENEMY_MESH.body, g.scene);
+  const mesh = MeshBuilder.CreateBox("enemyBody", ENEMY_MESH.body, g.scene);
+  mesh.position = ENEMY_MESH.bodyOffset.clone();
+  return mesh;
+}
+
+export function makeEnemyLegMesh(side: "left" | "right"): Mesh {
+  const { width, height, depth } = ENEMY_MESH.leg;
+  // Pivot node sits at top of leg
+  const pivot = new Mesh("enemyLegPivot", g.scene);
+  pivot.isPickable = false;
+  pivot.position = new Vector3(
+    side === "left" ? -ENEMY_MESH.legSpacing : ENEMY_MESH.legSpacing,
+    ENEMY_MESH.legOffsetY,
+    0,
+  );
+  const leg = MeshBuilder.CreateBox("enemyLeg", { width, height, depth }, g.scene);
+  leg.parent = pivot;
+  leg.position = new Vector3(0, -height / 2, 0); // hang down from pivot
+  return pivot;
 }
 
 export function makeEnemyHeadMesh(): Mesh {
