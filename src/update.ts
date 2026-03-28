@@ -109,6 +109,7 @@ import {
   effectiveSupplyDropRate,
   effectiveCritChance,
   effectiveCritDamage,
+  effectiveOrbSelfDamage,
   setUpdateHUD,
 } from "./upgrades.js";
 export { selectUpgrade };
@@ -806,7 +807,7 @@ export function shoot(): void {
       } else if (name === "orb") {
         const orbIdx = g.orbs.findIndex((o) => o.mesh === h.pickedMesh);
         if (orbIdx !== -1) {
-          detonateOrb(g.orbs[orbIdx], h.pickedPoint);
+          detonateOrb(g.orbs[orbIdx], h.pickedPoint, isCrit);
           g.orbs.splice(orbIdx, 1);
         }
       } else {
@@ -876,7 +877,7 @@ export function shoot(): void {
         if (orbIdx !== -1) {
           const orb = g.orbs[orbIdx];
           const detonatePos = hit.pickedPoint ?? orb.mesh.position.clone();
-          detonateOrb(orb, detonatePos);
+          detonateOrb(orb, detonatePos, isCrit);
           g.orbs.splice(orbIdx, 1);
         }
       } else if (hit.pickedPoint) {
@@ -1183,16 +1184,17 @@ function updateOrbs(dt: number): void {
         orb.mesh,
         orb.chargeMultiplier,
         false,
-        orb.isCrit,
+        orb.isCrit ? 1 : 0,
       );
       g.orbs.splice(i, 1);
     }
   }
 }
 
-function detonateOrb(orb: Orb, pos: Vector3): void {
+function detonateOrb(orb: Orb, pos: Vector3, beamIsCrit = false): void {
   const directHits = new Map<Enemy, Mesh>();
-  explodeOrb(pos, directHits, orb.heatPenalty, orb.mesh, orb.chargeMultiplier, true, orb.isCrit);
+  const critLevel = (orb.isCrit ? 1 : 0) + (beamIsCrit ? 1 : 0);
+  explodeOrb(pos, directHits, orb.heatPenalty, orb.mesh, orb.chargeMultiplier, true, critLevel);
 }
 
 function explodeOrb(
@@ -1202,8 +1204,9 @@ function explodeOrb(
   orbMesh: Mesh,
   chargeMultiplier: number,
   beamDetonated = false,
-  isCrit = false,
+  critLevel = 0,
 ): void {
+  const isCrit = critLevel > 0;
   playOrbExplosionSound(pos, chargeMultiplier);
   spawnExplosionParticle(pos, isCrit);
 
@@ -1219,7 +1222,7 @@ function explodeOrb(
   const expandDurationMs = 300;
   const startTime = performance.now();
   const startScale = orbMesh.scaling.x;
-  const explosionRadius = PLAYER_ORB_EXPLOSION_RADIUS * chargeMultiplier * (isCrit ? 2 : 1);
+  const explosionRadius = PLAYER_ORB_EXPLOSION_RADIUS * chargeMultiplier * Math.pow(2, critLevel);
   const endScale = (explosionRadius * 2) / 0.3; // diameter ratio
   const obs = g.scene.onBeforeRenderObservable.add(() => {
     const t = Math.min((performance.now() - startTime) / expandDurationMs, 1);
@@ -1232,7 +1235,7 @@ function explodeOrb(
     }
   });
 
-  const critMult = isCrit ? effectiveCritDamage() : 1;
+  const critMult = Math.pow(effectiveCritDamage(), critLevel);
   const damage = (effectiveOrbDamage() * chargeMultiplier
     + (beamDetonated ? effectiveBeamDamage() : 0)) * critMult;
 
@@ -1342,7 +1345,8 @@ function explodeOrb(
       PLAYER_ORB_DAMAGE *
         chargeMultiplier *
         (beamDetonated ? 1 : PLAYER_ORB_SPLASH_FALLOFF) *
-        falloff,
+        falloff *
+        effectiveOrbSelfDamage(),
     );
     if (selfDmg > 0) damagePlayer(selfDmg);
 

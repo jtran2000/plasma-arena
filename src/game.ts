@@ -214,6 +214,7 @@ export const g = {
     supplyDropRate: 0,
     critChance: 0,
     critDamage: 0,
+    orbSelfDamage: 0,
   },
   pendingUpgrades: [] as string[],
 };

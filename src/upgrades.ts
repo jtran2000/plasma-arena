@@ -27,6 +27,7 @@ import {
   PLAYER_CRIT_DAMAGE,
   UPGRADE_CRIT_CHANCE,
   UPGRADE_CRIT_DAMAGE,
+  UPGRADE_ORB_SELF_DAMAGE_REDUCTION,
 } from "./constants.js";
 import { g, dom } from "./game.js";
 
@@ -72,6 +73,9 @@ export function effectiveCritChance(): number {
 }
 export function effectiveCritDamage(): number {
   return PLAYER_CRIT_DAMAGE + g.upgrades.critDamage * UPGRADE_CRIT_DAMAGE;
+}
+export function effectiveOrbSelfDamage(): number {
+  return Math.pow(1 - UPGRADE_ORB_SELF_DAMAGE_REDUCTION, g.upgrades.orbSelfDamage);
 }
 
 // ─── HUD callback ─────────────────────────────────────────────────────────────
@@ -164,6 +168,11 @@ const UPGRADE_DEFS: UpgradeDef[] = [
     key: "critDamage",
     label: `+${UPGRADE_CRIT_DAMAGE}x Crit Damage`,
     apply: () => { g.upgrades.critDamage++; },
+  },
+  {
+    key: "orbSelfDamage",
+    label: `-${Math.round(UPGRADE_ORB_SELF_DAMAGE_REDUCTION * 100)}% Orb Self-Damage`,
+    apply: () => { g.upgrades.orbSelfDamage++; },
   },
 ];
 

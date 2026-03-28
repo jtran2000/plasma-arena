@@ -108,3 +108,4 @@ export const PLAYER_CRIT_CHANCE = 0.5; // 5% base crit chance
 export const PLAYER_CRIT_DAMAGE = 2; // 2x base crit damage multiplier
 export const UPGRADE_CRIT_CHANCE = 0.03; // +3% per upgrade
 export const UPGRADE_CRIT_DAMAGE = 0.25; // +0.25x per upgrade
+export const UPGRADE_ORB_SELF_DAMAGE_REDUCTION = 0.5; // 50% less self-damage per upgrade (exponential)
