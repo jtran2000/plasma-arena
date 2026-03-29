@@ -65,6 +65,8 @@ export interface Enemy {
   headMesh: Mesh;
   leftLeg: Mesh;
   rightLeg: Mesh;
+  leftArm: Mesh;
+  rightArm: Mesh;
   aggregate: PhysicsAggregate;
   hp: number;
   maxHp: number;
@@ -81,6 +83,7 @@ export interface Enemy {
   walkPhase: number;
   lastFootLeft: boolean;
   facingYaw: number;
+  attackAnimTime: number;
 }
 
 export function makeState(): GameState {

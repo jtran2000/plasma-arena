@@ -117,13 +117,16 @@ const ENEMY_COLOR = new Color3(0.45, 0.45, 0.45);
 
 const ENEMY_MESH = {
   capsule: { height: 2.2, radius: 0.4 } as const,
-  body: { width: 0.8, height: 1.1, depth: 0.4 } as const,
+  body: { width: 0.8, height: 1.1, depth: 0.3 } as const,
   bodyOffset: new Vector3(0, 0.15, 0),
   head: { height: 0.55, radius: 0.22 } as const,
   headOffset: new Vector3(0, 0.887, 0),
   leg: { width: 0.2, height: 0.8, depth: 0.2 } as const,
   legOffsetY: -0.4,   // top of leg (pivot) relative to capsule center
   legSpacing: 0.18,   // lateral offset from center
+  arm: { width: 0.15, height: 0.7, depth: 0.15 } as const,
+  armOffsetY: 0.65,   // shoulder height (body top is ~0.7)
+  armSpacing: 0.48,   // just touching body edge (body half-width 0.4 + arm half-width 0.075)
 };
 
 // Laser beam
@@ -449,6 +452,21 @@ export function makeEnemyLegMesh(side: "left" | "right"): Mesh {
   return pivot;
 }
 
+export function makeEnemyArmMesh(side: "left" | "right"): Mesh {
+  const { width, height, depth } = ENEMY_MESH.arm;
+  const pivot = new Mesh("enemyArmPivot", g.scene);
+  pivot.isPickable = false;
+  pivot.position = new Vector3(
+    side === "left" ? -ENEMY_MESH.armSpacing : ENEMY_MESH.armSpacing,
+    ENEMY_MESH.armOffsetY,
+    0,
+  );
+  const arm = MeshBuilder.CreateBox("enemyArm", { width, height, depth }, g.scene);
+  arm.parent = pivot;
+  arm.position = new Vector3(0, -height / 2, 0);
+  return pivot;
+}
+
 export function makeEnemyHeadMesh(): Mesh {
   const { height, radius } = ENEMY_MESH.head;
   const mesh = MeshBuilder.CreateCapsule("enemyHead", { height, radius, capSubdivisions: 6, subdivisions: 1, tessellation: 12 }, g.scene);
@@ -492,6 +510,25 @@ export function makeHeadSplitHalves(worldPos: Vector3, mat: StandardMaterial): [
   bottom.material = mat;
 
   return [top, bottom];
+}
+
+function makeLimbSplitHalves(name: string, dims: { width: number; height: number; depth: number }, worldPos: Vector3, mat: StandardMaterial): [Mesh, Mesh] {
+  const halfH = dims.height / 2;
+  const top = MeshBuilder.CreateBox(name, { width: dims.width, height: halfH, depth: dims.depth }, g.scene);
+  top.position = new Vector3(worldPos.x, worldPos.y + halfH / 2, worldPos.z);
+  top.material = mat;
+  const bottom = MeshBuilder.CreateBox(name, { width: dims.width, height: halfH, depth: dims.depth }, g.scene);
+  bottom.position = new Vector3(worldPos.x, worldPos.y - halfH / 2, worldPos.z);
+  bottom.material = mat;
+  return [top, bottom];
+}
+
+export function makeArmSplitHalves(worldPos: Vector3, mat: StandardMaterial): [Mesh, Mesh] {
+  return makeLimbSplitHalves("armHalf", ENEMY_MESH.arm, worldPos, mat);
+}
+
+export function makeLegSplitHalves(worldPos: Vector3, mat: StandardMaterial): [Mesh, Mesh] {
+  return makeLimbSplitHalves("legHalf", ENEMY_MESH.leg, worldPos, mat);
 }
 
 // ─── Lamppost (exported) ─────────────────────────────────────────────────────
@@ -572,6 +609,14 @@ export function makeRagdollBodyAggregate(mesh: Mesh): PhysicsAggregate {
 
 export function makeRagdollHeadAggregate(mesh: Mesh): PhysicsAggregate {
   return new PhysicsAggregate(mesh, PhysicsShapeType.CAPSULE, { mass: 2, friction: 0.5, restitution: 0.3 }, g.scene);
+}
+
+export function makeRagdollArmAggregate(mesh: Mesh): PhysicsAggregate {
+  return new PhysicsAggregate(mesh, PhysicsShapeType.BOX, { mass: 1, friction: 0.6, restitution: 0.05 }, g.scene);
+}
+
+export function makeRagdollLegAggregate(mesh: Mesh): PhysicsAggregate {
+  return new PhysicsAggregate(mesh, PhysicsShapeType.BOX, { mass: 2, friction: 0.6, restitution: 0.05 }, g.scene);
 }
 
 export function makeRagdollHalfAggregate(mesh: Mesh, mass: number): PhysicsAggregate {

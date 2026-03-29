@@ -7,6 +7,7 @@ import {
   Mesh,
   AbstractMesh,
   Ray,
+  PhysicsAggregate,
 } from "@babylonjs/core";
 import {
   ENEMY_HP,
@@ -71,9 +72,14 @@ import {
   makeEnemyBodyMesh,
   makeEnemyHeadMesh,
   makeEnemyLegMesh,
+  makeEnemyArmMesh,
   makeRagdollBodyAggregate,
   makeRagdollHeadAggregate,
+  makeRagdollArmAggregate,
+  makeRagdollLegAggregate,
   makeRagdollHalfAggregate,
+  makeArmSplitHalves,
+  makeLegSplitHalves,
 } from "./meshBuilders.js";
 import {
   updateAudioListener,
@@ -118,7 +124,7 @@ export { selectUpgrade };
 setUpdateHUD(() => updateHUD());
 
 function isEnemyPart(name: string): boolean {
-  return name === "enemyBody" || name === "enemyHead" || name === "enemyLeg";
+  return name === "enemyBody" || name === "enemyHead" || name === "enemyLeg" || name === "enemyArm";
 }
 
 function findEnemyByMesh(
@@ -530,6 +536,7 @@ function updateEnemies(): void {
           playEnemyAttackSound(pos.clone());
           damagePlayer(e.meleeDamage);
           e.attackCooldown = e.meleeIntervalMs;
+          e.attackAnimTime = 300;
         }
       }
     } else {
@@ -575,6 +582,21 @@ function updateEnemies(): void {
     const swing = Math.sin(e.walkPhase) * 0.45; // max ~26 degrees
     e.leftLeg.rotation.x = swing;
     e.rightLeg.rotation.x = -swing;
+
+    // Arm animation
+    const armSwing = Math.sin(e.walkPhase) * 0.35;
+    const armBase = e.state === "chase" ? -Math.PI / 3 : 0;
+    if (e.attackAnimTime > 0) {
+      e.attackAnimTime -= g.engine.getDeltaTime();
+      if (e.attackAnimTime < 0) e.attackAnimTime = 0;
+      const strikeCurve = Math.sin((e.attackAnimTime / 300) * Math.PI);
+      const strikeAngle = armBase + (-Math.PI / 2 - armBase) * strikeCurve;
+      e.leftArm.rotation.x = strikeAngle;
+      e.rightArm.rotation.x = strikeAngle;
+    } else {
+      e.leftArm.rotation.x = armBase - armSwing;
+      e.rightArm.rotation.x = armBase + armSwing;
+    }
 
     // Footstep at each zero-crossing (leg hitting ground)
     const prevSin = Math.sin(prevPhase);
@@ -631,10 +653,22 @@ function spawnEnemy(): void {
   const rightLegBox = rightLeg.getChildMeshes()[0] as Mesh;
   rightLegBox.material = bodyMat;
 
+  const leftArm = makeEnemyArmMesh("left");
+  leftArm.parent = visualRoot;
+  const leftArmBox = leftArm.getChildMeshes()[0] as Mesh;
+  leftArmBox.material = bodyMat;
+
+  const rightArm = makeEnemyArmMesh("right");
+  rightArm.parent = visualRoot;
+  const rightArmBox = rightArm.getChildMeshes()[0] as Mesh;
+  rightArmBox.material = bodyMat;
+
   g.shadowGenerator.addShadowCaster(bodyMesh);
   g.shadowGenerator.addShadowCaster(head);
   g.shadowGenerator.addShadowCaster(leftLegBox);
   g.shadowGenerator.addShadowCaster(rightLegBox);
+  g.shadowGenerator.addShadowCaster(leftArmBox);
+  g.shadowGenerator.addShadowCaster(rightArmBox);
 
   g.enemies.push({
     physMesh,
@@ -643,6 +677,8 @@ function spawnEnemy(): void {
     headMesh: head,
     leftLeg,
     rightLeg,
+    leftArm,
+    rightArm,
     aggregate,
     hp: ENEMY_HP + ENEMY_HP_PER_WAVE * (g.state.wave - 1),
     maxHp: ENEMY_HP + ENEMY_HP_PER_WAVE * (g.state.wave - 1),
@@ -663,6 +699,7 @@ function spawnEnemy(): void {
     walkPhase: Math.random() * Math.PI * 2,
     lastFootLeft: false,
     facingYaw: Math.random() * Math.PI * 2,
+    attackAnimTime: 0,
   });
   playEnemySpawnSound(new Vector3(x, ARENA_CEIL - 0.5, z));
 }
@@ -800,7 +837,7 @@ export function shoot(): void {
         } else {
           splitRagdoll(h.pickedMesh as Mesh, ray.direction, h.pickedPoint);
         }
-      } else if (name === "bodyHalf" || name === "headHalf") {
+      } else if (name === "bodyHalf" || name === "headHalf" || name === "armHalf" || name === "legHalf") {
         hitDebris(h.pickedMesh as Mesh, ray.direction, h.pickedPoint);
         const hitNormal = h.getNormal(true) ?? ray.direction.negate();
         spawnHitParticle(h.pickedPoint, new Color4(0.8, 0.0, 0.0, 1), hitNormal);
@@ -857,7 +894,9 @@ export function shoot(): void {
         }
       } else if (
         hit.pickedMesh.name === "bodyHalf" ||
-        hit.pickedMesh.name === "headHalf"
+        hit.pickedMesh.name === "headHalf" ||
+        hit.pickedMesh.name === "armHalf" ||
+        hit.pickedMesh.name === "legHalf"
       ) {
         hitDebris(
           hit.pickedMesh as Mesh,
@@ -1288,12 +1327,17 @@ function explodeOrb(
     if (
       mesh.name !== "bodyHalf" &&
       mesh.name !== "headHalf" &&
+      mesh.name !== "armHalf" &&
+      mesh.name !== "legHalf" &&
       mesh.name !== "enemyBody" &&
-      mesh.name !== "enemyHead"
+      mesh.name !== "enemyHead" &&
+      mesh.name !== "enemyArm" &&
+      mesh.name !== "enemyLeg"
     )
       continue;
     // Skip meshes still parented to a live enemy
-    if (mesh.parent && g.enemies.some((e) => e.visualRoot === mesh.parent))
+    const p = mesh.parent;
+    if (p && g.enemies.some((e) => e.visualRoot === p || e.visualRoot === p.parent))
       continue;
     const dPos = mesh.getAbsolutePosition();
     const dist = Vector3.Distance(pos, dPos);
@@ -1306,7 +1350,7 @@ function explodeOrb(
         dPos,
       );
     }
-    if (mesh.name === "bodyHalf" || mesh.name === "headHalf") {
+    if (mesh.name === "bodyHalf" || mesh.name === "headHalf" || mesh.name === "armHalf" || mesh.name === "legHalf") {
       // Shrink like hitDebris, dispose if too small
       mesh.scaling.scaleInPlace(0.75);
       if (mesh.scaling.x < 0.15) {
@@ -1429,15 +1473,26 @@ function killEnemy(
     enemy.flashMesh = null;
   }
 
-  // Dispose legs and visual root before the capsule
-  enemy.leftLeg.getChildMeshes().forEach((m) => m.dispose());
-  enemy.leftLeg.dispose();
-  enemy.rightLeg.getChildMeshes().forEach((m) => m.dispose());
-  enemy.rightLeg.dispose();
+  // Extract child box meshes from limb pivots, record world positions
+  const limbs: { mesh: Mesh; pos: Vector3; name: string; splitFn: (p: Vector3, m: StandardMaterial) => [Mesh, Mesh]; makeAgg: (m: Mesh) => PhysicsAggregate; mass: number }[] = [];
+  for (const pivot of [enemy.leftLeg, enemy.rightLeg]) {
+    const box = pivot.getChildMeshes()[0] as Mesh;
+    const wPos = box.getAbsolutePosition().clone();
+    box.parent = null;
+    box.position = wPos;
+    pivot.dispose();
+    limbs.push({ mesh: box, pos: wPos, name: "enemyLeg", splitFn: makeLegSplitHalves, makeAgg: makeRagdollLegAggregate, mass: 2 });
+  }
+  for (const pivot of [enemy.leftArm, enemy.rightArm]) {
+    const box = pivot.getChildMeshes()[0] as Mesh;
+    const wPos = box.getAbsolutePosition().clone();
+    box.parent = null;
+    box.position = wPos;
+    pivot.dispose();
+    limbs.push({ mesh: box, pos: wPos, name: "enemyArm", splitFn: makeArmSplitHalves, makeAgg: makeRagdollArmAggregate, mass: 1 });
+  }
 
-  // Unparent body/head from visual root, then dispose visual root and capsule
-  const bodyMat = enemy.bodyMesh.material as StandardMaterial;
-  const headMat = enemy.headMesh.material as StandardMaterial;
+  // Unparent body/head
   enemy.bodyMesh.parent = null;
   enemy.bodyMesh.position = bodyWorldPos;
   enemy.headMesh.parent = null;
@@ -1456,107 +1511,65 @@ function killEnemy(
       ).normalizeToNew()
     : new Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalizeToNew();
 
+  // Helper: split a mesh into halves with impulse
+  const splitPart = (mesh: Mesh, pos: Vector3, splitFn: (p: Vector3, m: StandardMaterial) => [Mesh, Mesh], mass: number, impulseScale: number) => {
+    const mat = mesh.material as StandardMaterial;
+    mesh.dispose();
+    const [top, bot] = splitFn(pos, mat);
+    const topAgg = makeRagdollHalfAggregate(top, mass);
+    topAgg.body.applyImpulse(
+      new Vector3(awayDir.x * impulseScale, impulseScale * 0.8, awayDir.z * impulseScale),
+      pos,
+    );
+    const botAgg = makeRagdollHalfAggregate(bot, mass);
+    botAgg.body.applyImpulse(
+      new Vector3(awayDir.x * impulseScale * 0.6, -2, awayDir.z * impulseScale * 0.6),
+      pos,
+    );
+    setTimeout(() => { topAgg.dispose(); top.dispose(); botAgg.dispose(); bot.dispose(); }, 3500);
+  };
+
+  // Helper: make a ragdoll piece with impulse
+  const ragdollPiece = (mesh: Mesh, pos: Vector3, makeAgg: (m: Mesh) => PhysicsAggregate, impulse: Vector3) => {
+    const agg = makeAgg(mesh);
+    agg.body.applyImpulse(impulse, pos);
+    setTimeout(() => { agg.dispose(); mesh.dispose(); }, 3500);
+  };
+
+  const killName = killMesh.name;
+
   if (orbKill) {
-    // Orb kills split both body and head
-    enemy.bodyMesh.dispose();
-    const [bTop, bBot] = makeBodySplitHalves(bodyWorldPos, bodyMat);
-    const bTopAgg = makeRagdollHalfAggregate(bTop, 5);
-    bTopAgg.body.applyImpulse(
-      new Vector3(awayDir.x * 22, 18, awayDir.z * 22),
-      bodyWorldPos.add(new Vector3(0, 0.4, 0)),
-    );
-    const bBotAgg = makeRagdollHalfAggregate(bBot, 5);
-    bBotAgg.body.applyImpulse(
-      new Vector3(awayDir.x * 14, -5, awayDir.z * 14),
-      bodyWorldPos,
-    );
-    setTimeout(() => {
-      bTopAgg.dispose();
-      bTop.dispose();
-      bBotAgg.dispose();
-      bBot.dispose();
-    }, 3500);
-
-    enemy.headMesh.dispose();
-    const [hTop, hBot] = makeHeadSplitHalves(headWorldPos, headMat);
-    const hTopAgg = makeRagdollHalfAggregate(hTop, 1);
-    hTopAgg.body.applyImpulse(
-      new Vector3(awayDir.x * 4, 6 + Math.random() * 3, awayDir.z * 4),
-      headWorldPos,
-    );
-    const hBotAgg = makeRagdollHalfAggregate(hBot, 1);
-    hBotAgg.body.applyImpulse(
-      new Vector3(awayDir.x * 2, 1 + Math.random() * 2, awayDir.z * 2),
-      headWorldPos,
-    );
-    setTimeout(() => {
-      hTopAgg.dispose();
-      hTop.dispose();
-      hBotAgg.dispose();
-      hBot.dispose();
-    }, 3500);
+    // Orb kills split everything
+    splitPart(enemy.bodyMesh, bodyWorldPos, makeBodySplitHalves, 5, 22);
+    splitPart(enemy.headMesh, headWorldPos, makeHeadSplitHalves, 1, 4);
+    for (const l of limbs) splitPart(l.mesh, l.pos, l.splitFn, l.mass, 6);
   } else if (isHeadshot) {
-    enemy.headMesh.dispose();
-    const [topHalf, bottomHalf] = makeHeadSplitHalves(headWorldPos, headMat);
-    const topAgg = makeRagdollHalfAggregate(topHalf, 1);
-    topAgg.body.applyImpulse(
-      new Vector3(awayDir.x * 4, 6 + Math.random() * 3, awayDir.z * 4),
-      headWorldPos,
-    );
-    const bottomAgg = makeRagdollHalfAggregate(bottomHalf, 1);
-    bottomAgg.body.applyImpulse(
-      new Vector3(awayDir.x * 2, 1 + Math.random() * 2, awayDir.z * 2),
-      headWorldPos,
-    );
-    setTimeout(() => {
-      topAgg.dispose();
-      topHalf.dispose();
-      bottomAgg.dispose();
-      bottomHalf.dispose();
-    }, 3500);
-
-    const bodyAgg = makeRagdollBodyAggregate(enemy.bodyMesh);
-    bodyAgg.body.applyImpulse(
-      awayDir.scale(40),
-      bodyWorldPos.add(new Vector3(0, 0.7, 0)),
-    );
-    setTimeout(() => {
-      bodyAgg.dispose();
-      enemy.bodyMesh.dispose();
-    }, 3500);
+    splitPart(enemy.headMesh, headWorldPos, makeHeadSplitHalves, 1, 4);
+    ragdollPiece(enemy.bodyMesh, bodyWorldPos, makeRagdollBodyAggregate,
+      awayDir.scale(40).addInPlaceFromFloats(0, 5, 0));
+    for (const l of limbs) ragdollPiece(l.mesh, l.pos, l.makeAgg,
+      new Vector3(awayDir.x * 10, 3 + Math.random() * 3, awayDir.z * 10));
+  } else if (killName === "enemyArm" || killName === "enemyLeg") {
+    // Limb kill — split the hit limb, ragdoll everything else
+    for (const l of limbs) {
+      if (l.mesh === killMesh) {
+        splitPart(l.mesh, l.pos, l.splitFn, l.mass, 6);
+      } else {
+        ragdollPiece(l.mesh, l.pos, l.makeAgg,
+          new Vector3(awayDir.x * 10, 3 + Math.random() * 3, awayDir.z * 10));
+      }
+    }
+    ragdollPiece(enemy.bodyMesh, bodyWorldPos, makeRagdollBodyAggregate,
+      awayDir.scale(40).addInPlaceFromFloats(0, 5, 0));
+    ragdollPiece(enemy.headMesh, headWorldPos, makeRagdollHeadAggregate,
+      new Vector3((Math.random() - 0.5) * 8, 3 + Math.random() * 4, (Math.random() - 0.5) * 8));
   } else {
-    enemy.bodyMesh.dispose();
-    const [topHalf, bottomHalf] = makeBodySplitHalves(bodyWorldPos, bodyMat);
-    const topAgg = makeRagdollHalfAggregate(topHalf, 5);
-    topAgg.body.applyImpulse(
-      new Vector3(awayDir.x * 22, 18, awayDir.z * 22),
-      bodyWorldPos.add(new Vector3(0, 0.4, 0)),
-    );
-    const bottomAgg = makeRagdollHalfAggregate(bottomHalf, 5);
-    bottomAgg.body.applyImpulse(
-      new Vector3(awayDir.x * 14, -5, awayDir.z * 14),
-      bodyWorldPos,
-    );
-    setTimeout(() => {
-      topAgg.dispose();
-      topHalf.dispose();
-      bottomAgg.dispose();
-      bottomHalf.dispose();
-    }, 3500);
-
-    const headAgg = makeRagdollHeadAggregate(enemy.headMesh);
-    headAgg.body.applyImpulse(
-      new Vector3(
-        (Math.random() - 0.5) * 8,
-        3 + Math.random() * 4,
-        (Math.random() - 0.5) * 8,
-      ),
-      headWorldPos,
-    );
-    setTimeout(() => {
-      headAgg.dispose();
-      enemy.headMesh.dispose();
-    }, 3500);
+    // Body kill (default)
+    splitPart(enemy.bodyMesh, bodyWorldPos, makeBodySplitHalves, 5, 22);
+    ragdollPiece(enemy.headMesh, headWorldPos, makeRagdollHeadAggregate,
+      new Vector3((Math.random() - 0.5) * 8, 3 + Math.random() * 4, (Math.random() - 0.5) * 8));
+    for (const l of limbs) ragdollPiece(l.mesh, l.pos, l.makeAgg,
+      new Vector3(awayDir.x * 10, 3 + Math.random() * 3, awayDir.z * 10));
   }
 
   g.state.kills++;
@@ -1569,7 +1582,7 @@ function killEnemy(
 function splitRagdoll(mesh: Mesh, beamDir: Vector3, hitPoint?: Vector3): void {
   const worldPos = mesh.getAbsolutePosition().clone();
   const mat = mesh.material as StandardMaterial;
-  const isHead = mesh.name === "enemyHead";
+  const name = mesh.name;
 
   if (mesh.physicsBody) mesh.physicsBody.dispose();
   mesh.dispose();
@@ -1582,9 +1595,16 @@ function splitRagdoll(mesh: Mesh, beamDir: Vector3, hitPoint?: Vector3): void {
       ).normalizeToNew()
     : beamDir.normalize();
 
-  const [topHalf, bottomHalf] = isHead
-    ? makeHeadSplitHalves(worldPos, mat)
-    : makeBodySplitHalves(worldPos, mat);
+  let topHalf: Mesh, bottomHalf: Mesh;
+  if (name === "enemyHead") {
+    [topHalf, bottomHalf] = makeHeadSplitHalves(worldPos, mat);
+  } else if (name === "enemyArm") {
+    [topHalf, bottomHalf] = makeArmSplitHalves(worldPos, mat);
+  } else if (name === "enemyLeg") {
+    [topHalf, bottomHalf] = makeLegSplitHalves(worldPos, mat);
+  } else {
+    [topHalf, bottomHalf] = makeBodySplitHalves(worldPos, mat);
+  }
 
   const topAgg = makeRagdollHalfAggregate(topHalf, 1);
   topAgg.body.applyImpulse(

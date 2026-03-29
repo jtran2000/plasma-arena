@@ -30,7 +30,7 @@ export const ENEMY_MELEE_ATTACKS_PER_MIN_PER_WAVE = 3;
 
 // ─── Enemy — Movement ───────────────────────────────────────────────────────
 export const ENEMY_TURN_SPEED = 2; // radians per second
-export const ENEMY_ZIGZAG_FREQ = 1; // full zigzag cycles per second
+export const ENEMY_ZIGZAG_FREQ = 0.5; // full zigzag cycles per second
 export const ENEMY_ZIGZAG_AMPLITUDE = 0.8; // lateral offset strength (0-1)
 
 // ─── Player — Health & Movement ─────────────────────────────────────────────
