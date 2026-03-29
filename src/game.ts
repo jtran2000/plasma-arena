@@ -56,6 +56,7 @@ export interface Orb {
   heatPenalty: number;
   chargeMultiplier: number;
   isCrit: boolean;
+  hasGravity: boolean;
 }
 
 export interface Enemy {
@@ -195,6 +196,7 @@ export const g = {
   orbChargeOsc: null as OscillatorNode | null,
   orbChargeGain: null as GainNode | null,
   orbChargeCrit: false,
+  orbMaxChargeTimer: 0,
   shootSpread: 0,
   moveSpread: 0,
   isSprinting: false,

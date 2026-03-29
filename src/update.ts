@@ -55,6 +55,8 @@ import {
   PLAYER_ORB_SPEED,
   PLAYER_ORB_EXPLOSION_RADIUS,
   PLAYER_ORB_SPLASH_FALLOFF,
+  PLAYER_ORB_MAX_CHARGE_HOLD,
+  PLAYER_ORB_GRAVITY,
 } from "./constants.js";
 import { g, dom, type Enemy, type Orb } from "./game.js";
 import {
@@ -946,26 +948,16 @@ export function startOrbCharge(): void {
 
   const isCrit = Math.random() < effectiveCritChance();
 
-  // Instant-fire if only base ammo available
-  if (g.state.ammo === PLAYER_ORB_AMMO_COST) {
-    g.state.ammo -= PLAYER_ORB_AMMO_COST;
-    g.state.heat = Math.min(
-      g.state.heat + PLAYER_HEAT_PER_SHOT * PLAYER_ORB_HEAT_MULTIPLIER,
-      effectiveHeatMax(),
-    );
-    g.state.heatCooldownTimer = PLAYER_HEAT_COOLDOWN_DELAY;
-    fireOrb(1.0, isCrit);
-    return;
-  }
-
-  // Begin charging — apply base heat immediately
+  // Consume base ammo and apply heat
   g.state.ammo -= PLAYER_ORB_AMMO_COST;
   g.state.heat = Math.min(
     g.state.heat + PLAYER_HEAT_PER_SHOT * PLAYER_ORB_HEAT_MULTIPLIER,
     effectiveHeatMax(),
   );
   g.state.heatCooldownTimer = PLAYER_HEAT_COOLDOWN_DELAY;
-  if (g.state.heat >= effectiveHeatMax()) {
+
+  // Instant-fire if no spare ammo or overheated
+  if (g.state.ammo === 0 || g.state.heat >= effectiveHeatMax()) {
     fireOrb(1.0, isCrit);
     return;
   }
@@ -973,6 +965,7 @@ export function startOrbCharge(): void {
   g.orbCharging = true;
   g.orbChargeTime = 0;
   g.orbChargeAmmo = PLAYER_ORB_AMMO_COST;
+  g.orbMaxChargeTimer = 0;
   g.orbChargeMesh = makeOrbChargeMesh();
   if (isCrit) {
     const mat = g.orbChargeMesh.material as StandardMaterial;
@@ -1056,10 +1049,13 @@ function updateOrbCharge(dt: number): void {
   // Update sound
   updateOrbChargeSound(chargeMultiplier - 1);
 
-  // Auto-fire at max charge
+  // At max charge, start hold timer — auto-fire after delay
   if (g.orbChargeAmmo >= PLAYER_ORB_AMMO_COST * 2) {
-    releaseOrbCharge();
-    return;
+    g.orbMaxChargeTimer += dt;
+    if (g.orbMaxChargeTimer >= PLAYER_ORB_MAX_CHARGE_HOLD) {
+      releaseOrbCharge();
+      return;
+    }
   }
 
   updateHUD();
@@ -1079,7 +1075,36 @@ export function releaseOrbCharge(): void {
   fireOrb(chargeMultiplier, isCrit);
 }
 
-function fireOrb(chargeMultiplier: number, isCrit = false): void {
+export function dumpOrbCharge(): void {
+  if (!g.orbCharging) return;
+
+  const extraAmmo = Math.min(g.orbChargeAmmo, g.state.ammo);
+  g.state.ammo -= extraAmmo;
+  g.orbChargeAmmo += extraAmmo;
+
+  for (let i = 0; i < extraAmmo; i++) {
+    g.state.heat = Math.min(
+      g.state.heat +
+        (PLAYER_HEAT_PER_SHOT * PLAYER_ORB_HEAT_MULTIPLIER) /
+          PLAYER_ORB_AMMO_COST,
+      effectiveHeatMax(),
+    );
+  }
+  g.state.heatCooldownTimer = PLAYER_HEAT_COOLDOWN_DELAY;
+
+  const chargeMultiplier = g.orbChargeAmmo / PLAYER_ORB_AMMO_COST;
+  stopOrbChargeSound();
+  if (g.orbChargeMesh) {
+    g.orbChargeMesh.dispose();
+    g.orbChargeMesh = null;
+  }
+  g.orbCharging = false;
+  const isCrit = g.orbChargeCrit;
+  g.orbChargeCrit = false;
+  fireOrb(chargeMultiplier, isCrit, true);
+}
+
+function fireOrb(chargeMultiplier: number, isCrit = false, hasGravity = false): void {
   g.state.orbCooldown =
     effectiveCooldown() * PLAYER_ORB_COOLDOWN_MULTIPLIER * chargeMultiplier;
   g.state.shootCooldown = Math.max(g.state.shootCooldown, g.state.orbCooldown);
@@ -1141,6 +1166,7 @@ function fireOrb(chargeMultiplier: number, isCrit = false): void {
     heatPenalty,
     chargeMultiplier,
     isCrit,
+    hasGravity,
   });
 
   if (g.state.ammo === 0 && g.state.reserve > 0) g.state.autoReloadDelay = 300;
@@ -1154,6 +1180,9 @@ function updateOrbs(dt: number): void {
     orb.age += dt;
 
     // Move orb
+    if (orb.hasGravity) {
+      orb.velocity.y -= PLAYER_ORB_GRAVITY * dtSec;
+    }
     const step = orb.velocity.scale(dtSec);
     orb.mesh.position.addInPlace(step);
 

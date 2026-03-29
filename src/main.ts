@@ -8,6 +8,7 @@ import {
   shoot,
   startOrbCharge,
   releaseOrbCharge,
+  dumpOrbCharge,
   startReload,
   updateHUD,
   pause,
@@ -26,6 +27,7 @@ function setupInput(): void {
     if (info.event.button === 0) {
       if (info.type === PointerEventTypes.POINTERDOWN) {
         g.mouseHeld = true;
+        if (g.orbCharging) { dumpOrbCharge(); return; }
         shoot();
       } else if (info.type === PointerEventTypes.POINTERUP) {
         g.mouseHeld = false;

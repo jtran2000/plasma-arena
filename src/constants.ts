@@ -19,8 +19,8 @@ export const ENEMY_SPEED = 2; // m/s
 export const ENEMY_MELEE_RANGE = 1.8; // m
 export const ENEMY_MELEE_DAMAGE = 10;
 export const ENEMY_MELEE_ATTACKS_PER_MIN = 50;
-export const ENEMY_CHASE_RANGE = 30; // m
-export const ENEMY_MIN_SPAWN_DIST = 8; // min distance from player when spawning (m)
+export const ENEMY_CHASE_RANGE = 25; // m
+export const ENEMY_MIN_SPAWN_DIST = 10; // min distance from player when spawning (m)
 
 // ─── Enemy — Per-Wave Scaling ───────────────────────────────────────────────
 export const ENEMY_HP_PER_WAVE = 10;
@@ -29,7 +29,7 @@ export const ENEMY_MELEE_DAMAGE_PER_WAVE = 2.4;
 export const ENEMY_MELEE_ATTACKS_PER_MIN_PER_WAVE = 3;
 
 // ─── Enemy — Movement ───────────────────────────────────────────────────────
-export const ENEMY_TURN_SPEED = 2; // radians per second
+export const ENEMY_TURN_SPEED = 3; // radians per second
 export const ENEMY_ZIGZAG_FREQ = 0.5; // full zigzag cycles per second
 export const ENEMY_ZIGZAG_AMPLITUDE = 0.8; // lateral offset strength (0-1)
 
@@ -80,14 +80,16 @@ export const WAVE_PAUSE_MS = 10000; // ms pause between waves
 export const MAX_ENEMIES_ALIVE = 10;
 
 // ─── Player — Orb (Alt-Fire) ────────────────────────────────────────────────
-export const PLAYER_ORB_DAMAGE = 60;
-export const PLAYER_ORB_SPEED = 20; // m/s
-export const PLAYER_ORB_RADIUS = 0.15; // visual radius (m)
-export const PLAYER_ORB_EXPLOSION_RADIUS = 3; // m — splash damage range
+export const PLAYER_ORB_DAMAGE = 50;
+export const PLAYER_ORB_SPEED = 30; // m/s
+export const PLAYER_ORB_RADIUS = 0.1; // visual radius (m)
+export const PLAYER_ORB_EXPLOSION_RADIUS = 2; // m — splash damage range
 export const PLAYER_ORB_AMMO_COST = 8;
 export const PLAYER_ORB_HEAT_MULTIPLIER = 6; // heat per shot multiplied by this
 export const PLAYER_ORB_COOLDOWN_MULTIPLIER = 4; // cooldown multiplied by this
 export const PLAYER_ORB_SPLASH_FALLOFF = 0.5; // max splash damage = direct * this
+export const PLAYER_ORB_MAX_CHARGE_HOLD = 1000; // ms to hold at max charge before auto-fire
+export const PLAYER_ORB_GRAVITY = 5; // m/s² gravity for dump-fired orbs
 
 // ─── Upgrades — Amount Gained Per Upgrade ───────────────────────────────────
 export const UPGRADE_MAX_HEALTH = 25;
@@ -100,12 +102,12 @@ export const UPGRADE_HEAT_DECAY = 0.5; // + % of base heat decay per upgrade
 export const UPGRADE_BLOOM_REDUCTION = 0.25; // % less bloom per shot per upgrade
 export const UPGRADE_MOVE_SPREAD_REDUCTION = 0.25; // % less spread from movement per upgrade
 export const UPGRADE_BEAM_DAMAGE = 5;
-export const UPGRADE_ORB_DAMAGE = 12;
+export const UPGRADE_ORB_DAMAGE = 10;
 export const UPGRADE_SUPPLY_DROP_RATE = 0.05; // + % absolute drop chance per upgrade
 
 // ─── Critical Hits ─────────────────────────────────────────────────────────
-export const PLAYER_CRIT_CHANCE = 0.5; // 5% base crit chance
-export const PLAYER_CRIT_DAMAGE = 2; // 2x base crit damage multiplier
-export const UPGRADE_CRIT_CHANCE = 0.03; // +3% per upgrade
+export const PLAYER_CRIT_CHANCE = 0.06; // % base crit chance
+export const PLAYER_CRIT_DAMAGE = 2; // x base crit damage multiplier
+export const UPGRADE_CRIT_CHANCE = 0.03; // + % per upgrade
 export const UPGRADE_CRIT_DAMAGE = 0.25; // +0.25x per upgrade
-export const UPGRADE_ORB_SELF_DAMAGE_REDUCTION = 0.5; // 50% less self-damage per upgrade (exponential)
+export const UPGRADE_ORB_SELF_DAMAGE_REDUCTION = 0.5; // % less self-damage per upgrade (exponential)
