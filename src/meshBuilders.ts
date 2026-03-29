@@ -154,17 +154,17 @@ const WEAPON = {
 const ENEMY_COLOR = new Color3(0.45, 0.45, 0.45);
 
 const ENEMY_MESH = {
-  capsule: { height: 2.2, radius: 0.58 } as const,
-  body: { width: 0.8, height: 1.1, depth: 0.3 } as const,
+  capsule: { height: 2.5, radius: 0.6 } as const,
+  body: { width: 0.65, height: 1.1, depth: 0.3 } as const,
   bodyOffset: new Vector3(0, 0.15, 0),
-  head: { height: 0.55, radius: 0.22 } as const,
-  headOffset: new Vector3(0, 0.887, 0),
-  leg: { width: 0.2, height: 0.8, depth: 0.2 } as const,
+  head: { height: 0.47, radius: 0.15 } as const,
+  headOffset: new Vector3(0, 0.8, 0),
+  leg: { width: 0.2, height: 0.9, depth: 0.2 } as const,
   legOffsetY: -0.4, // top of leg (pivot) relative to capsule center
-  legSpacing: 0.18, // lateral offset from center
+  legSpacing: 0.225, // lateral offset from center (leg edges align with body edges)
   arm: { width: 0.15, height: 0.7, depth: 0.15 } as const,
   armOffsetY: 0.65, // shoulder height (body top is ~0.7)
-  armSpacing: 0.48, // just touching body edge (body half-width 0.4 + arm half-width 0.075)
+  armSpacing: 0.4, // just touching body edge (body half-width 0.325 + arm half-width 0.075)
 };
 
 // Laser beam
@@ -591,7 +591,7 @@ export function makeEnemyHeadMesh(): Mesh {
     g.scene,
   );
   // Truncate the bottom cap — flatten all vertices below the cutoff
-  const cutY = -height / 2 + radius * 0.4;
+  const cutY = -height / 2 + radius * 0.9;
   const positions = mesh.getVerticesData("position")!;
   for (let i = 1; i < positions.length; i += 3) {
     if (positions[i] < cutY) positions[i] = cutY;

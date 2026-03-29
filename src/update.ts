@@ -576,7 +576,7 @@ function updateEnemies(): void {
 
     // Walk animation — phase advances proportional to actual speed
     const actualSpeed = e.state === "chase" ? e.speed : e.speed * 0.5;
-    const strideRate = actualSpeed * 2.0; // radians per second
+    const strideRate = actualSpeed * 1.8; // radians per second (scaled for leg length)
     const prevPhase = e.walkPhase;
     e.walkPhase += (strideRate * g.engine.getDeltaTime()) / 1000;
     const swing = Math.sin(e.walkPhase) * 0.45; // max ~26 degrees
