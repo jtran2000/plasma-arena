@@ -1,5 +1,19 @@
-import { Vector3, MeshBuilder, StandardMaterial, Mesh, Color3, PhysicsAggregate, PhysicsShapeType, Quaternion } from "@babylonjs/core";
-import { PLAYER_SPAWN_Y, ARENA_SIZE, ARENA_CEIL, PLAYER_ORB_RADIUS } from "./constants.js";
+import {
+  Vector3,
+  MeshBuilder,
+  StandardMaterial,
+  Mesh,
+  Color3,
+  PhysicsAggregate,
+  PhysicsShapeType,
+  Quaternion,
+} from "@babylonjs/core";
+import {
+  PLAYER_SPAWN_Y,
+  ARENA_SIZE,
+  ARENA_CEIL,
+  PLAYER_ORB_RADIUS,
+} from "./constants.js";
 import { g } from "./game.js";
 
 // ─── Mesh definitions ────────────────────────────────────────────────────────
@@ -34,9 +48,18 @@ const ARENA = {
   pillar: {
     size: { width: 1.4, depth: 1.4 } as const,
     positions: [
-      [-10, -10], [-10, 10], [10, -10], [10, 10],
-      [-20, 0], [20, 0], [0, -20], [0, 20],
-      [-18, -18], [-18, 18], [18, -18], [18, 18],
+      [-10, -10],
+      [-10, 10],
+      [10, -10],
+      [10, 10],
+      [-20, 0],
+      [20, 0],
+      [0, -20],
+      [0, 20],
+      [-18, -18],
+      [-18, 18],
+      [18, -18],
+      [18, 18],
     ] as [number, number][],
   },
 
@@ -44,11 +67,26 @@ const ARENA = {
     size: 1,
     diffuse: new Color3(0.45, 0.32, 0.18),
     positions: [
-      [5, 0.5, 8],    [-7, 0.5, 5],    [10, 0.5, -6],   [-5, 0.5, -10],
-      [5, 1.5, 8],    [-14, 0.5, 12],  [15, 0.5, -3],   [-3, 0.5, -16],
-      [12, 0.5, 14],  [-16, 0.5, -8],  [8, 0.5, -15],   [-12, 0.5, -14],
-      [18, 0.5, 10],  [-8, 0.5, 18],   [0, 0.5, -12],   [14, 0.5, 5],
-      [-16, 0.5, -8], [-16, 1.5, -8],  [12, 0.5, 14],   [12, 1.5, 14],
+      [5, 0.5, 8],
+      [-7, 0.5, 5],
+      [10, 0.5, -6],
+      [-5, 0.5, -10],
+      [5, 1.5, 8],
+      [-14, 0.5, 12],
+      [15, 0.5, -3],
+      [-3, 0.5, -16],
+      [12, 0.5, 14],
+      [-16, 0.5, -8],
+      [8, 0.5, -15],
+      [-12, 0.5, -14],
+      [18, 0.5, 10],
+      [-8, 0.5, 18],
+      [0, 0.5, -12],
+      [14, 0.5, 5],
+      [-16, 0.5, -8],
+      [-16, 1.5, -8],
+      [12, 0.5, 14],
+      [12, 1.5, 14],
     ] as [number, number, number][],
   },
 
@@ -116,17 +154,17 @@ const WEAPON = {
 const ENEMY_COLOR = new Color3(0.45, 0.45, 0.45);
 
 const ENEMY_MESH = {
-  capsule: { height: 2.2, radius: 0.4 } as const,
+  capsule: { height: 2.2, radius: 0.58 } as const,
   body: { width: 0.8, height: 1.1, depth: 0.3 } as const,
   bodyOffset: new Vector3(0, 0.15, 0),
   head: { height: 0.55, radius: 0.22 } as const,
   headOffset: new Vector3(0, 0.887, 0),
   leg: { width: 0.2, height: 0.8, depth: 0.2 } as const,
-  legOffsetY: -0.4,   // top of leg (pivot) relative to capsule center
-  legSpacing: 0.18,   // lateral offset from center
+  legOffsetY: -0.4, // top of leg (pivot) relative to capsule center
+  legSpacing: 0.18, // lateral offset from center
   arm: { width: 0.15, height: 0.7, depth: 0.15 } as const,
-  armOffsetY: 0.65,   // shoulder height (body top is ~0.7)
-  armSpacing: 0.48,   // just touching body edge (body half-width 0.4 + arm half-width 0.075)
+  armOffsetY: 0.65, // shoulder height (body top is ~0.7)
+  armSpacing: 0.48, // just touching body edge (body half-width 0.4 + arm half-width 0.075)
 };
 
 // Laser beam
@@ -182,19 +220,39 @@ function makeCrateMat(): StandardMaterial {
 
 // ─── Arena meshes (private) ───────────────────────────────────────────────────
 function makeFloor(): Mesh {
-  return MeshBuilder.CreateBox("floor", { width: ARENA.room, height: ARENA.floor.size.height, depth: ARENA.room }, g.scene);
+  return MeshBuilder.CreateBox(
+    "floor",
+    { width: ARENA.room, height: ARENA.floor.size.height, depth: ARENA.room },
+    g.scene,
+  );
 }
 
 function makeCeil(): Mesh {
-  return MeshBuilder.CreateBox("ceil", { width: ARENA.room, height: ARENA.ceiling.size.height, depth: ARENA.room }, g.scene);
+  return MeshBuilder.CreateBox(
+    "ceil",
+    { width: ARENA.room, height: ARENA.ceiling.size.height, depth: ARENA.room },
+    g.scene,
+  );
 }
 
 function makeWallBox(w: number, h: number): Mesh {
-  return MeshBuilder.CreateBox("wall", { width: w, height: h, depth: ARENA.wall.thickness }, g.scene);
+  return MeshBuilder.CreateBox(
+    "wall",
+    { width: w, height: h, depth: ARENA.wall.thickness },
+    g.scene,
+  );
 }
 
 function makePillar(): Mesh {
-  return MeshBuilder.CreateBox("pillar", { width: ARENA.pillar.size.width, height: ARENA.ceil, depth: ARENA.pillar.size.depth }, g.scene);
+  return MeshBuilder.CreateBox(
+    "pillar",
+    {
+      width: ARENA.pillar.size.width,
+      height: ARENA.ceil,
+      depth: ARENA.pillar.size.depth,
+    },
+    g.scene,
+  );
 }
 
 function makeCrate(): Mesh {
@@ -202,7 +260,15 @@ function makeCrate(): Mesh {
 }
 
 function makeAccentStrip(): Mesh {
-  return MeshBuilder.CreateBox("strip", { width: ARENA.room - 1, height: ARENA.accentStrip.height, depth: ARENA.accentStrip.depth }, g.scene);
+  return MeshBuilder.CreateBox(
+    "strip",
+    {
+      width: ARENA.room - 1,
+      height: ARENA.accentStrip.height,
+      depth: ARENA.accentStrip.depth,
+    },
+    g.scene,
+  );
 }
 
 // ─── Arena setup (exported) ───────────────────────────────────────────────────
@@ -230,9 +296,9 @@ export function setupArenaWalls(): Mesh[] {
   const half = ROOM / 2;
   return [
     [new Vector3(0, CEIL / 2, -half), 0],
-    [new Vector3(0, CEIL / 2,  half), 0],
+    [new Vector3(0, CEIL / 2, half), 0],
     [new Vector3(-half, CEIL / 2, 0), Math.PI / 2],
-    [new Vector3( half, CEIL / 2, 0), Math.PI / 2],
+    [new Vector3(half, CEIL / 2, 0), Math.PI / 2],
   ].map(([pos, rotY]) => {
     const m = makeWallBox(ROOM, CEIL);
     m.position = pos as Vector3;
@@ -362,8 +428,17 @@ export function setupWeaponRoot(): Mesh {
   return root;
 }
 
-export function setupWeaponParts(root: Mesh): { cell: Mesh; barrel: Mesh; barrelTip: Mesh } {
-  function wp(mesh: Mesh, mat: StandardMaterial, localPos: Vector3, localRotX = 0): Mesh {
+export function setupWeaponParts(root: Mesh): {
+  cell: Mesh;
+  barrel: Mesh;
+  barrelTip: Mesh;
+} {
+  function wp(
+    mesh: Mesh,
+    mat: StandardMaterial,
+    localPos: Vector3,
+    localRotX = 0,
+  ): Mesh {
     mesh.parent = root;
     mesh.position = localPos;
     mesh.rotation.x = localRotX;
@@ -373,12 +448,21 @@ export function setupWeaponParts(root: Mesh): { cell: Mesh; barrel: Mesh; barrel
     return mesh;
   }
 
-  wp(makeWeaponBodyMesh(),   makeWeaponBodyMat(),   WEAPON.body.pos.clone());
-  const barrel = wp(makeWeaponBarrelMesh(), makeWeaponBarrelMat(), WEAPON.barrel.pos.clone(), WEAPON.barrel.rotX);
-  const cell = wp(makeWeaponCellMesh(), makeWeaponCellMat(), WEAPON.cell.pos.clone());
-  wp(makeWeaponGripMesh(),   makeWeaponGripMat(),   WEAPON.grip.pos.clone());
+  wp(makeWeaponBodyMesh(), makeWeaponBodyMat(), WEAPON.body.pos.clone());
+  const barrel = wp(
+    makeWeaponBarrelMesh(),
+    makeWeaponBarrelMat(),
+    WEAPON.barrel.pos.clone(),
+    WEAPON.barrel.rotX,
+  );
+  const cell = wp(
+    makeWeaponCellMesh(),
+    makeWeaponCellMat(),
+    WEAPON.cell.pos.clone(),
+  );
+  wp(makeWeaponGripMesh(), makeWeaponGripMat(), WEAPON.grip.pos.clone());
   wp(makeWeaponAccentMesh(), makeWeaponAccentMat(), WEAPON.accent.pos.clone());
-  wp(makeWeaponLensMesh(),   makeWeaponLensMat(),   WEAPON.lens.pos.clone());
+  wp(makeWeaponLensMesh(), makeWeaponLensMat(), WEAPON.lens.pos.clone());
 
   const barrelTip = new Mesh("wBarrelTip", g.scene);
   barrelTip.parent = root;
@@ -391,10 +475,19 @@ export function setupWeaponParts(root: Mesh): { cell: Mesh; barrel: Mesh; barrel
 
 // ─── Player mesh (exported) ───────────────────────────────────────────────────
 export function makePlayerMesh(): { mesh: Mesh; aggregate: PhysicsAggregate } {
-  const mesh = MeshBuilder.CreateCapsule("player", PLAYER_MESH.capsule, g.scene);
+  const mesh = MeshBuilder.CreateCapsule(
+    "player",
+    PLAYER_MESH.capsule,
+    g.scene,
+  );
   mesh.position.y = PLAYER_SPAWN_Y;
   mesh.isVisible = false;
-  const aggregate = new PhysicsAggregate(mesh, PhysicsShapeType.CAPSULE, { mass: 70, friction: 0.7, restitution: 0 }, g.scene);
+  const aggregate = new PhysicsAggregate(
+    mesh,
+    PhysicsShapeType.CAPSULE,
+    { mass: 70, friction: 0.7, restitution: 0 },
+    g.scene,
+  );
   aggregate.body.setMassProperties({
     mass: 70,
     inertia: Vector3.Zero(),
@@ -411,17 +504,32 @@ function makeEnemyMat(): StandardMaterial {
   return mat;
 }
 
-export function makeEnemyMats(): { bodyMat: StandardMaterial; headMat: StandardMaterial } {
+export function makeEnemyMats(): {
+  bodyMat: StandardMaterial;
+  headMat: StandardMaterial;
+} {
   const bodyMat = makeEnemyMat();
   const headMat = bodyMat.clone("emat_head") as StandardMaterial;
   return { bodyMat, headMat };
 }
 
-export function makeEnemyPhysCapsule(position: Vector3): { mesh: Mesh; aggregate: PhysicsAggregate } {
-  const mesh = MeshBuilder.CreateCapsule("enemyPhys", ENEMY_MESH.capsule, g.scene);
+export function makeEnemyPhysCapsule(position: Vector3): {
+  mesh: Mesh;
+  aggregate: PhysicsAggregate;
+} {
+  const mesh = MeshBuilder.CreateCapsule(
+    "enemyPhys",
+    ENEMY_MESH.capsule,
+    g.scene,
+  );
   mesh.isVisible = false;
   mesh.position = position;
-  const aggregate = new PhysicsAggregate(mesh, PhysicsShapeType.CAPSULE, { mass: 10, friction: 0.7, restitution: 0 }, g.scene);
+  const aggregate = new PhysicsAggregate(
+    mesh,
+    PhysicsShapeType.CAPSULE,
+    { mass: 10, friction: 0.7, restitution: 0 },
+    g.scene,
+  );
   aggregate.body.setMassProperties({
     mass: 10,
     inertia: Vector3.Zero(),
@@ -446,7 +554,11 @@ export function makeEnemyLegMesh(side: "left" | "right"): Mesh {
     ENEMY_MESH.legOffsetY,
     0,
   );
-  const leg = MeshBuilder.CreateBox("enemyLeg", { width, height, depth }, g.scene);
+  const leg = MeshBuilder.CreateBox(
+    "enemyLeg",
+    { width, height, depth },
+    g.scene,
+  );
   leg.parent = pivot;
   leg.position = new Vector3(0, -height / 2, 0); // hang down from pivot
   return pivot;
@@ -461,7 +573,11 @@ export function makeEnemyArmMesh(side: "left" | "right"): Mesh {
     ENEMY_MESH.armOffsetY,
     0,
   );
-  const arm = MeshBuilder.CreateBox("enemyArm", { width, height, depth }, g.scene);
+  const arm = MeshBuilder.CreateBox(
+    "enemyArm",
+    { width, height, depth },
+    g.scene,
+  );
   arm.parent = pivot;
   arm.position = new Vector3(0, -height / 2, 0);
   return pivot;
@@ -469,7 +585,11 @@ export function makeEnemyArmMesh(side: "left" | "right"): Mesh {
 
 export function makeEnemyHeadMesh(): Mesh {
   const { height, radius } = ENEMY_MESH.head;
-  const mesh = MeshBuilder.CreateCapsule("enemyHead", { height, radius, capSubdivisions: 6, subdivisions: 1, tessellation: 12 }, g.scene);
+  const mesh = MeshBuilder.CreateCapsule(
+    "enemyHead",
+    { height, radius, capSubdivisions: 6, subdivisions: 1, tessellation: 12 },
+    g.scene,
+  );
   // Truncate the bottom cap — flatten all vertices below the cutoff
   const cutY = -height / 2 + radius * 0.4;
   const positions = mesh.getVerticesData("position")!;
@@ -482,52 +602,105 @@ export function makeEnemyHeadMesh(): Mesh {
 }
 
 // ─── Ragdoll split halves (exported) ─────────────────────────────────────────
-export function makeBodySplitHalves(worldPos: Vector3, mat: StandardMaterial): [Mesh, Mesh] {
+export function makeBodySplitHalves(
+  worldPos: Vector3,
+  mat: StandardMaterial,
+): [Mesh, Mesh] {
   const { width, depth } = ENEMY_MESH.body;
   const halfH = ENEMY_MESH.body.height / 2;
 
-  const top = MeshBuilder.CreateBox("bodyHalf", { width, height: halfH, depth }, g.scene);
+  const top = MeshBuilder.CreateBox(
+    "bodyHalf",
+    { width, height: halfH, depth },
+    g.scene,
+  );
   top.position = new Vector3(worldPos.x, worldPos.y + halfH / 2, worldPos.z);
   top.material = mat;
 
-  const bottom = MeshBuilder.CreateBox("bodyHalf", { width, height: halfH, depth }, g.scene);
+  const bottom = MeshBuilder.CreateBox(
+    "bodyHalf",
+    { width, height: halfH, depth },
+    g.scene,
+  );
   bottom.position = new Vector3(worldPos.x, worldPos.y - halfH / 2, worldPos.z);
   bottom.material = mat;
 
   return [top, bottom];
 }
 
-export function makeHeadSplitHalves(worldPos: Vector3, mat: StandardMaterial): [Mesh, Mesh] {
+export function makeHeadSplitHalves(
+  worldPos: Vector3,
+  mat: StandardMaterial,
+): [Mesh, Mesh] {
   const { height, radius } = ENEMY_MESH.head;
   const halfH = height / 2;
 
-  const top = MeshBuilder.CreateCapsule("headHalf", { height: halfH, radius, capSubdivisions: 6, subdivisions: 1, tessellation: 12 }, g.scene);
+  const top = MeshBuilder.CreateCapsule(
+    "headHalf",
+    {
+      height: halfH,
+      radius,
+      capSubdivisions: 6,
+      subdivisions: 1,
+      tessellation: 12,
+    },
+    g.scene,
+  );
   top.position = new Vector3(worldPos.x, worldPos.y + halfH / 4, worldPos.z);
   top.material = mat;
 
-  const bottom = MeshBuilder.CreateCapsule("headHalf", { height: halfH, radius, capSubdivisions: 6, subdivisions: 1, tessellation: 12 }, g.scene);
+  const bottom = MeshBuilder.CreateCapsule(
+    "headHalf",
+    {
+      height: halfH,
+      radius,
+      capSubdivisions: 6,
+      subdivisions: 1,
+      tessellation: 12,
+    },
+    g.scene,
+  );
   bottom.position = new Vector3(worldPos.x, worldPos.y - halfH / 4, worldPos.z);
   bottom.material = mat;
 
   return [top, bottom];
 }
 
-function makeLimbSplitHalves(name: string, dims: { width: number; height: number; depth: number }, worldPos: Vector3, mat: StandardMaterial): [Mesh, Mesh] {
+function makeLimbSplitHalves(
+  name: string,
+  dims: { width: number; height: number; depth: number },
+  worldPos: Vector3,
+  mat: StandardMaterial,
+): [Mesh, Mesh] {
   const halfH = dims.height / 2;
-  const top = MeshBuilder.CreateBox(name, { width: dims.width, height: halfH, depth: dims.depth }, g.scene);
+  const top = MeshBuilder.CreateBox(
+    name,
+    { width: dims.width, height: halfH, depth: dims.depth },
+    g.scene,
+  );
   top.position = new Vector3(worldPos.x, worldPos.y + halfH / 2, worldPos.z);
   top.material = mat;
-  const bottom = MeshBuilder.CreateBox(name, { width: dims.width, height: halfH, depth: dims.depth }, g.scene);
+  const bottom = MeshBuilder.CreateBox(
+    name,
+    { width: dims.width, height: halfH, depth: dims.depth },
+    g.scene,
+  );
   bottom.position = new Vector3(worldPos.x, worldPos.y - halfH / 2, worldPos.z);
   bottom.material = mat;
   return [top, bottom];
 }
 
-export function makeArmSplitHalves(worldPos: Vector3, mat: StandardMaterial): [Mesh, Mesh] {
+export function makeArmSplitHalves(
+  worldPos: Vector3,
+  mat: StandardMaterial,
+): [Mesh, Mesh] {
   return makeLimbSplitHalves("armHalf", ENEMY_MESH.arm, worldPos, mat);
 }
 
-export function makeLegSplitHalves(worldPos: Vector3, mat: StandardMaterial): [Mesh, Mesh] {
+export function makeLegSplitHalves(
+  worldPos: Vector3,
+  mat: StandardMaterial,
+): [Mesh, Mesh] {
   return makeLimbSplitHalves("legHalf", ENEMY_MESH.leg, worldPos, mat);
 }
 
@@ -539,12 +712,20 @@ export function setupLamppost(): { pole: Mesh; lightY: number } {
   poleMat.diffuseColor = new Color3(0.2, 0.2, 0.22);
   poleMat.specularColor = new Color3(0.4, 0.4, 0.4);
 
-  const pole = MeshBuilder.CreateCylinder("pole", { diameter: 0.15, height: lampY }, g.scene);
+  const pole = MeshBuilder.CreateCylinder(
+    "pole",
+    { diameter: 0.15, height: lampY },
+    g.scene,
+  );
   pole.position.y = lampY / 2;
   pole.material = poleMat;
   new PhysicsAggregate(pole, PhysicsShapeType.CYLINDER, { mass: 0 }, g.scene);
 
-  const head = MeshBuilder.CreateCylinder("lampHead", { diameterTop: 0.1, diameterBottom: 0.8, height: 0.4, tessellation: 8 }, g.scene);
+  const head = MeshBuilder.CreateCylinder(
+    "lampHead",
+    { diameterTop: 0.1, diameterBottom: 0.8, height: 0.4, tessellation: 8 },
+    g.scene,
+  );
   head.position.y = lampY - 0.2;
   head.material = poleMat;
 
@@ -559,7 +740,10 @@ export function setupLamppost(): { pole: Mesh; lightY: number } {
 }
 
 // ─── Supplies (exported) ──────────────────────────────────────────────────────
-export function makeHealthSupply(position: Vector3): { mesh: Mesh; aggregate: PhysicsAggregate } {
+export function makeHealthSupply(position: Vector3): {
+  mesh: Mesh;
+  aggregate: PhysicsAggregate;
+} {
   const mat = new StandardMaterial("supplyMat", g.scene);
   mat.diffuseColor = new Color3(0.1, 0.9, 0.2);
   mat.emissiveColor = new Color3(0.1, 0.6, 0.1);
@@ -568,21 +752,38 @@ export function makeHealthSupply(position: Vector3): { mesh: Mesh; aggregate: Ph
   mesh.position.y = Math.max(mesh.position.y, 0.3);
   mesh.material = mat;
   mesh.isPickable = false;
-  const aggregate = new PhysicsAggregate(mesh, PhysicsShapeType.BOX, { mass: 1, friction: 0.8, restitution: 0.2 }, g.scene);
+  const aggregate = new PhysicsAggregate(
+    mesh,
+    PhysicsShapeType.BOX,
+    { mass: 1, friction: 0.8, restitution: 0.2 },
+    g.scene,
+  );
   return { mesh, aggregate };
 }
 
-export function makeAmmoSupply(position: Vector3): { mesh: Mesh; aggregate: PhysicsAggregate } {
+export function makeAmmoSupply(position: Vector3): {
+  mesh: Mesh;
+  aggregate: PhysicsAggregate;
+} {
   const mat = new StandardMaterial("supplyMat", g.scene);
   mat.diffuseColor = WEAPON.cell.diffuse.clone();
   mat.emissiveColor = WEAPON.cell.emissive.clone();
   const s = WEAPON.cell.size;
-  const mesh = MeshBuilder.CreateBox("supply", { width: s.width * 4, height: s.height * 4, depth: s.depth * 4 }, g.scene);
+  const mesh = MeshBuilder.CreateBox(
+    "supply",
+    { width: s.width * 4, height: s.height * 4, depth: s.depth * 4 },
+    g.scene,
+  );
   mesh.position = position.clone();
   mesh.position.y = Math.max(mesh.position.y, 0.3);
   mesh.material = mat;
   mesh.isPickable = false;
-  const aggregate = new PhysicsAggregate(mesh, PhysicsShapeType.BOX, { mass: 1, friction: 0.8, restitution: 0.2 }, g.scene);
+  const aggregate = new PhysicsAggregate(
+    mesh,
+    PhysicsShapeType.BOX,
+    { mass: 1, friction: 0.8, restitution: 0.2 },
+    g.scene,
+  );
   return { mesh, aggregate };
 }
 
@@ -594,7 +795,13 @@ export function makeBeam(from: Vector3, to: Vector3): Mesh {
   mat.disableLighting = true;
   const beam = MeshBuilder.CreateTube(
     "laserBeam",
-    { path: [from, to], radius: LASER_BEAM.radius, tessellation: LASER_BEAM.tessellation, updatable: false, cap: 0 },
+    {
+      path: [from, to],
+      radius: LASER_BEAM.radius,
+      tessellation: LASER_BEAM.tessellation,
+      updatable: false,
+      cap: 0,
+    },
     g.scene,
   );
   beam.material = mat;
@@ -604,23 +811,51 @@ export function makeBeam(from: Vector3, to: Vector3): Mesh {
 
 // ─── Ragdoll physics helpers (exported) ──────────────────────────────────────
 export function makeRagdollBodyAggregate(mesh: Mesh): PhysicsAggregate {
-  return new PhysicsAggregate(mesh, PhysicsShapeType.BOX, { mass: 8, friction: 0.6, restitution: 0.05 }, g.scene);
+  return new PhysicsAggregate(
+    mesh,
+    PhysicsShapeType.BOX,
+    { mass: 8, friction: 0.6, restitution: 0.05 },
+    g.scene,
+  );
 }
 
 export function makeRagdollHeadAggregate(mesh: Mesh): PhysicsAggregate {
-  return new PhysicsAggregate(mesh, PhysicsShapeType.CAPSULE, { mass: 2, friction: 0.5, restitution: 0.3 }, g.scene);
+  return new PhysicsAggregate(
+    mesh,
+    PhysicsShapeType.CAPSULE,
+    { mass: 2, friction: 0.5, restitution: 0.3 },
+    g.scene,
+  );
 }
 
 export function makeRagdollArmAggregate(mesh: Mesh): PhysicsAggregate {
-  return new PhysicsAggregate(mesh, PhysicsShapeType.BOX, { mass: 1, friction: 0.6, restitution: 0.05 }, g.scene);
+  return new PhysicsAggregate(
+    mesh,
+    PhysicsShapeType.BOX,
+    { mass: 1, friction: 0.6, restitution: 0.05 },
+    g.scene,
+  );
 }
 
 export function makeRagdollLegAggregate(mesh: Mesh): PhysicsAggregate {
-  return new PhysicsAggregate(mesh, PhysicsShapeType.BOX, { mass: 2, friction: 0.6, restitution: 0.05 }, g.scene);
+  return new PhysicsAggregate(
+    mesh,
+    PhysicsShapeType.BOX,
+    { mass: 2, friction: 0.6, restitution: 0.05 },
+    g.scene,
+  );
 }
 
-export function makeRagdollHalfAggregate(mesh: Mesh, mass: number): PhysicsAggregate {
-  return new PhysicsAggregate(mesh, PhysicsShapeType.BOX, { mass, friction: 0.6, restitution: 0.05 }, g.scene);
+export function makeRagdollHalfAggregate(
+  mesh: Mesh,
+  mass: number,
+): PhysicsAggregate {
+  return new PhysicsAggregate(
+    mesh,
+    PhysicsShapeType.BOX,
+    { mass, friction: 0.6, restitution: 0.05 },
+    g.scene,
+  );
 }
 
 // ─── Bullet hole (exported) ───────────────────────────────────────────────────
