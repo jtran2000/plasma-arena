@@ -10,8 +10,11 @@ A browser-based first-person shooter built with [Babylon.js](https://www.babylon
 - Raycast laser beam weapon with electric buzzing sound, blood splatter particles, and bullet hole decals that glow yellow → orange → red before fading
 - Weapon spread system — sustained fire and movement both increase inaccuracy; crosshair lines separate to indicate current spread
 - Weapon overheat system — continuous fire builds heat; at critical heat (75%) damage is reduced and the beam weakens; at max heat the gun locks, the barrel glows red, smoke particles emit, and cooling must occur before firing resumes
+- Orb charge system — hold right-click to charge an orb that consumes extra ammo over time for a bigger explosion; release to fire, or left-click while charging to dump-fire a heavy gravity-affected orb
+- Critical hit system — beam and orb shots can critically hit for bonus damage; a critical beam detonating a critical orb stacks crit multipliers
 - Wave-based enemy spawning — each wave brings more enemies with increasing health, speed, damage, and attack rate; enemies drop from the ceiling and zigzag while chasing
-- Enemy death ragdoll — head and body separate, receive physics impulses; ragdoll parts and debris can be shot for bonus score
+- Enemy death ragdoll — head, body, arms, and legs separate on death, receive physics impulses; the killing-shot part splits in half; all ragdoll parts and debris can be shot for bonus score
+- Upgrade system — choose from randomized upgrades between waves: max health, speed, reload speed, mag size, rate of fire, heat capacity, beam damage, orb damage, crit chance, crit damage, orb self-damage reduction
 - Scoring — base kill score with 1.5x headshot multiplier; shooting ragdoll parts and debris awards 1 point each
 - Pickup system — health and ammo pickups with physics drop at hit locations every 500 points (50% chance); wave completion grants bonus pickups and score
 - 100-round magazine with manual (`R`) and auto reload; reload plays an eject-and-insert sound sequence; ammo pickups restore a full magazine
@@ -42,7 +45,9 @@ Then open [http://localhost:5173](http://localhost:5173) in your browser.
 | `W A S D` | Move |
 | Mouse | Look |
 | `Space` | Jump |
-| Left Click | Shoot (hold to fire continuously) |
+| Left Click | Shoot beam (hold to fire continuously) |
+| Right Click (hold) | Charge orb — release to fire |
+| Left Click (while charging) | Dump-fire gravity orb |
 | `R` | Reload |
 | `Shift` | Sprint |
 | `Esc` / lose pointer lock | Pause |
@@ -66,9 +71,10 @@ Then open [http://localhost:5173](http://localhost:5173) in your browser.
 | File | Responsibility |
 |---|---|
 | `src/constants.ts` | All numeric game-tuning values — speeds, damage, cooldowns, ammo, reload time, spawn position, wave scaling, heat, spread, scoring, pickups |
-| `src/meshDefs.ts` | Mesh geometry, material colours, and layout data — capsule sizes, arena dimensions, weapon part positions, enemy colour |
-| `src/meshBuilders.ts` | Factory and setup functions for every mesh, material, and physics aggregate in the game; the only file that imports `meshDefs`; exported helpers are called by `build.ts` and `update.ts` |
-| `src/game.ts` | Shared types (`GameState`, `Enemy`, `Pickup`), DOM element refs, and the mutable `g` context object imported by all other modules |
+| `src/meshBuilders.ts` | Mesh geometry definitions, material colours, and factory functions for every mesh, material, and physics aggregate in the game; exported helpers are called by `build.ts` and `update.ts` |
+| `src/game.ts` | Shared types (`GameState`, `Enemy`, `Orb`, `Supply`), DOM element refs, and the mutable `g` context object imported by all other modules |
+| `src/audio.ts` | Synthesized spatial audio (Web Audio API, HRTF panners) — all sounds are generated from oscillators and noise buffers, no audio files |
 | `src/build.ts` | Scene initialisation — camera, lamppost lighting, Havok physics, particle texture — then orchestrates arena, weapon, and initial setup via `meshBuilders` helpers |
-| `src/update.ts` | Per-frame game loop, player movement, enemy AI, wave system, shooting, spread, heat, reloading, ragdoll death, pickup spawning/collection, particle effects, audio synthesis, HUD, pause/resume/game-over |
+| `src/upgrades.ts` | `effective*()` stat functions, upgrade definitions, and upgrade menu UI |
+| `src/update.ts` | Per-frame game loop, player movement, enemy AI, wave system, beam and orb shooting, orb charging, spread, heat, reloading, ragdoll death, pickup spawning/collection, particle effects, HUD, pause/resume/game-over |
 | `src/main.ts` | Entry point — input event listeners, `startGame()`, render loop |
