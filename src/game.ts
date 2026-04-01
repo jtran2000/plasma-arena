@@ -9,13 +9,7 @@ import {
   DynamicTexture,
   Color3,
 } from "@babylonjs/core";
-import {
-  PLAYER_MAX_HEALTH,
-  PLAYER_MAG_SIZE,
-  PLAYER_RESERVE_MAGS,
-  SUPPLY_SCORE_INTERVAL,
-  WAVE_BASE_ENEMIES,
-} from "./constants.js";
+import { PLAYER, BEAM, SUPPLY, WAVE } from "./constants.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface GameState {
@@ -57,6 +51,7 @@ export interface Orb {
   chargeMultiplier: number;
   isCrit: boolean;
   hasGravity: boolean;
+  ricochetDepth: number;
 }
 
 export interface Enemy {
@@ -89,9 +84,9 @@ export interface Enemy {
 
 export function makeState(): GameState {
   return {
-    health: PLAYER_MAX_HEALTH,
-    ammo: PLAYER_MAG_SIZE,
-    reserve: PLAYER_MAG_SIZE * PLAYER_RESERVE_MAGS,
+    health: PLAYER.maxHealth,
+    ammo: BEAM.magSize,
+    reserve: BEAM.magSize * BEAM.reserveMags,
     score: 0,
     kills: 0,
     reloading: false,
@@ -105,9 +100,9 @@ export function makeState(): GameState {
     overheated: false,
     running: false,
     paused: false,
-    nextSupplyThreshold: SUPPLY_SCORE_INTERVAL,
+    nextSupplyThreshold: SUPPLY.scoreInterval,
     wave: 1,
-    waveEnemiesLeft: WAVE_BASE_ENEMIES,
+    waveEnemiesLeft: WAVE.baseEnemies,
     waveSpawnTimer: 0,
     wavePauseTimer: 0,
     waveActive: true,
@@ -152,9 +147,15 @@ export const dom = {
   heatFill: getEl("heat-fill"),
   overheatMsg: getEl("overheat-msg"),
   upgradeMenu: getEl("upgrade-menu"),
-  upgradeLabels: Array.from(document.querySelectorAll(".upgrade-label")) as HTMLElement[],
-  upgradeCounts: Array.from(document.querySelectorAll(".upgrade-count")) as HTMLElement[],
-  upgradeButtons: Array.from(document.querySelectorAll(".upgrade-option")) as HTMLButtonElement[],
+  upgradeLabels: Array.from(
+    document.querySelectorAll(".upgrade-label"),
+  ) as HTMLElement[],
+  upgradeCounts: Array.from(
+    document.querySelectorAll(".upgrade-count"),
+  ) as HTMLElement[],
+  upgradeButtons: Array.from(
+    document.querySelectorAll(".upgrade-option"),
+  ) as HTMLButtonElement[],
   optionsScreen: getEl("options-screen"),
   optionsBtn: getEl("options-btn"),
   startOptionsBtn: getEl("start-options-btn"),
@@ -220,6 +221,21 @@ export const g = {
     critChance: 0,
     critDamage: 0,
     orbSelfDamage: 0,
+    multishot: 0,
+    ricochet: 0,
+    lightning: 0,
   },
   pendingUpgrades: [] as string[],
 };
+
+export function endGame(): void {
+  g.state.running = false;
+  g.mouseHeld = false;
+  g.pressedKeys.clear();
+  g.weaponRoot.setEnabled(false);
+  dom.hud.style.display = "none";
+  dom.gameOver.style.display = "flex";
+  dom.finalWaveEl.textContent = `Wave: ${g.state.wave}`;
+  dom.finalScoreEl.textContent = `Score: ${g.state.score}  |  Kills: ${g.state.kills}`;
+  document.exitPointerLock();
+}

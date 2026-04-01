@@ -12,17 +12,7 @@ import {
 } from "@babylonjs/core";
 import HavokPhysics from "@babylonjs/havok";
 import { g } from "./game.js";
-import {
-  AMBIENT_INTENSITY,
-  AMBIENT_GROUND_R,
-  AMBIENT_GROUND_G,
-  AMBIENT_GROUND_B,
-  SPOT_ANGLE,
-  SPOT_EXPONENT,
-  SPOT_INTENSITY,
-  SPOT_RANGE,
-  FOG_DENSITY,
-} from "./constants.js";
+import { LIGHTING } from "./constants.js";
 import {
   makePlayerMesh,
   setupArenaFloor,
@@ -34,7 +24,7 @@ import {
   setupWeaponRoot,
   setupWeaponParts,
   setupLamppost,
-} from "./meshBuilders.js";
+} from "./spawn.js";
 
 // ─── Scene builder ────────────────────────────────────────────────────────────
 export async function buildScene(): Promise<void> {
@@ -56,7 +46,7 @@ export async function buildScene(): Promise<void> {
   g.scene.clearColor = new Color4(0.05, 0.05, 0.1, 1);
   g.scene.fogMode = Scene.FOGMODE_EXP2;
   g.scene.fogColor = new Color3(0.05, 0.05, 0.1);
-  g.scene.fogDensity = FOG_DENSITY;
+  g.scene.fogDensity = LIGHTING.fogDensity;
 
   // Camera must exist before the first render — create before the async Havok await
   g.camera = new UniversalCamera("fps", new Vector3(0, 1.6, 0), g.scene);
@@ -79,11 +69,11 @@ export async function buildScene(): Promise<void> {
   g.playerAggregate = player.aggregate;
 
   const ambient = new HemisphericLight("amb", new Vector3(0, 1, 0), g.scene);
-  ambient.intensity = AMBIENT_INTENSITY;
+  ambient.intensity = LIGHTING.ambientIntensity;
   ambient.groundColor = new Color3(
-    AMBIENT_GROUND_R,
-    AMBIENT_GROUND_G,
-    AMBIENT_GROUND_B,
+    LIGHTING.ambientGroundR,
+    LIGHTING.ambientGroundG,
+    LIGHTING.ambientGroundB,
   );
 
   const { lightY } = setupLamppost();
@@ -92,13 +82,13 @@ export async function buildScene(): Promise<void> {
     "lamp",
     new Vector3(0, lightY, 0),
     new Vector3(0, -1, 0),
-    SPOT_ANGLE,
-    SPOT_EXPONENT,
+    LIGHTING.spotAngle,
+    LIGHTING.spotExponent,
     g.scene,
   );
-  lamp.intensity = SPOT_INTENSITY;
+  lamp.intensity = LIGHTING.spotIntensity;
   lamp.diffuse = new Color3(1, 0.9, 0.7);
-  lamp.range = SPOT_RANGE;
+  lamp.range = LIGHTING.spotRange;
 
   g.shadowGenerator = new ShadowGenerator(1024, lamp);
   g.shadowGenerator.useBlurExponentialShadowMap = true;

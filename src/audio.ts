@@ -1,5 +1,6 @@
 import { Vector3 } from "@babylonjs/core";
 import { g } from "./game.js";
+import { AUDIO } from "./constants.js";
 
 // ─── Core helpers ─────────────────────────────────────────────────────────────
 function ensureAudioCtx(): AudioContext {
@@ -8,14 +9,12 @@ function ensureAudioCtx(): AudioContext {
   return g.beamAudioCtx;
 }
 
-export const MASTER_VOLUME_MULT = 4; // all sounds scaled up by this factor
-
 function audioDest(): AudioNode {
   const ctx = g.beamAudioCtx!;
   if (!g.masterGain) {
     g.masterGain = ctx.createGain();
     const saved = localStorage.getItem("fps_volume");
-    g.masterGain.gain.value = (saved !== null ? Number(saved) / 100 : 0.5) * MASTER_VOLUME_MULT;
+    g.masterGain.gain.value = (saved !== null ? Number(saved) / 100 : 0.5) * AUDIO.masterVolumeMult;
     g.masterGain.connect(ctx.destination);
   }
   return g.masterGain;
@@ -455,4 +454,38 @@ export function playAmmoSupplySound(pos: Vector3): void {
   g2.connect(panner);
   osc2.start(now + 0.06);
   osc2.stop(now + 0.16);
+}
+
+export function playLightningSound(pos: Vector3): void {
+  const ctx = ensureAudioCtx();
+  const now = ctx.currentTime;
+  const panner = makePanner(ctx, pos);
+
+  // Sharp crack — white noise burst
+  const bufLen = Math.floor(ctx.sampleRate * 0.08);
+  const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufLen; i++) data[i] = (Math.random() * 2 - 1);
+  const noise = ctx.createBufferSource();
+  noise.buffer = buf;
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.setValueAtTime(0.25, now);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+  noise.connect(noiseGain);
+  noiseGain.connect(panner);
+  noise.start(now);
+  noise.stop(now + 0.09);
+
+  // Electric sizzle — sawtooth sweep
+  const osc = ctx.createOscillator();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(2000, now);
+  osc.frequency.exponentialRampToValueAtTime(200, now + 0.12);
+  const oscGain = ctx.createGain();
+  oscGain.gain.setValueAtTime(0.1, now);
+  oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+  osc.connect(oscGain);
+  oscGain.connect(panner);
+  osc.start(now);
+  osc.stop(now + 0.13);
 }

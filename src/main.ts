@@ -1,6 +1,11 @@
-import { PointerEventTypes, ActionManager, ExecuteCodeAction } from "@babylonjs/core";
+import {
+  PointerEventTypes,
+  ActionManager,
+  ExecuteCodeAction,
+} from "@babylonjs/core";
 import { g, dom, makeState } from "./game.js";
-import { MASTER_VOLUME_MULT, stopOrbChargeSound } from "./audio.js";
+import { stopOrbChargeSound } from "./audio.js";
+import { AUDIO } from "./constants.js";
 import { buildScene } from "./build.js";
 import {
   update,
@@ -11,8 +16,6 @@ import {
   dumpOrbCharge,
   startReload,
   updateHUD,
-  pause,
-  resume,
   showWaveBanner,
   selectUpgrade,
 } from "./update.js";
@@ -27,7 +30,10 @@ function setupInput(): void {
     if (info.event.button === 0) {
       if (info.type === PointerEventTypes.POINTERDOWN) {
         g.mouseHeld = true;
-        if (g.orbCharging) { dumpOrbCharge(); return; }
+        if (g.orbCharging) {
+          dumpOrbCharge();
+          return;
+        }
         shoot();
       } else if (info.type === PointerEventTypes.POINTERUP) {
         g.mouseHeld = false;
@@ -82,11 +88,33 @@ async function startGame(): Promise<void> {
   dom.optionsScreen.style.display = "none";
   dom.upgradeMenu.classList.remove("visible");
   dom.hud.style.display = "block";
-  g.upgrades = { maxHealth: 0, speed: 0, reloadTime: 0, magSize: 0, rateOfFire: 0, heatCapacity: 0, heatDecay: 0, bloom: 0, moveSpread: 0, beamDamage: 0, orbDamage: 0, supplyDropRate: 0, critChance: 0, critDamage: 0, orbSelfDamage: 0 };
+  g.upgrades = {
+    maxHealth: 0,
+    speed: 0,
+    reloadTime: 0,
+    magSize: 0,
+    rateOfFire: 0,
+    heatCapacity: 0,
+    heatDecay: 0,
+    bloom: 0,
+    moveSpread: 0,
+    beamDamage: 0,
+    orbDamage: 0,
+    supplyDropRate: 0,
+    critChance: 0,
+    critDamage: 0,
+    orbSelfDamage: 0,
+    multishot: 0,
+    ricochet: 0,
+    lightning: 0,
+  };
   g.pendingUpgrades = [];
   if (g.orbCharging) {
     stopOrbChargeSound();
-    if (g.orbChargeMesh) { g.orbChargeMesh.dispose(); g.orbChargeMesh = null; }
+    if (g.orbChargeMesh) {
+      g.orbChargeMesh.dispose();
+      g.orbChargeMesh = null;
+    }
     g.orbCharging = false;
   }
   g.orbChargeCrit = false;
@@ -107,10 +135,32 @@ async function startGame(): Promise<void> {
   dom.canvas.requestPointerLock();
 }
 
+export function pause(): void {
+  g.state.paused = true;
+  g.mouseHeld = false;
+  g.pressedKeys.clear();
+  g.scene.physicsEnabled = false;
+  dom.pauseScreen.style.display = "flex";
+  dom.hud.classList.add("paused");
+}
+
+export function resume(): void {
+  g.state.paused = false;
+  g.scene.physicsEnabled = true;
+  dom.pauseScreen.style.display = "none";
+  dom.hud.classList.remove("paused");
+  if (g.pendingUpgrades.length > 0) {
+    dom.upgradeMenu.classList.add("visible");
+    document.exitPointerLock();
+  }
+}
+
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
 dom.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 dom.startBtn.addEventListener("click", () => startGame().catch(console.error));
-dom.restartBtn.addEventListener("click", () => startGame().catch(console.error));
+dom.restartBtn.addEventListener("click", () =>
+  startGame().catch(console.error),
+);
 
 function optionsOpen(): boolean {
   return dom.optionsScreen.style.display === "flex";
@@ -118,13 +168,22 @@ function optionsOpen(): boolean {
 
 dom.canvas.addEventListener("click", () => {
   if (optionsOpen()) return;
-  if (g.state.running && !g.state.paused && document.pointerLockElement !== dom.canvas) {
+  if (
+    g.state.running &&
+    !g.state.paused &&
+    document.pointerLockElement !== dom.canvas
+  ) {
     dom.canvas.requestPointerLock();
   }
 });
 
 dom.pauseScreen.addEventListener("click", (e) => {
-  if (e.target === dom.pauseScreen && g.state.running && g.state.paused && !optionsOpen()) {
+  if (
+    e.target === dom.pauseScreen &&
+    g.state.running &&
+    g.state.paused &&
+    !optionsOpen()
+  ) {
     dom.canvas.requestPointerLock();
   }
 });
@@ -149,7 +208,12 @@ window.addEventListener("keydown", (e) => {
     }
     return;
   }
-  if (e.code === "Escape" && g.state.running && !g.state.paused && g.pendingUpgrades.length > 0) {
+  if (
+    e.code === "Escape" &&
+    g.state.running &&
+    !g.state.paused &&
+    g.pendingUpgrades.length > 0
+  ) {
     dom.upgradeMenu.classList.remove("visible");
     pause();
   }
@@ -193,7 +257,8 @@ dom.optionsBackBtn.addEventListener("click", () => {
 dom.volumeSlider.addEventListener("input", () => {
   const val = Number(dom.volumeSlider.value);
   dom.volumeValue.textContent = String(val);
-  if (g.masterGain) g.masterGain.gain.value = (val / 100) * MASTER_VOLUME_MULT;
+  if (g.masterGain)
+    g.masterGain.gain.value = (val / 100) * AUDIO.masterVolumeMult;
   localStorage.setItem("fps_volume", String(val));
 });
 

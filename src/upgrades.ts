@@ -1,81 +1,72 @@
 import {
-  PLAYER_MAX_HEALTH,
-  PLAYER_SPEED,
-  PLAYER_RELOAD_TIME,
-  PLAYER_MAG_SIZE,
-  PLAYER_RATE_OF_FIRE,
-  PLAYER_HEAT_MAX,
-  PLAYER_HEAT_DECAY,
-  PLAYER_SPREAD_PER_SHOT,
-  PLAYER_MOVE_SPREAD_RATE,
-  PLAYER_BEAM_DAMAGE,
-  UPGRADE_MAX_HEALTH,
-  UPGRADE_SPEED,
-  UPGRADE_RELOAD_SPEED,
-  UPGRADE_MAG_SIZE,
-  UPGRADE_RATE_OF_FIRE,
-  UPGRADE_HEAT_CAPACITY,
-  UPGRADE_HEAT_DECAY,
-  UPGRADE_BLOOM_REDUCTION,
-  UPGRADE_MOVE_SPREAD_REDUCTION,
-  UPGRADE_BEAM_DAMAGE,
-  UPGRADE_ORB_DAMAGE,
-  PLAYER_ORB_DAMAGE,
-  UPGRADE_SUPPLY_DROP_RATE,
-  SUPPLY_DROP_RATE,
-  PLAYER_CRIT_CHANCE,
-  PLAYER_CRIT_DAMAGE,
-  UPGRADE_CRIT_CHANCE,
-  UPGRADE_CRIT_DAMAGE,
-  UPGRADE_ORB_SELF_DAMAGE_REDUCTION,
+  PLAYER,
+  BEAM,
+  SPREAD,
+  HEAT,
+  ORB,
+  SUPPLY,
+  CRIT,
+  MULTISHOT,
+  RICOCHET,
+  LIGHTNING,
+  UPGRADE,
 } from "./constants.js";
 import { g, dom } from "./game.js";
 
 // ─── Effective stat functions ─────────────────────────────────────────────────
 export function effectiveMaxHealth(): number {
-  return PLAYER_MAX_HEALTH + g.upgrades.maxHealth * UPGRADE_MAX_HEALTH;
+  return PLAYER.maxHealth + g.upgrades.maxHealth * UPGRADE.maxHealth;
 }
 export function effectiveSpeed(): number {
-  return PLAYER_SPEED + g.upgrades.speed * UPGRADE_SPEED;
+  return PLAYER.speed + g.upgrades.speed * UPGRADE.speed;
 }
 export function effectiveReloadTime(): number {
-  return PLAYER_RELOAD_TIME * Math.pow(1 - UPGRADE_RELOAD_SPEED, g.upgrades.reloadTime);
+  return BEAM.reloadTime * Math.pow(1 - UPGRADE.reloadSpeed, g.upgrades.reloadTime);
 }
 export function effectiveMagSize(): number {
-  return PLAYER_MAG_SIZE + g.upgrades.magSize * UPGRADE_MAG_SIZE;
+  return BEAM.magSize + g.upgrades.magSize * UPGRADE.magSize;
 }
 export function effectiveCooldown(): number {
-  return 60000 / (PLAYER_RATE_OF_FIRE * (1 + g.upgrades.rateOfFire * UPGRADE_RATE_OF_FIRE));
+  return 60000 / (BEAM.rateOfFire * (1 + g.upgrades.rateOfFire * UPGRADE.rateOfFire));
 }
 export function effectiveHeatMax(): number {
-  return PLAYER_HEAT_MAX * (1 + g.upgrades.heatCapacity * UPGRADE_HEAT_CAPACITY);
+  return HEAT.max * (1 + g.upgrades.heatCapacity * UPGRADE.heatCapacity);
 }
 export function effectiveHeatDecay(): number {
-  return PLAYER_HEAT_DECAY * (1 + g.upgrades.heatDecay * UPGRADE_HEAT_DECAY);
+  return HEAT.decay * (1 + g.upgrades.heatDecay * UPGRADE.heatDecay);
 }
 export function effectiveBloom(): number {
-  return PLAYER_SPREAD_PER_SHOT * Math.pow(1 - UPGRADE_BLOOM_REDUCTION, g.upgrades.bloom);
+  return SPREAD.perShot * Math.pow(1 - UPGRADE.bloomReduction, g.upgrades.bloom);
 }
 export function effectiveMoveSpreadRate(): number {
-  return PLAYER_MOVE_SPREAD_RATE * Math.pow(1 - UPGRADE_MOVE_SPREAD_REDUCTION, g.upgrades.moveSpread);
+  return SPREAD.moveRate * Math.pow(1 - UPGRADE.moveSpreadReduction, g.upgrades.moveSpread);
 }
 export function effectiveBeamDamage(): number {
-  return PLAYER_BEAM_DAMAGE + g.upgrades.beamDamage * UPGRADE_BEAM_DAMAGE;
+  return BEAM.damage + g.upgrades.beamDamage * UPGRADE.beamDamage;
 }
 export function effectiveOrbDamage(): number {
-  return PLAYER_ORB_DAMAGE + g.upgrades.orbDamage * UPGRADE_ORB_DAMAGE;
+  return ORB.damage + g.upgrades.orbDamage * UPGRADE.orbDamage;
 }
 export function effectiveSupplyDropRate(): number {
-  return SUPPLY_DROP_RATE + g.upgrades.supplyDropRate * UPGRADE_SUPPLY_DROP_RATE;
+  return SUPPLY.dropRate + g.upgrades.supplyDropRate * UPGRADE.supplyDropRate;
 }
 export function effectiveCritChance(): number {
-  return PLAYER_CRIT_CHANCE + g.upgrades.critChance * UPGRADE_CRIT_CHANCE;
+  return CRIT.chance + g.upgrades.critChance * UPGRADE.critChance;
 }
 export function effectiveCritDamage(): number {
-  return PLAYER_CRIT_DAMAGE + g.upgrades.critDamage * UPGRADE_CRIT_DAMAGE;
+  return CRIT.damage + g.upgrades.critDamage * UPGRADE.critDamage;
 }
 export function effectiveOrbSelfDamage(): number {
-  return Math.pow(1 - UPGRADE_ORB_SELF_DAMAGE_REDUCTION, g.upgrades.orbSelfDamage);
+  return Math.pow(1 - UPGRADE.orbSelfDamageReduction, g.upgrades.orbSelfDamage);
+}
+export function effectiveMultishotChance(): number {
+  return MULTISHOT.chance + g.upgrades.multishot * UPGRADE.multishotChance;
+}
+export function effectiveRicochetChance(): number {
+  return RICOCHET.chance + g.upgrades.ricochet * UPGRADE.ricochetChance;
+}
+export function effectiveLightningChance(): number {
+  return LIGHTNING.chance + g.upgrades.lightning * UPGRADE.lightningChance;
 }
 
 // ─── HUD callback ─────────────────────────────────────────────────────────────
@@ -94,11 +85,11 @@ interface UpgradeDef {
 const UPGRADE_DEFS: UpgradeDef[] = [
   {
     key: "maxHealth",
-    label: `+${UPGRADE_MAX_HEALTH} Max Health`,
+    label: `+${UPGRADE.maxHealth} Max Health`,
     apply: () => {
       g.upgrades.maxHealth++;
       g.state.health = Math.min(
-        g.state.health + UPGRADE_MAX_HEALTH,
+        g.state.health + UPGRADE.maxHealth,
         effectiveMaxHealth(),
       );
       _updateHUD?.();
@@ -106,73 +97,88 @@ const UPGRADE_DEFS: UpgradeDef[] = [
   },
   {
     key: "speed",
-    label: `+${UPGRADE_SPEED} Speed`,
+    label: `+${UPGRADE.speed} Speed`,
     apply: () => { g.upgrades.speed++; },
   },
   {
     key: "reloadTime",
-    label: `+${Math.round(UPGRADE_RELOAD_SPEED * 100)}% Reload Speed`,
+    label: `+${Math.round(UPGRADE.reloadSpeed * 100)}% Reload Speed`,
     apply: () => { g.upgrades.reloadTime++; },
   },
   {
     key: "magSize",
-    label: `+${UPGRADE_MAG_SIZE} Mag Size`,
+    label: `+${UPGRADE.magSize} Mag Size`,
     apply: () => { g.upgrades.magSize++; },
   },
   {
     key: "rateOfFire",
-    label: `+${UPGRADE_RATE_OF_FIRE * 100}% Fire Rate`,
+    label: `+${UPGRADE.rateOfFire * 100}% Fire Rate`,
     apply: () => { g.upgrades.rateOfFire++; },
   },
   {
     key: "heatCapacity",
-    label: `+${Math.round(UPGRADE_HEAT_CAPACITY * 100)}% Heat Capacity`,
+    label: `+${Math.round(UPGRADE.heatCapacity * 100)}% Heat Capacity`,
     apply: () => { g.upgrades.heatCapacity++; },
   },
   {
     key: "heatDecay",
-    label: `+${Math.round(UPGRADE_HEAT_DECAY * 100)}% Cooling`,
+    label: `+${Math.round(UPGRADE.heatDecay * 100)}% Cooling`,
     apply: () => { g.upgrades.heatDecay++; },
   },
   {
     key: "bloom",
-    label: `-${Math.round(UPGRADE_BLOOM_REDUCTION * 100)}% Bloom`,
+    label: `-${Math.round(UPGRADE.bloomReduction * 100)}% Bloom`,
     apply: () => { g.upgrades.bloom++; },
   },
   {
     key: "moveSpread",
-    label: `+${Math.round(UPGRADE_MOVE_SPREAD_REDUCTION * 100)}% Accuracy While Moving`,
+    label: `+${Math.round(UPGRADE.moveSpreadReduction * 100)}% Accuracy While Moving`,
     apply: () => { g.upgrades.moveSpread++; },
   },
   {
     key: "beamDamage",
-    label: `+${UPGRADE_BEAM_DAMAGE} Beam Damage`,
+    label: `+${UPGRADE.beamDamage} Beam Damage`,
     apply: () => { g.upgrades.beamDamage++; },
   },
   {
     key: "orbDamage",
-    label: `+${UPGRADE_ORB_DAMAGE} Orb Damage`,
+    label: `+${UPGRADE.orbDamage} Orb Damage`,
     apply: () => { g.upgrades.orbDamage++; },
   },
   {
     key: "supplyDropRate",
-    label: `+${Math.round(UPGRADE_SUPPLY_DROP_RATE * 100)}% Supply Drop Rate`,
+    label: `+${Math.round(UPGRADE.supplyDropRate * 100)}% Supply Drop Rate`,
     apply: () => { g.upgrades.supplyDropRate++; },
   },
   {
     key: "critChance",
-    label: `+${Math.round(UPGRADE_CRIT_CHANCE * 100)}% Crit Chance`,
+    label: `+${Math.round(UPGRADE.critChance * 100)}% Crit Chance`,
     apply: () => { g.upgrades.critChance++; },
   },
   {
     key: "critDamage",
-    label: `+${UPGRADE_CRIT_DAMAGE}x Crit Damage`,
+    label: `+${UPGRADE.critDamage}x Crit Damage`,
     apply: () => { g.upgrades.critDamage++; },
   },
   {
     key: "orbSelfDamage",
-    label: `-${Math.round(UPGRADE_ORB_SELF_DAMAGE_REDUCTION * 100)}% Orb Self-Damage`,
+    label: `-${Math.round(UPGRADE.orbSelfDamageReduction * 100)}% Orb Self-Damage`,
     apply: () => { g.upgrades.orbSelfDamage++; },
+  },
+  {
+    key: "multishot",
+    label: `+${Math.round(UPGRADE.multishotChance * 100)}% Multishot Chance`,
+    apply: () => { g.upgrades.multishot++; },
+  },
+  {
+    key: "ricochet",
+    label: `+${Math.round(UPGRADE.ricochetChance * 100)}% Ricochet Chance`,
+    apply: () => { g.upgrades.ricochet++; },
+  },
+  {
+    key: "lightning",
+    label: `+${Math.round(UPGRADE.lightningChance * 100)}% Lightning Chance`,
+    apply: () => { g.upgrades.lightning++; },
   },
 ];
 
