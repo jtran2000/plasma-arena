@@ -69,10 +69,24 @@ export function effectiveLightningChance(): number {
   return LIGHTNING.chance + g.upgrades.lightning * UPGRADE.lightningChance;
 }
 
-// ─── HUD callback ─────────────────────────────────────────────────────────────
-let _updateHUD: (() => void) | null = null;
-export function setUpdateHUD(fn: () => void): void {
-  _updateHUD = fn;
+// ─── HUD ──────────────────────────────────────────────────────────────────────
+export function updateHUD(): void {
+  const maxHp = effectiveMaxHealth();
+  const hpFrac = g.state.health / maxHp;
+  const baseWidth = 120;
+  const barWidth = baseWidth * (maxHp / PLAYER.maxHealth);
+  dom.healthBar.style.width = `${barWidth}px`;
+  dom.healthFill.style.width = `${hpFrac * 100}%`;
+  dom.healthFill.style.background =
+    hpFrac > 0.5 ? "#4f4" : hpFrac > 0.25 ? "#fa0" : "#f44";
+  dom.healthText.textContent = `${Math.ceil(g.state.health)} / ${maxHp}`;
+  dom.ammoEl.textContent = `${g.state.ammo} / ${g.state.reserve}`;
+  dom.scoreEl.textContent = String(g.state.score);
+  dom.killsEl.textContent = String(g.state.kills);
+  dom.waveValue.textContent = String(g.state.wave);
+  dom.waveRemaining.textContent = String(
+    g.state.waveEnemiesLeft + g.enemies.length,
+  );
 }
 
 // ─── Upgrade definitions ────────────────────────────────────────────────────
@@ -92,7 +106,7 @@ const UPGRADE_DEFS: UpgradeDef[] = [
         g.state.health + UPGRADE.maxHealth,
         effectiveMaxHealth(),
       );
-      _updateHUD?.();
+      updateHUD();
     },
   },
   {

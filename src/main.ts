@@ -8,17 +8,15 @@ import { stopOrbChargeSound } from "./audio.js";
 import { AUDIO } from "./constants.js";
 import { buildScene } from "./build.js";
 import {
-  update,
   tryJump,
   shoot,
   startOrbCharge,
   releaseOrbCharge,
   dumpOrbCharge,
   startReload,
-  updateHUD,
-  showWaveBanner,
-  selectUpgrade,
-} from "./update.js";
+} from "./actions.js";
+import { updateHUD, selectUpgrade } from "./upgrades.js";
+import { update, showWaveBanner } from "./update.js";
 
 // ─── Key tracking ─────────────────────────────────────────────────────────────
 window.addEventListener("keydown", (e) => g.pressedKeys.add(e.code));
