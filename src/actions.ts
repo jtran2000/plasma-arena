@@ -30,6 +30,8 @@ import {
   spawnBulletHole,
   spawnSupply,
   spawnFireEffect,
+  spawnDamageNumber,
+  updateEnemyHealthBar,
   killEnemy,
   splitRagdoll,
   hitDebris,
@@ -839,6 +841,10 @@ function explodeOrb(
     dmg = Math.round(dmg * (0.8 + Math.random() * 0.4) * heatPenalty);
     enemy.hp -= dmg;
 
+    const enemyDmgPos = enemy.bodyMesh.getAbsolutePosition();
+    spawnDamageNumber(enemyDmgPos, dmg, isCrit);
+    updateEnemyHealthBar(enemy);
+
     (flashMesh.material as StandardMaterial).emissiveColor = new Color3(
       1,
       0,
@@ -974,6 +980,8 @@ function triggerLightning(enemy: Enemy, critMult: number): void {
     LIGHTNING.damage * critMult * (0.8 + Math.random() * 0.4),
   );
   enemy.hp -= dmg;
+  spawnDamageNumber(enemyPos, dmg, isCrit);
+  updateEnemyHealthBar(enemy);
   const flashColor = isCrit ? new Color3(0.5, 0, 0.9) : new Color3(0.5, 0.7, 1);
   (enemy.bodyMesh.material as StandardMaterial).emissiveColor = flashColor;
   enemy.flashMesh = enemy.bodyMesh;
@@ -1009,6 +1017,8 @@ function triggerLightning(enemy: Enemy, critMult: number): void {
       LIGHTNING.damage * critMult * (0.8 + Math.random() * 0.4),
     );
     closest.hp -= chainDmg;
+    spawnDamageNumber(targetPos, chainDmg, isCrit);
+    updateEnemyHealthBar(closest);
     (closest.bodyMesh.material as StandardMaterial).emissiveColor = flashColor;
     closest.flashMesh = closest.bodyMesh;
     closest.flashTime = 200;
@@ -1036,13 +1046,18 @@ function hitEnemy(
       ? 1 - 0.6 * ((g.state.heat - critHeat) / (hMax - critHeat))
       : 1;
   const critMult = isCrit ? effectiveCritDamage() : 1;
-  enemy.hp -= Math.round(
+  const dmg = Math.round(
     effectiveBeamDamage() *
       (0.8 + Math.random() * 0.4) *
       (headshot ? 2 : 1) *
       heatPenalty *
       critMult,
   );
+  enemy.hp -= dmg;
+
+  const dmgPos = hitPoint ?? enemy.bodyMesh.getAbsolutePosition();
+  spawnDamageNumber(dmgPos, dmg, isCrit);
+  updateEnemyHealthBar(enemy);
 
   (hitMesh.material as StandardMaterial).emissiveColor = new Color3(1, 0, 0);
   enemy.flashMesh = hitMesh;

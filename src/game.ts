@@ -11,6 +11,7 @@ import {
   ParticleSystem,
   PointLight,
 } from "@babylonjs/core";
+import { AdvancedDynamicTexture, Rectangle } from "@babylonjs/gui";
 import { PLAYER, BEAM, SUPPLY, WAVE } from "./constants.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -86,6 +87,10 @@ export interface Enemy {
   fireParticle: ParticleSystem | null;
   fireLight: PointLight | null;
   fireSpreadTimer: number;
+  fireDmgAccum: number;
+  healthBarPlane: Mesh | null;
+  healthBarTexture: AdvancedDynamicTexture | null;
+  healthBarFill: Rectangle | null;
 }
 
 export function makeState(): GameState {

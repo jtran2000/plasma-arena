@@ -23,6 +23,8 @@ import {
   setIncrementScore,
   killEnemy,
   spawnFireEffect,
+  spawnDamageNumber,
+  updateEnemyHealthBar,
 } from "./spawn.js";
 import {
   updateAudioListener,
@@ -148,6 +150,14 @@ function updateTimers(dt: number): void {
     if (!e.onFire) continue;
     const fireDmg = (IGNITE.damagePerSec * dt) / 1000;
     e.hp -= fireDmg;
+    e.fireDmgAccum += fireDmg;
+    updateEnemyHealthBar(e);
+    // Show accumulated fire damage number every 0.5s
+    if (e.fireDmgAccum >= IGNITE.damagePerSec * 0.5) {
+      const pos = e.bodyMesh.getAbsolutePosition();
+      spawnDamageNumber(pos, Math.round(e.fireDmgAccum), false);
+      e.fireDmgAccum = 0;
+    }
     if (e.hp <= 0) {
       killEnemy(e, e.bodyMesh, e.bodyMesh.getAbsolutePosition());
       continue;

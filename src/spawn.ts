@@ -11,6 +11,7 @@ import {
   ParticleSystem,
   PointLight,
 } from "@babylonjs/core";
+import { AdvancedDynamicTexture, Rectangle, TextBlock, Control } from "@babylonjs/gui";
 import {
   ARENA,
   PLAYER,
@@ -1026,7 +1027,13 @@ export function spawnEnemy(): void {
     fireParticle: null,
     fireLight: null,
     fireSpreadTimer: 0,
+    fireDmgAccum: 0,
+    healthBarPlane: null,
+    healthBarTexture: null,
+    healthBarFill: null,
   });
+  const enemy = g.enemies[g.enemies.length - 1];
+  createEnemyHealthBar(enemy);
   playEnemySpawnSound(new Vector3(x, ARENA.ceil - 0.5, z));
 }
 
@@ -1238,6 +1245,95 @@ export function spawnSmokeParticles(): void {
   }, 1500);
 }
 
+// ─── Enemy Health Bar (3D GUI — world space) ──────────────────────────────
+function createEnemyHealthBar(enemy: import("./game.js").Enemy): void {
+  const plane = MeshBuilder.CreatePlane("hpBarPlane", { width: 1.2, height: 0.12 }, g.scene);
+  plane.parent = enemy.physMesh;
+  plane.position.y = 1.5;
+  plane.billboardMode = Mesh.BILLBOARDMODE_ALL;
+  plane.isPickable = false;
+
+  const tex = AdvancedDynamicTexture.CreateForMesh(plane, 120, 12);
+
+  const bg = new Rectangle("hpBg");
+  bg.background = "#000000";
+  bg.color = "transparent";
+  bg.thickness = 0;
+  bg.width = 1;
+  bg.height = 1;
+  tex.addControl(bg);
+
+  const fill = new Rectangle("hpFill");
+  fill.background = "#44ff44";
+  fill.color = "transparent";
+  fill.thickness = 0;
+  fill.width = 1;
+  fill.height = 1;
+  fill.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+  tex.addControl(fill);
+
+  enemy.healthBarPlane = plane;
+  enemy.healthBarTexture = tex;
+  enemy.healthBarFill = fill;
+  // Hidden at full health
+  plane.setEnabled(false);
+}
+
+export function disposeEnemyHealthBar(enemy: import("./game.js").Enemy): void {
+  if (enemy.healthBarPlane) {
+    if (enemy.healthBarTexture) {
+      enemy.healthBarTexture.dispose();
+      enemy.healthBarTexture = null;
+    }
+    enemy.healthBarPlane.dispose();
+    enemy.healthBarPlane = null;
+    enemy.healthBarFill = null;
+  }
+}
+
+export function updateEnemyHealthBar(enemy: import("./game.js").Enemy): void {
+  if (!enemy.healthBarFill || !enemy.healthBarPlane) return;
+  const frac = Math.max(0, enemy.hp / enemy.maxHp);
+  enemy.healthBarFill.width = frac;
+  if (frac > 0.5) enemy.healthBarFill.background = "#44ff44";
+  else if (frac > 0.25) enemy.healthBarFill.background = "#ffaa00";
+  else enemy.healthBarFill.background = "#ff4444";
+  enemy.healthBarPlane.setEnabled(frac < 1);
+}
+
+export function spawnDamageNumber(position: Vector3, amount: number, isCrit: boolean): void {
+  const plane = MeshBuilder.CreatePlane("dmgPlane", { width: 1.2, height: 0.4 }, g.scene);
+  plane.position = position.clone();
+  plane.position.y += 0.5;
+  plane.billboardMode = Mesh.BILLBOARDMODE_ALL;
+  plane.isPickable = false;
+
+  const tex = AdvancedDynamicTexture.CreateForMesh(plane, 120, 40);
+
+  const text = new TextBlock();
+  text.text = String(Math.round(amount));
+  text.color = isCrit ? "#cc44ff" : "#ff4444";
+  text.fontSize = isCrit ? 36 : 28;
+  text.fontWeight = "bold";
+  text.outlineWidth = 3;
+  text.outlineColor = "#000000";
+  tex.addControl(text);
+
+  const startY = plane.position.y;
+  const duration = 800;
+  const startTime = performance.now();
+  const obs = g.scene.onBeforeRenderObservable.add(() => {
+    const t = Math.min((performance.now() - startTime) / duration, 1);
+    plane.position.y = startY + t * 1.5;
+    plane.visibility = 1 - t;
+    if (t >= 1) {
+      g.scene.onBeforeRenderObservable.remove(obs);
+      tex.dispose();
+      plane.dispose();
+    }
+  });
+}
+
 export function spawnFireEffect(enemy: import("./game.js").Enemy): void {
   const emitPos = enemy.bodyMesh.getAbsolutePosition().clone();
   const ps = new ParticleSystem("fire", 60, g.scene);
@@ -1374,9 +1470,10 @@ export function killEnemy(
     enemy.flashMesh = null;
   }
 
-  // Clean up fire effects
+  // Clean up fire effects and health bar
   const wasBurning = enemy.onFire;
   disposeFireEffect(enemy);
+  disposeEnemyHealthBar(enemy);
 
   // Blacken body parts if enemy died while on fire
   const blacken = (mat: StandardMaterial) => {
