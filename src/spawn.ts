@@ -9,6 +9,7 @@ import {
   PhysicsShapeType,
   Quaternion,
   ParticleSystem,
+  PointLight,
 } from "@babylonjs/core";
 import {
   ARENA,
@@ -1021,6 +1022,10 @@ export function spawnEnemy(): void {
     lastFootLeft: false,
     facingYaw: Math.random() * Math.PI * 2,
     attackAnimTime: 0,
+    onFire: false,
+    fireParticle: null,
+    fireLight: null,
+    fireSpreadTimer: 0,
   });
   playEnemySpawnSound(new Vector3(x, ARENA.ceil - 0.5, z));
 }
@@ -1233,6 +1238,66 @@ export function spawnSmokeParticles(): void {
   }, 1500);
 }
 
+export function spawnFireEffect(enemy: import("./game.js").Enemy): void {
+  const emitPos = enemy.bodyMesh.getAbsolutePosition().clone();
+  const ps = new ParticleSystem("fire", 60, g.scene);
+  ps.particleTexture = g.particleTex;
+  ps.emitter = emitPos;
+  ps.minEmitBox = new Vector3(-0.25, -0.3, -0.25);
+  ps.maxEmitBox = new Vector3(0.25, 0.5, 0.25);
+  ps.color1 = new Color4(1, 0.6, 0.1, 1);
+  ps.color2 = new Color4(1, 0.2, 0.0, 0.8);
+  ps.colorDead = new Color4(0.2, 0.2, 0.2, 0);
+  ps.minSize = 0.08;
+  ps.maxSize = 0.25;
+  ps.minLifeTime = 0.2;
+  ps.maxLifeTime = 0.6;
+  ps.emitRate = 80;
+  ps.minEmitPower = 0.5;
+  ps.maxEmitPower = 2;
+  ps.direction1 = new Vector3(-0.3, 0.5, -0.3);
+  ps.direction2 = new Vector3(0.3, 1.5, 0.3);
+  ps.gravity = new Vector3(0, 2, 0);
+  ps.updateSpeed = 0.02;
+  ps.start();
+
+  const light = new PointLight("fireLight", emitPos.clone(), g.scene);
+  light.diffuse = new Color3(1, 0.5, 0.1);
+  light.intensity = 1.5;
+  light.range = 5;
+
+  enemy.fireParticle = ps;
+  enemy.fireLight = light;
+
+  // Track enemy position each frame
+  const obs = g.scene.onBeforeRenderObservable.add(() => {
+    if (enemy.fireParticle !== ps) {
+      g.scene.onBeforeRenderObservable.remove(obs);
+      return;
+    }
+    const p = enemy.bodyMesh.getAbsolutePosition();
+    emitPos.x = p.x;
+    emitPos.y = p.y;
+    emitPos.z = p.z;
+    light.position.copyFrom(p);
+    // Flicker
+    light.intensity = 1.2 + Math.random() * 0.6;
+  });
+}
+
+export function disposeFireEffect(enemy: import("./game.js").Enemy): void {
+  if (enemy.fireParticle) {
+    enemy.fireParticle.stop();
+    const ps = enemy.fireParticle;
+    enemy.fireParticle = null;
+    setTimeout(() => ps.dispose(false), 800);
+  }
+  if (enemy.fireLight) {
+    enemy.fireLight.dispose();
+    enemy.fireLight = null;
+  }
+}
+
 export function spawnLaserBeam(from: Vector3, to: Vector3, isCrit = false): void {
   const dist = Vector3.Distance(from, to);
   if (dist < 0.05) return;
@@ -1309,6 +1374,18 @@ export function killEnemy(
     enemy.flashMesh = null;
   }
 
+  // Clean up fire effects
+  const wasBurning = enemy.onFire;
+  disposeFireEffect(enemy);
+
+  // Blacken body parts if enemy died while on fire
+  const blacken = (mat: StandardMaterial) => {
+    if (!wasBurning) return;
+    mat.diffuseColor = new Color3(0.05, 0.05, 0.05);
+    mat.emissiveColor = new Color3(0.08, 0.03, 0.0);
+    mat.specularColor = new Color3(0.02, 0.02, 0.02);
+  };
+
   const limbs: { mesh: Mesh; pos: Vector3; name: string; splitFn: (p: Vector3, m: StandardMaterial) => [Mesh, Mesh]; makeAgg: (m: Mesh) => PhysicsAggregate; mass: number }[] = [];
   for (const pivot of [enemy.leftLeg, enemy.rightLeg]) {
     const box = pivot.getChildMeshes()[0] as Mesh;
@@ -1332,6 +1409,13 @@ export function killEnemy(
   enemy.headMesh.parent = null;
   enemy.headMesh.position = headWorldPos;
   enemy.visualRoot.dispose();
+
+  // Blacken all parts if burned to death
+  if (wasBurning) {
+    blacken(enemy.bodyMesh.material as StandardMaterial);
+    blacken(enemy.headMesh.material as StandardMaterial);
+    for (const l of limbs) blacken(l.mesh.material as StandardMaterial);
+  }
 
   enemy.aggregate.dispose();
   enemy.physMesh.dispose();

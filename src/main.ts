@@ -105,6 +105,7 @@ async function startGame(): Promise<void> {
     multishot: 0,
     ricochet: 0,
     lightning: 0,
+    ignite: 0,
   };
   g.pendingUpgrades = [];
   if (g.orbCharging) {

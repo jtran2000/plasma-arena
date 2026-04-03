@@ -8,6 +8,8 @@ import {
   PhysicsAggregate,
   DynamicTexture,
   Color3,
+  ParticleSystem,
+  PointLight,
 } from "@babylonjs/core";
 import { PLAYER, BEAM, SUPPLY, WAVE } from "./constants.js";
 
@@ -80,6 +82,10 @@ export interface Enemy {
   lastFootLeft: boolean;
   facingYaw: number;
   attackAnimTime: number;
+  onFire: boolean;
+  fireParticle: ParticleSystem | null;
+  fireLight: PointLight | null;
+  fireSpreadTimer: number;
 }
 
 export function makeState(): GameState {
@@ -224,6 +230,7 @@ export const g = {
     multishot: 0,
     ricochet: 0,
     lightning: 0,
+    ignite: 0,
   },
   pendingUpgrades: [] as string[],
 };

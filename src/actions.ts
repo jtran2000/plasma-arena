@@ -29,6 +29,7 @@ import {
   spawnLaserBeam,
   spawnBulletHole,
   spawnSupply,
+  spawnFireEffect,
   killEnemy,
   splitRagdoll,
   hitDebris,
@@ -57,11 +58,20 @@ import {
   effectiveMultishotChance,
   effectiveRicochetChance,
   effectiveLightningChance,
+  effectiveIgniteChance,
   effectiveSupplyDropRate,
   updateHUD,
 } from "./upgrades.js";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+function tryIgnite(enemy: Enemy): void {
+  if (enemy.onFire) return;
+  if (Math.random() < effectiveIgniteChance()) {
+    enemy.onFire = true;
+    spawnFireEffect(enemy);
+  }
+}
+
 export function isEnemyPart(name: string): boolean {
   return (
     name === "enemyBody" ||
@@ -851,8 +861,11 @@ function explodeOrb(
 
     if (enemy.hp <= 0) {
       killEnemy(enemy, flashMesh, pos, true);
-    } else if (Math.random() < effectiveLightningChance()) {
-      triggerLightning(enemy, critMult);
+    } else {
+      if (Math.random() < effectiveLightningChance()) {
+        triggerLightning(enemy, critMult);
+      }
+      tryIgnite(enemy);
     }
   }
 
@@ -969,6 +982,7 @@ function triggerLightning(enemy: Enemy, critMult: number): void {
     killEnemy(enemy, enemy.bodyMesh, enemyPos);
     return;
   }
+  tryIgnite(enemy);
 
   // Chain to nearby enemies
   const struck = new Set<Enemy>([enemy]);
@@ -1000,6 +1014,8 @@ function triggerLightning(enemy: Enemy, critMult: number): void {
     closest.flashTime = 200;
     if (closest.hp <= 0) {
       killEnemy(closest, closest.bodyMesh, targetPos);
+    } else {
+      tryIgnite(closest);
     }
     chainSource = targetPos;
   }
@@ -1041,6 +1057,9 @@ function hitEnemy(
   if (Math.random() < effectiveLightningChance()) {
     triggerLightning(enemy, critMult);
   }
+
+  // Ignite proc
+  tryIgnite(enemy);
 }
 
 // ─── Score ───────────────────────────────────────────────────────────────────

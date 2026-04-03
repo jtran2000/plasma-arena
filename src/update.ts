@@ -14,12 +14,15 @@ import {
   SCORING,
   WAVE,
   BULLET_HOLE,
+  IGNITE,
 } from "./constants.js";
 import { g, dom } from "./game.js";
 import {
   spawnEnemy,
   spawnSupply,
   setIncrementScore,
+  killEnemy,
+  spawnFireEffect,
 } from "./spawn.js";
 import {
   updateAudioListener,
@@ -36,6 +39,7 @@ import {
   effectiveHeatMax,
   effectiveHeatDecay,
   effectiveMoveSpreadRate,
+  effectiveIgniteChance,
   showUpgradeMenu,
   selectUpgrade,
   updateHUD,
@@ -133,6 +137,33 @@ function updateTimers(dt: number): void {
           (e.flashMesh.material as StandardMaterial).emissiveColor =
             e.baseEmissive.clone();
           e.flashMesh = null;
+        }
+      }
+    }
+  }
+
+  // Fire DOT + spread
+  for (let i = g.enemies.length - 1; i >= 0; i--) {
+    const e = g.enemies[i];
+    if (!e.onFire) continue;
+    const fireDmg = (IGNITE.damagePerSec * dt) / 1000;
+    e.hp -= fireDmg;
+    if (e.hp <= 0) {
+      killEnemy(e, e.bodyMesh, e.bodyMesh.getAbsolutePosition());
+      continue;
+    }
+    // Spread fire to nearby non-burning enemies
+    e.fireSpreadTimer -= dt;
+    if (e.fireSpreadTimer <= 0) {
+      e.fireSpreadTimer = IGNITE.spreadTickMs;
+      const pos = e.bodyMesh.getAbsolutePosition();
+      for (const other of g.enemies) {
+        if (other === e || other.onFire) continue;
+        const dist = Vector3.Distance(pos, other.bodyMesh.getAbsolutePosition());
+        if (dist < IGNITE.spreadRange && Math.random() < effectiveIgniteChance()) {
+          other.onFire = true;
+          other.fireSpreadTimer = IGNITE.spreadTickMs;
+          spawnFireEffect(other);
         }
       }
     }

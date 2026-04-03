@@ -9,6 +9,7 @@ import {
   MULTISHOT,
   RICOCHET,
   LIGHTNING,
+  IGNITE,
   UPGRADE,
 } from "./constants.js";
 import { g, dom } from "./game.js";
@@ -67,6 +68,9 @@ export function effectiveRicochetChance(): number {
 }
 export function effectiveLightningChance(): number {
   return LIGHTNING.chance + g.upgrades.lightning * UPGRADE.lightningChance;
+}
+export function effectiveIgniteChance(): number {
+  return IGNITE.chance + g.upgrades.ignite * UPGRADE.igniteChance;
 }
 
 // ─── HUD ──────────────────────────────────────────────────────────────────────
@@ -193,6 +197,11 @@ const UPGRADE_DEFS: UpgradeDef[] = [
     key: "lightning",
     label: `+${Math.round(UPGRADE.lightningChance * 100)}% Lightning Chance`,
     apply: () => { g.upgrades.lightning++; },
+  },
+  {
+    key: "ignite",
+    label: `+${Math.round(UPGRADE.igniteChance * 100)}% Ignite Chance`,
+    apply: () => { g.upgrades.ignite++; },
   },
 ];
 
