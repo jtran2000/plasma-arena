@@ -4,17 +4,18 @@ import { AUDIO } from "./constants.js";
 
 // ─── Core helpers ─────────────────────────────────────────────────────────────
 function ensureAudioCtx(): AudioContext {
-  if (!g.beamAudioCtx) g.beamAudioCtx = new AudioContext();
-  if (g.beamAudioCtx.state === "suspended") g.beamAudioCtx.resume();
-  return g.beamAudioCtx;
+  if (!g.audioCtx) g.audioCtx = new AudioContext();
+  if (g.audioCtx.state === "suspended") g.audioCtx.resume();
+  return g.audioCtx;
 }
 
 function audioDest(): AudioNode {
-  const ctx = g.beamAudioCtx!;
+  const ctx = g.audioCtx!;
   if (!g.masterGain) {
     g.masterGain = ctx.createGain();
     const saved = localStorage.getItem("fps_volume");
-    g.masterGain.gain.value = (saved !== null ? Number(saved) / 100 : 0.5) * AUDIO.masterVolumeMult;
+    g.masterGain.gain.value =
+      (saved !== null ? Number(saved) / 100 : 0.5) * AUDIO.masterVolumeMult;
     g.masterGain.connect(ctx.destination);
   }
   return g.masterGain;
@@ -36,8 +37,8 @@ function makePanner(ctx: AudioContext, pos: Vector3): PannerNode {
 
 // ─── Listener sync ────────────────────────────────────────────────────────────
 export function updateAudioListener(): void {
-  if (!g.beamAudioCtx) return;
-  const listener = g.beamAudioCtx.listener;
+  if (!g.audioCtx) return;
+  const listener = g.audioCtx.listener;
   const pos = g.camera.position;
   const fwd = g.camera.getForwardRay().direction;
   if (listener.positionX !== undefined) {
@@ -54,7 +55,10 @@ export function updateAudioListener(): void {
 }
 
 // ─── Weapon sounds ────────────────────────────────────────────────────────────
-export function playReloadSounds(reloadTimeMs: number, barrelPos: () => Vector3): void {
+export function playReloadSounds(
+  reloadTimeMs: number,
+  barrelPos: () => Vector3,
+): void {
   const ctx = ensureAudioCtx();
 
   setTimeout(() => {
@@ -296,7 +300,7 @@ export function startOrbChargeSound(): void {
 
 export function updateOrbChargeSound(t: number): void {
   if (!g.orbChargeOsc || !g.orbChargeGain) return;
-  const ctx = g.beamAudioCtx!;
+  const ctx = g.audioCtx!;
   const now = ctx.currentTime;
   g.orbChargeOsc.frequency.setTargetAtTime(60 + 140 * t, now, 0.05);
   g.orbChargeGain.gain.setTargetAtTime(0.05 + 0.3 * t, now, 0.05);
@@ -356,7 +360,10 @@ export function playOrbLaunchSound(pos: Vector3, chargeMultiplier = 1): void {
   noise.start(now);
 }
 
-export function playOrbExplosionSound(pos: Vector3, chargeMultiplier = 1): void {
+export function playOrbExplosionSound(
+  pos: Vector3,
+  chargeMultiplier = 1,
+): void {
   const ctx = ensureAudioCtx();
   const now = ctx.currentTime;
   const panner = makePanner(ctx, pos);
@@ -366,7 +373,10 @@ export function playOrbExplosionSound(pos: Vector3, chargeMultiplier = 1): void 
   const osc = ctx.createOscillator();
   osc.type = "sine";
   osc.frequency.setValueAtTime(60 / chargeMultiplier, now);
-  osc.frequency.exponentialRampToValueAtTime(20 / chargeMultiplier, now + boomDur * 0.8);
+  osc.frequency.exponentialRampToValueAtTime(
+    20 / chargeMultiplier,
+    now + boomDur * 0.8,
+  );
   const gain = ctx.createGain();
   gain.gain.setValueAtTime(0.5 * chargeMultiplier, now);
   gain.gain.exponentialRampToValueAtTime(0.001, now + boomDur);
@@ -465,7 +475,7 @@ export function playLightningSound(pos: Vector3): void {
   const bufLen = Math.floor(ctx.sampleRate * 0.08);
   const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
   const data = buf.getChannelData(0);
-  for (let i = 0; i < bufLen; i++) data[i] = (Math.random() * 2 - 1);
+  for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
   const noise = ctx.createBufferSource();
   noise.buffer = buf;
   const noiseGain = ctx.createGain();
@@ -494,7 +504,8 @@ export function playLightningSound(pos: Vector3): void {
 let fireNoiseBuffer: AudioBuffer | null = null;
 
 function getFireNoiseBuffer(ctx: AudioContext): AudioBuffer {
-  if (fireNoiseBuffer && fireNoiseBuffer.sampleRate === ctx.sampleRate) return fireNoiseBuffer;
+  if (fireNoiseBuffer && fireNoiseBuffer.sampleRate === ctx.sampleRate)
+    return fireNoiseBuffer;
   const len = Math.floor(ctx.sampleRate * 2);
   const buf = ctx.createBuffer(1, len, ctx.sampleRate);
   const data = buf.getChannelData(0);
@@ -503,7 +514,11 @@ function getFireNoiseBuffer(ctx: AudioContext): AudioBuffer {
   return buf;
 }
 
-export function startFireSound(pos: Vector3): { source: AudioBufferSourceNode; panner: PannerNode; gain: GainNode } {
+export function startFireSound(pos: Vector3): {
+  source: AudioBufferSourceNode;
+  panner: PannerNode;
+  gain: GainNode;
+} {
   const ctx = ensureAudioCtx();
   const now = ctx.currentTime;
 
@@ -547,9 +562,15 @@ export function startFireSound(pos: Vector3): { source: AudioBufferSourceNode; p
   return { source, panner, gain };
 }
 
-export function stopFireSound(source: AudioBufferSourceNode, gain: GainNode): void {
-  if (!g.beamAudioCtx) { source.stop(); return; }
-  const now = g.beamAudioCtx.currentTime;
+export function stopFireSound(
+  source: AudioBufferSourceNode,
+  gain: GainNode,
+): void {
+  if (!g.audioCtx) {
+    source.stop();
+    return;
+  }
+  const now = g.audioCtx.currentTime;
   gain.gain.cancelScheduledValues(now);
   gain.gain.setValueAtTime(gain.gain.value, now);
   gain.gain.linearRampToValueAtTime(0, now + 0.2);

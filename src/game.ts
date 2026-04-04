@@ -215,7 +215,7 @@ export const g = {
   shootSpread: 0,
   moveSpread: 0,
   isSprinting: false,
-  beamAudioCtx: null as AudioContext | null,
+  audioCtx: null as AudioContext | null,
   masterGain: null as GainNode | null,
   sprintBobTime: 0,
   pressedKeys: new Set<string>(),
