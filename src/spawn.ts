@@ -14,18 +14,22 @@ import {
 import { AdvancedDynamicTexture, Rectangle, TextBlock, Control } from "@babylonjs/gui";
 import {
   ARENA,
+  LIGHTING,
   PLAYER,
   ORB,
   HEAT,
   SCORING,
   ENEMY,
   BULLET_HOLE,
+  ENEMY_HEALTH_BAR,
 } from "./constants.js";
 import { g, type Enemy } from "./game.js";
 import {
   playEnemySpawnSound,
   playEnemyDeathSound,
   playBeamSound,
+  startFireSound,
+  stopFireSound,
 } from "./audio.js";
 import {
   effectiveCooldown,
@@ -722,7 +726,7 @@ export function makeLegSplitHalves(
 
 // ─── Lamppost (exported) ─────────────────────────────────────────────────────
 export function setupLamppost(): { pole: Mesh; lightY: number } {
-  const lampY = ARENA.ceil - 0.3;
+  const lampY = LIGHTING.lampHeight;
 
   const poleMat = new StandardMaterial("poleMat", g.scene);
   poleMat.diffuseColor = new Color3(0.2, 0.2, 0.22);
@@ -1026,6 +1030,9 @@ export function spawnEnemy(): void {
     onFire: false,
     fireParticle: null,
     fireLight: null,
+    fireAudioSource: null,
+    fireAudioPanner: null,
+    fireAudioGain: null,
     fireSpreadTimer: 0,
     fireDmgAccum: 0,
     healthBarPlane: null,
@@ -1247,16 +1254,21 @@ export function spawnSmokeParticles(): void {
 
 // ─── Enemy Health Bar (3D GUI — world space) ──────────────────────────────
 function createEnemyHealthBar(enemy: import("./game.js").Enemy): void {
-  const plane = MeshBuilder.CreatePlane("hpBarPlane", { width: 1.2, height: 0.12 }, g.scene);
+  const plane = MeshBuilder.CreatePlane("hpBarPlane", {
+    width: ENEMY_HEALTH_BAR.width,
+    height: ENEMY_HEALTH_BAR.height,
+  }, g.scene);
   plane.parent = enemy.physMesh;
-  plane.position.y = 1.5;
+  plane.position.y = ENEMY_HEALTH_BAR.offsetY;
   plane.billboardMode = Mesh.BILLBOARDMODE_ALL;
   plane.isPickable = false;
 
-  const tex = AdvancedDynamicTexture.CreateForMesh(plane, 120, 12);
+  const tex = AdvancedDynamicTexture.CreateForMesh(
+    plane, ENEMY_HEALTH_BAR.texW, ENEMY_HEALTH_BAR.texH,
+  );
 
   const bg = new Rectangle("hpBg");
-  bg.background = "#000000";
+  bg.background = ENEMY_HEALTH_BAR.bgColor;
   bg.color = "transparent";
   bg.thickness = 0;
   bg.width = 1;
@@ -1264,7 +1276,7 @@ function createEnemyHealthBar(enemy: import("./game.js").Enemy): void {
   tex.addControl(bg);
 
   const fill = new Rectangle("hpFill");
-  fill.background = "#44ff44";
+  fill.background = ENEMY_HEALTH_BAR.color;
   fill.color = "transparent";
   fill.thickness = 0;
   fill.width = 1;
@@ -1295,9 +1307,6 @@ export function updateEnemyHealthBar(enemy: import("./game.js").Enemy): void {
   if (!enemy.healthBarFill || !enemy.healthBarPlane) return;
   const frac = Math.max(0, enemy.hp / enemy.maxHp);
   enemy.healthBarFill.width = frac;
-  if (frac > 0.5) enemy.healthBarFill.background = "#44ff44";
-  else if (frac > 0.25) enemy.healthBarFill.background = "#ffaa00";
-  else enemy.healthBarFill.background = "#ff4444";
   enemy.healthBarPlane.setEnabled(frac < 1);
 }
 
@@ -1365,6 +1374,11 @@ export function spawnFireEffect(enemy: import("./game.js").Enemy): void {
   enemy.fireParticle = ps;
   enemy.fireLight = light;
 
+  const audio = startFireSound(emitPos);
+  enemy.fireAudioSource = audio.source;
+  enemy.fireAudioPanner = audio.panner;
+  enemy.fireAudioGain = audio.gain;
+
   // Track enemy position each frame
   const obs = g.scene.onBeforeRenderObservable.add(() => {
     if (enemy.fireParticle !== ps) {
@@ -1378,6 +1392,12 @@ export function spawnFireEffect(enemy: import("./game.js").Enemy): void {
     light.position.copyFrom(p);
     // Flicker
     light.intensity = 1.2 + Math.random() * 0.6;
+    // Update audio position
+    if (enemy.fireAudioPanner) {
+      enemy.fireAudioPanner.positionX.value = p.x;
+      enemy.fireAudioPanner.positionY.value = p.y;
+      enemy.fireAudioPanner.positionZ.value = p.z;
+    }
   });
 }
 
@@ -1391,6 +1411,12 @@ export function disposeFireEffect(enemy: import("./game.js").Enemy): void {
   if (enemy.fireLight) {
     enemy.fireLight.dispose();
     enemy.fireLight = null;
+  }
+  if (enemy.fireAudioSource && enemy.fireAudioGain) {
+    stopFireSound(enemy.fireAudioSource, enemy.fireAudioGain);
+    enemy.fireAudioSource = null;
+    enemy.fireAudioPanner = null;
+    enemy.fireAudioGain = null;
   }
 }
 

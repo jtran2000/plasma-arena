@@ -21,10 +21,7 @@ import {
   spawnEnemy,
   spawnSupply,
   setIncrementScore,
-  killEnemy,
   spawnFireEffect,
-  spawnDamageNumber,
-  updateEnemyHealthBar,
 } from "./spawn.js";
 import {
   updateAudioListener,
@@ -56,6 +53,7 @@ import {
   damagePlayer,
   isEnemyPart,
   findEnemyByMesh,
+  damageEnemy,
 } from "./actions.js";
 export { selectUpgrade };
 
@@ -145,22 +143,16 @@ function updateTimers(dt: number): void {
   }
 
   // Fire DOT + spread
+  const tickThreshold = IGNITE.damagePerSec / IGNITE.ticksPerSec;
   for (let i = g.enemies.length - 1; i >= 0; i--) {
     const e = g.enemies[i];
     if (!e.onFire) continue;
-    const fireDmg = (IGNITE.damagePerSec * dt) / 1000;
-    e.hp -= fireDmg;
-    e.fireDmgAccum += fireDmg;
-    updateEnemyHealthBar(e);
-    // Show accumulated fire damage number every 0.5s
-    if (e.fireDmgAccum >= IGNITE.damagePerSec * 0.5) {
-      const pos = e.bodyMesh.getAbsolutePosition();
-      spawnDamageNumber(pos, Math.round(e.fireDmgAccum), false);
+    e.fireDmgAccum += (IGNITE.damagePerSec * dt) / 1000;
+    if (e.fireDmgAccum >= tickThreshold) {
+      const tickDmg = Math.round(e.fireDmgAccum);
       e.fireDmgAccum = 0;
-    }
-    if (e.hp <= 0) {
-      killEnemy(e, e.bodyMesh, e.bodyMesh.getAbsolutePosition());
-      continue;
+      const pos = e.bodyMesh.getAbsolutePosition();
+      if (damageEnemy(e, tickDmg, e.bodyMesh, pos, false)) continue;
     }
     // Spread fire to nearby non-burning enemies
     e.fireSpreadTimer -= dt;

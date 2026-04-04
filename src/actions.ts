@@ -74,6 +74,29 @@ function tryIgnite(enemy: Enemy): void {
   }
 }
 
+export function damageEnemy(
+  enemy: Enemy,
+  amount: number,
+  killMesh: Mesh,
+  hitPoint: Vector3,
+  isCrit: boolean,
+  opts?: { orbKill?: boolean; canLightning?: boolean; canIgnite?: boolean; showNumber?: boolean },
+): boolean {
+  enemy.hp -= amount;
+  if (opts?.showNumber !== false) spawnDamageNumber(hitPoint, amount, isCrit);
+  updateEnemyHealthBar(enemy);
+  if (enemy.hp <= 0) {
+    killEnemy(enemy, killMesh, hitPoint, opts?.orbKill);
+    return true;
+  }
+  const critMult = isCrit ? effectiveCritDamage() : 1;
+  if (opts?.canLightning && Math.random() < effectiveLightningChance()) {
+    triggerLightning(enemy, critMult);
+  }
+  if (opts?.canIgnite) tryIgnite(enemy);
+  return false;
+}
+
 export function isEnemyPart(name: string): boolean {
   return (
     name === "enemyBody" ||
@@ -839,11 +862,6 @@ function explodeOrb(
     }
 
     dmg = Math.round(dmg * (0.8 + Math.random() * 0.4) * heatPenalty);
-    enemy.hp -= dmg;
-
-    const enemyDmgPos = enemy.bodyMesh.getAbsolutePosition();
-    spawnDamageNumber(enemyDmgPos, dmg, isCrit);
-    updateEnemyHealthBar(enemy);
 
     (flashMesh.material as StandardMaterial).emissiveColor = new Color3(
       1,
@@ -865,14 +883,7 @@ function explodeOrb(
       );
     }
 
-    if (enemy.hp <= 0) {
-      killEnemy(enemy, flashMesh, pos, true);
-    } else {
-      if (Math.random() < effectiveLightningChance()) {
-        triggerLightning(enemy, critMult);
-      }
-      tryIgnite(enemy);
-    }
+    damageEnemy(enemy, dmg, flashMesh, ePos, isCrit, { orbKill: true, canLightning: true, canIgnite: true });
   }
 
   // Knockback and split/shrink on ragdoll debris
@@ -979,18 +990,11 @@ function triggerLightning(enemy: Enemy, critMult: number): void {
   const dmg = Math.round(
     LIGHTNING.damage * critMult * (0.8 + Math.random() * 0.4),
   );
-  enemy.hp -= dmg;
-  spawnDamageNumber(enemyPos, dmg, isCrit);
-  updateEnemyHealthBar(enemy);
   const flashColor = isCrit ? new Color3(0.5, 0, 0.9) : new Color3(0.5, 0.7, 1);
   (enemy.bodyMesh.material as StandardMaterial).emissiveColor = flashColor;
   enemy.flashMesh = enemy.bodyMesh;
   enemy.flashTime = 200;
-  if (enemy.hp <= 0) {
-    killEnemy(enemy, enemy.bodyMesh, enemyPos);
-    return;
-  }
-  tryIgnite(enemy);
+  if (damageEnemy(enemy, dmg, enemy.bodyMesh, enemyPos, isCrit, { canIgnite: true })) return;
 
   // Chain to nearby enemies
   const struck = new Set<Enemy>([enemy]);
@@ -1016,17 +1020,10 @@ function triggerLightning(enemy: Enemy, critMult: number): void {
     const chainDmg = Math.round(
       LIGHTNING.damage * critMult * (0.8 + Math.random() * 0.4),
     );
-    closest.hp -= chainDmg;
-    spawnDamageNumber(targetPos, chainDmg, isCrit);
-    updateEnemyHealthBar(closest);
     (closest.bodyMesh.material as StandardMaterial).emissiveColor = flashColor;
     closest.flashMesh = closest.bodyMesh;
     closest.flashTime = 200;
-    if (closest.hp <= 0) {
-      killEnemy(closest, closest.bodyMesh, targetPos);
-    } else {
-      tryIgnite(closest);
-    }
+    damageEnemy(closest, chainDmg, closest.bodyMesh, targetPos, isCrit, { canIgnite: true });
     chainSource = targetPos;
   }
 }
@@ -1053,28 +1050,12 @@ function hitEnemy(
       heatPenalty *
       critMult,
   );
-  enemy.hp -= dmg;
-
-  const dmgPos = hitPoint ?? enemy.bodyMesh.getAbsolutePosition();
-  spawnDamageNumber(dmgPos, dmg, isCrit);
-  updateEnemyHealthBar(enemy);
-
   (hitMesh.material as StandardMaterial).emissiveColor = new Color3(1, 0, 0);
   enemy.flashMesh = hitMesh;
   enemy.flashTime = effectiveCooldown() * 0.6;
 
-  if (enemy.hp <= 0) {
-    killEnemy(enemy, hitMesh, hitPoint);
-    return;
-  }
-
-  // Lightning proc
-  if (Math.random() < effectiveLightningChance()) {
-    triggerLightning(enemy, critMult);
-  }
-
-  // Ignite proc
-  tryIgnite(enemy);
+  const dmgPos = hitPoint ?? enemy.bodyMesh.getAbsolutePosition();
+  damageEnemy(enemy, dmg, hitMesh, dmgPos, isCrit, { canLightning: true, canIgnite: true });
 }
 
 // ─── Score ───────────────────────────────────────────────────────────────────

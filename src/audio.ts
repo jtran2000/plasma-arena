@@ -489,3 +489,69 @@ export function playLightningSound(pos: Vector3): void {
   osc.start(now);
   osc.stop(now + 0.13);
 }
+
+// ─── Fire loop ──────────────────────────────────────────────────────────────
+let fireNoiseBuffer: AudioBuffer | null = null;
+
+function getFireNoiseBuffer(ctx: AudioContext): AudioBuffer {
+  if (fireNoiseBuffer && fireNoiseBuffer.sampleRate === ctx.sampleRate) return fireNoiseBuffer;
+  const len = Math.floor(ctx.sampleRate * 2);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  fireNoiseBuffer = buf;
+  return buf;
+}
+
+export function startFireSound(pos: Vector3): { source: AudioBufferSourceNode; panner: PannerNode; gain: GainNode } {
+  const ctx = ensureAudioCtx();
+  const now = ctx.currentTime;
+
+  const source = ctx.createBufferSource();
+  source.buffer = getFireNoiseBuffer(ctx);
+  source.loop = true;
+
+  // Bandpass filter for crackling fire tone
+  const bp = ctx.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.frequency.value = 600;
+  bp.Q.value = 0.8;
+
+  // Gentle amplitude modulation for crackle
+  const lfo = ctx.createOscillator();
+  lfo.type = "triangle";
+  lfo.frequency.value = 8;
+  const lfoGain = ctx.createGain();
+  lfoGain.gain.value = 0.3;
+  lfo.connect(lfoGain);
+
+  const gain = ctx.createGain();
+  gain.gain.value = 0.12;
+  lfoGain.connect(gain.gain);
+
+  const panner = makePanner(ctx, pos);
+  panner.refDistance = 2;
+  panner.rolloffFactor = 1.5;
+
+  source.connect(bp);
+  bp.connect(gain);
+  gain.connect(panner);
+
+  // Fade in
+  gain.gain.setValueAtTime(0, now);
+  gain.gain.linearRampToValueAtTime(0.12, now + 0.3);
+
+  source.start(now);
+  lfo.start(now);
+
+  return { source, panner, gain };
+}
+
+export function stopFireSound(source: AudioBufferSourceNode, gain: GainNode): void {
+  if (!g.beamAudioCtx) { source.stop(); return; }
+  const now = g.beamAudioCtx.currentTime;
+  gain.gain.cancelScheduledValues(now);
+  gain.gain.setValueAtTime(gain.gain.value, now);
+  gain.gain.linearRampToValueAtTime(0, now + 0.2);
+  source.stop(now + 0.25);
+}

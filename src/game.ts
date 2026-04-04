@@ -86,6 +86,9 @@ export interface Enemy {
   onFire: boolean;
   fireParticle: ParticleSystem | null;
   fireLight: PointLight | null;
+  fireAudioSource: AudioBufferSourceNode | null;
+  fireAudioPanner: PannerNode | null;
+  fireAudioGain: GainNode | null;
   fireSpreadTimer: number;
   fireDmgAccum: number;
   healthBarPlane: Mesh | null;

@@ -6,14 +6,15 @@ export const ARENA = {
 
 // ─── Lighting & Fog ─────────────────────────────────────────────────────────
 export const LIGHTING = {
-  ambientIntensity: 0.1,
+  ambientIntensity: 0.01,
   ambientGroundR: 0.03,
   ambientGroundG: 0.03,
   ambientGroundB: 0.05,
-  spotAngle: Math.PI * 0.8, // radians
-  spotExponent: 1.5,
-  spotIntensity: 3.0,
-  spotRange: 55, // m
+  lampHeight: 5, // lamp height from floor (m)
+  spotAngle: Math.PI * 0.9, // radians — wider cone for lower lamp
+  spotExponent: 1.25, // softer falloff at edges
+  spotIntensity: 2.5, // slightly dimmer up close
+  spotRange: 25, // m
   fogDensity: 0.03,
 } as const;
 
@@ -35,6 +36,17 @@ export const ENEMY = {
   turnSpeed: 3, // radians per second
   zigzagFreq: 0.5, // full zigzag cycles per second
   zigzagAmplitude: 0.8, // lateral offset strength (0-1)
+} as const;
+
+// ─── Health Bar ─────────────────────────────────────────────────────────────
+export const ENEMY_HEALTH_BAR = {
+  width: 0.8, // world-space plane width (m)
+  height: 0.05, // world-space plane height (m)
+  offsetY: 1.2, // distance above enemy center (m)
+  texW: 120, // texture resolution width (px)
+  texH: 12, // texture resolution height (px)
+  color: "#ff4444", // fill color
+  bgColor: "rgba(128, 128, 128, 0.4)", // missing health background
 } as const;
 
 // ─── Player — Health & Movement ─────────────────────────────────────────────
@@ -115,14 +127,14 @@ export const WAVE = {
 
 // ─── Critical Hits ─────────────────────────────────────────────────────────
 export const CRIT = {
-  chance: 0.06, // base % chance
+  chance: 0.08, // base % chance
   damage: 2, // base multiplier
 } as const;
 
 // ─── Multishot ────────────────────────────────────────────────────────────
 export const MULTISHOT = {
   chance: 0.08, // base % chance to fire 3 shots
-  angle: 0.06, // radians — spread angle for side shots
+  angle: 0.12, // radians — spread angle for side shots
 } as const;
 
 // ─── Ricochet ─────────────────────────────────────────────────────────────
@@ -146,6 +158,7 @@ export const IGNITE = {
   damagePerSec: 8, // fire DOT damage per second
   spreadRange: 2, // m — max distance fire can spread to nearby enemies
   spreadTickMs: 500, // ms between spread checks per burning enemy
+  ticksPerSec: 2, // fire damage ticks per second
 } as const;
 
 // ─── Upgrades — Amount Gained Per Upgrade ───────────────────────────────────

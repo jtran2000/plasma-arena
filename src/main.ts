@@ -141,6 +141,7 @@ export function pause(): void {
   g.scene.physicsEnabled = false;
   dom.pauseScreen.style.display = "flex";
   dom.hud.classList.add("paused");
+  if (g.beamAudioCtx) g.beamAudioCtx.suspend();
 }
 
 export function resume(): void {
@@ -148,6 +149,7 @@ export function resume(): void {
   g.scene.physicsEnabled = true;
   dom.pauseScreen.style.display = "none";
   dom.hud.classList.remove("paused");
+  if (g.beamAudioCtx) g.beamAudioCtx.resume();
   if (g.pendingUpgrades.length > 0) {
     dom.upgradeMenu.classList.add("visible");
     document.exitPointerLock();
