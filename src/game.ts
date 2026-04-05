@@ -132,22 +132,15 @@ function getEl(id: string): HTMLElement {
 
 export const dom = {
   canvas: getEl("renderCanvas") as HTMLCanvasElement,
-  overlay: getEl("overlay"),
-  startBtn: getEl("start-btn"),
   hud: getEl("hud"),
-  gameOver: getEl("game-over"),
-  restartBtn: getEl("restart-btn"),
   healthBar: getEl("health-bar"),
   healthFill: getEl("health-fill"),
   healthText: getEl("health-text"),
   ammoEl: getEl("ammo-value"),
   scoreEl: getEl("score-value"),
   killsEl: getEl("kills-value"),
-  finalWaveEl: getEl("final-wave"),
-  finalScoreEl: getEl("final-score"),
   hitFlash: getEl("hit-flash"),
   reloadMsg: getEl("reload-msg"),
-  pauseScreen: getEl("pause-screen"),
   crosshair: getEl("crosshair"),
   chTop: document.querySelector(".ch-top") as HTMLElement,
   chBottom: document.querySelector(".ch-bottom") as HTMLElement,
@@ -170,14 +163,6 @@ export const dom = {
   upgradeButtons: Array.from(
     document.querySelectorAll(".upgrade-option"),
   ) as HTMLButtonElement[],
-  optionsScreen: getEl("options-screen"),
-  optionsBtn: getEl("options-btn"),
-  startOptionsBtn: getEl("start-options-btn"),
-  optionsBackBtn: getEl("options-back-btn"),
-  volumeSlider: getEl("volume-slider") as HTMLInputElement,
-  volumeValue: getEl("volume-value"),
-  sensitivitySlider: getEl("sensitivity-slider") as HTMLInputElement,
-  sensitivityValue: getEl("sensitivity-value"),
 };
 
 // ─── Shared mutable game context ──────────────────────────────────────────────
@@ -215,6 +200,7 @@ export const g = {
   shootSpread: 0,
   moveSpread: 0,
   isSprinting: false,
+  guiTexture: null as unknown as AdvancedDynamicTexture,
   audioCtx: null as AudioContext | null,
   masterGain: null as GainNode | null,
   sprintBobTime: 0,
@@ -243,14 +229,17 @@ export const g = {
   pendingUpgrades: [] as string[],
 };
 
+let gameOverCallback: (() => void) | null = null;
+export function setGameOverCallback(fn: () => void): void {
+  gameOverCallback = fn;
+}
+
 export function endGame(): void {
   g.state.running = false;
   g.mouseHeld = false;
   g.pressedKeys.clear();
   g.weaponRoot.setEnabled(false);
   dom.hud.style.display = "none";
-  dom.gameOver.style.display = "flex";
-  dom.finalWaveEl.textContent = `Wave: ${g.state.wave}`;
-  dom.finalScoreEl.textContent = `Score: ${g.state.score}  |  Kills: ${g.state.kills}`;
   document.exitPointerLock();
+  gameOverCallback?.();
 }

@@ -20,7 +20,7 @@ export const LIGHTING = {
 
 // ─── Enemy — Base Stats ─────────────────────────────────────────────────────
 export const ENEMY = {
-  hp: 5000,
+  hp: 50,
   speed: 2, // m/s
   meleeRange: 1.8, // m
   meleeDamage: 10,

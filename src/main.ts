@@ -2,10 +2,12 @@ import {
   PointerEventTypes,
   ActionManager,
   ExecuteCodeAction,
+  Scene,
+  FreeCamera,
+  Vector3,
 } from "@babylonjs/core";
-import { g, dom, makeState } from "./game.js";
+import { g, dom, makeState, setGameOverCallback } from "./game.js";
 import { stopOrbChargeSound } from "./audio.js";
-import { AUDIO } from "./constants.js";
 import { buildScene } from "./build.js";
 import {
   tryJump,
@@ -17,6 +19,18 @@ import {
 } from "./actions.js";
 import { updateHUD, selectUpgrade } from "./upgrades.js";
 import { update, showWaveBanner } from "./update.js";
+import {
+  createUI,
+  setOnPlay,
+  setOnRestart,
+  hideStart,
+  showPause,
+  hidePause,
+  showGameOver,
+  optionsOpen,
+  hideOptions,
+  getSensitivityValue,
+} from "./ui.js";
 
 // ─── Key tracking ─────────────────────────────────────────────────────────────
 window.addEventListener("keydown", (e) => g.pressedKeys.add(e.code));
@@ -25,6 +39,7 @@ window.addEventListener("keyup", (e) => g.pressedKeys.delete(e.code));
 // ─── Input setup ──────────────────────────────────────────────────────────────
 function setupInput(): void {
   g.scene.onPointerObservable.add((info) => {
+    if (g.state.paused) return;
     if (info.event.button === 0) {
       if (info.type === PointerEventTypes.POINTERDOWN) {
         g.mouseHeld = true;
@@ -80,10 +95,6 @@ function setupInput(): void {
 
 // ─── Game flow ────────────────────────────────────────────────────────────────
 async function startGame(): Promise<void> {
-  dom.overlay.style.display = "none";
-  dom.gameOver.style.display = "none";
-  dom.pauseScreen.style.display = "none";
-  dom.optionsScreen.style.display = "none";
   dom.upgradeMenu.classList.remove("visible");
   dom.hud.style.display = "block";
   g.upgrades = {
@@ -123,7 +134,9 @@ async function startGame(): Promise<void> {
 
   g.state = makeState();
   await buildScene();
-  g.camera.angularSensibility = 2200 - Number(dom.sensitivitySlider.value) * 20;
+  createUI();
+  hideStart();
+  g.camera.angularSensibility = 2200 - getSensitivityValue() * 20;
   setupInput();
   g.scene.registerBeforeRender(update);
   g.state.running = true;
@@ -131,7 +144,7 @@ async function startGame(): Promise<void> {
   showWaveBanner("Wave 1");
 
   g.camera.attachControl(dom.canvas, true);
-  dom.canvas.requestPointerLock();
+  dom.canvas.requestPointerLock({ unadjustedMovement: true });
 }
 
 export function pause(): void {
@@ -139,7 +152,8 @@ export function pause(): void {
   g.mouseHeld = false;
   g.pressedKeys.clear();
   g.scene.physicsEnabled = false;
-  dom.pauseScreen.style.display = "flex";
+  g.camera.detachControl();
+  showPause();
   dom.hud.classList.add("paused");
   if (g.audioCtx) g.audioCtx.suspend();
 }
@@ -147,7 +161,8 @@ export function pause(): void {
 export function resume(): void {
   g.state.paused = false;
   g.scene.physicsEnabled = true;
-  dom.pauseScreen.style.display = "none";
+  g.camera.attachControl(dom.canvas, true);
+  hidePause();
   dom.hud.classList.remove("paused");
   if (g.audioCtx) g.audioCtx.resume();
   if (g.pendingUpgrades.length > 0) {
@@ -157,15 +172,17 @@ export function resume(): void {
 }
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
-dom.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
-dom.startBtn.addEventListener("click", () => startGame().catch(console.error));
-dom.restartBtn.addEventListener("click", () =>
-  startGame().catch(console.error),
-);
+g.scene = new Scene(g.engine);
+new FreeCamera("menuCam", Vector3.Zero(), g.scene);
+createUI();
 
-function optionsOpen(): boolean {
-  return dom.optionsScreen.style.display === "flex";
-}
+setOnPlay(() => startGame().catch(console.error));
+setOnRestart(() => startGame().catch(console.error));
+setGameOverCallback(() => {
+  showGameOver(g.state.wave, g.state.score, g.state.kills);
+});
+
+dom.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
 dom.canvas.addEventListener("click", () => {
   if (optionsOpen()) return;
@@ -174,20 +191,11 @@ dom.canvas.addEventListener("click", () => {
     !g.state.paused &&
     document.pointerLockElement !== dom.canvas
   ) {
-    dom.canvas.requestPointerLock();
+    dom.canvas.requestPointerLock({ unadjustedMovement: true });
   }
 });
 
-dom.pauseScreen.addEventListener("click", (e) => {
-  if (
-    e.target === dom.pauseScreen &&
-    g.state.running &&
-    g.state.paused &&
-    !optionsOpen()
-  ) {
-    dom.canvas.requestPointerLock();
-  }
-});
+let escapePaused = false;
 
 document.addEventListener("pointerlockchange", () => {
   if (!g.state.running) return;
@@ -195,79 +203,35 @@ document.addEventListener("pointerlockchange", () => {
   if (document.pointerLockElement === dom.canvas) {
     if (g.state.paused) resume();
   } else {
-    if (g.pendingUpgrades.length === 0) pause();
+    if (escapePaused) {
+      escapePaused = false;
+    } else if (g.pendingUpgrades.length === 0) {
+      pause();
+    }
   }
+});
+
+document.addEventListener("pointerlockerror", () => {
+  hidePause();
+  console.error("Pointer lock error");
+  setTimeout(() => {
+    dom.canvas.requestPointerLock({ unadjustedMovement: true });
+  }, 1);
 });
 
 window.addEventListener("keydown", (e) => {
   if (e.code === "Escape" && optionsOpen()) {
-    dom.optionsScreen.style.display = "none";
-    if (optionsFrom === "start") {
-      dom.overlay.style.display = "flex";
-    } else {
-      dom.pauseScreen.style.display = "flex";
-    }
+    hideOptions();
     return;
   }
-  if (
-    e.code === "Escape" &&
-    g.state.running &&
-    !g.state.paused &&
-    g.pendingUpgrades.length > 0
-  ) {
-    dom.upgradeMenu.classList.remove("visible");
+  if (e.code === "Escape" && g.state.running && !g.state.paused) {
+    if (g.pendingUpgrades.length > 0) {
+      dom.upgradeMenu.classList.remove("visible");
+    }
+    escapePaused = true;
     pause();
+    document.exitPointerLock();
   }
-});
-
-// ─── Options menu ────────────────────────────────────────────────────────────
-const savedVolume = localStorage.getItem("fps_volume");
-const savedSensitivity = localStorage.getItem("fps_sensitivity");
-if (savedVolume !== null) {
-  dom.volumeSlider.value = savedVolume;
-  dom.volumeValue.textContent = savedVolume;
-}
-if (savedSensitivity !== null) {
-  dom.sensitivitySlider.value = savedSensitivity;
-  dom.sensitivityValue.textContent = savedSensitivity;
-}
-
-let optionsFrom: "pause" | "start" = "pause";
-
-dom.optionsBtn.addEventListener("click", () => {
-  optionsFrom = "pause";
-  dom.pauseScreen.style.display = "none";
-  dom.optionsScreen.style.display = "flex";
-});
-
-dom.startOptionsBtn.addEventListener("click", () => {
-  optionsFrom = "start";
-  dom.overlay.style.display = "none";
-  dom.optionsScreen.style.display = "flex";
-});
-
-dom.optionsBackBtn.addEventListener("click", () => {
-  dom.optionsScreen.style.display = "none";
-  if (optionsFrom === "start") {
-    dom.overlay.style.display = "flex";
-  } else {
-    dom.pauseScreen.style.display = "flex";
-  }
-});
-
-dom.volumeSlider.addEventListener("input", () => {
-  const val = Number(dom.volumeSlider.value);
-  dom.volumeValue.textContent = String(val);
-  if (g.masterGain)
-    g.masterGain.gain.value = (val / 100) * AUDIO.masterVolumeMult;
-  localStorage.setItem("fps_volume", String(val));
-});
-
-dom.sensitivitySlider.addEventListener("input", () => {
-  const val = Number(dom.sensitivitySlider.value);
-  dom.sensitivityValue.textContent = String(val);
-  if (g.camera) g.camera.angularSensibility = 2200 - val * 20;
-  localStorage.setItem("fps_sensitivity", String(val));
 });
 
 g.engine.runRenderLoop(() => {

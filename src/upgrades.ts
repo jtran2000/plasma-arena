@@ -227,7 +227,7 @@ export function showUpgradeMenu(): void {
 function hideUpgradeMenu(): void {
   dom.upgradeMenu.classList.remove("visible");
   g.pendingUpgrades = [];
-  dom.canvas.requestPointerLock();
+  dom.canvas.requestPointerLock({ unadjustedMovement: true });
 }
 
 export function selectUpgrade(index: number): void {

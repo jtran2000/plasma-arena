@@ -9,13 +9,6 @@
 <body>
   <canvas id="renderCanvas"></canvas>
 
-  <div id="overlay">
-    <h1>FPS</h1>
-    <p>WASD to move &bull; Mouse to look<br>Left click to shoot &bull; R to reload<br>Shift to sprint</p>
-    <button id="start-btn">&#9654; Play</button>
-    <button id="start-options-btn">&#9881; Options</button>
-  </div>
-
   <div id="hud">
     <div id="crosshair">
       <span class="ch-line ch-top"></span>
@@ -60,34 +53,6 @@
         <button class="upgrade-option" data-index="2"><span class="upgrade-key">3</span><span class="upgrade-label"></span><span class="upgrade-count"></span></button>
       </div>
     </div>
-  </div>
-
-  <div id="pause-screen">
-    <h2>Paused</h2>
-    <button id="resume-btn">&#9654; Resume</button>
-    <button id="options-btn">&#9881; Options</button>
-  </div>
-
-  <div id="options-screen">
-    <h2>Options</h2>
-    <div class="option-row">
-      <label for="volume-slider">Volume</label>
-      <input type="range" id="volume-slider" min="0" max="100" value="50">
-      <span id="volume-value">50</span>
-    </div>
-    <div class="option-row">
-      <label for="sensitivity-slider">Mouse Sensitivity</label>
-      <input type="range" id="sensitivity-slider" min="1" max="100" value="50">
-      <span id="sensitivity-value">50</span>
-    </div>
-    <button id="options-back-btn">&#9664; Back</button>
-  </div>
-
-  <div id="game-over">
-    <h1>Game Over</h1>
-    <p id="final-wave">Wave: 1</p>
-    <p id="final-score">Score: 0</p>
-    <button id="restart-btn">Restart</button>
   </div>
 
   <script type="module" src="/src/main.ts"></script>
