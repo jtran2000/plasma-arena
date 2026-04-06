@@ -34,7 +34,7 @@ actions.ts    <- Player actions: jumping, melee, laser shooting, plasma
                  charging/firing, reloading, damage, scoring, proc logic
 update.ts     <- Game loop: player movement, enemy AI, waves, timers, HUD
 ui.ts         <- Babylon GUI overlay screens (start, pause, options, game over)
-flow.ts       <- Run lifecycle orchestration: start/reset, pause, resume
+flow.ts       <- Run lifecycle orchestration: start/reset, end, pause, resume
 input.ts      <- Global and per-scene input binding
 main.ts       <- Entry point: bootstrap, pointer-lock lifecycle, render loop
 ```
@@ -61,8 +61,10 @@ main.ts       <- Entry point: bootstrap, pointer-lock lifecycle, render loop
 - Do not add callback setters like `setFooCallback()` just to avoid an import cycle. Instead, move shared logic into a lower-level module, split orchestration from state, or queue data through `g` for the main loop to process.
 - `updateHUD`, `incrementScore`, and the `effective*()` helpers live in `progression.ts` so `actions.ts`, `spawn.ts`, and `update.ts` can import them directly.
 - Avoid importing `actions.ts` from `spawn.ts` or `spawn.ts` from `progression.ts`; that is what the queued supply-drop path is designed to prevent.
-- `endGame()` in `game.ts` only mutates game state and exits pointer lock. `main.ts` detects the `running -> false` transition in the render loop and calls the game-over UI, avoiding a game-over callback bridge.
+- `startGame()` and `endGame()` both live in `flow.ts`. `actions.ts` should not import `flow.ts`; it only mutates player health, and `main.ts` observes `g.state.health <= 0` in the render loop before calling `endGame()`.
+- `main.ts` detects the `running -> false` transition in the render loop and calls the game-over UI, avoiding a game-over callback bridge.
 - `flow.ts` owns run lifecycle actions, while `main.ts` owns top-level bootstrap/pointer-lock/render-loop concerns. Keep that split when changing start, restart, pause, or resume behavior.
+- `ui.ts` may import `flow.ts` for start/restart button handlers, but `flow.ts` must not import `ui.ts`; UI overlay recreation and show/hide behavior belongs on the UI/main side of that boundary.
 
 ### UI layers
 

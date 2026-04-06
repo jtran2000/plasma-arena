@@ -98,6 +98,14 @@ function makeButton(
   return btn;
 }
 
+async function startGameFromUi(): Promise<void> {
+  const sensitivity = getSensitivityValue();
+  await startGame(sensitivity);
+  createUI();
+  hideStart();
+  hideGameOver();
+}
+
 // ─── Screen builders ─────────────────────────────────────────────────────────
 function buildStartScreen(): void {
   startScreen = makeScreen("rgba(0,0,0,0.75)");
@@ -119,7 +127,7 @@ function buildStartScreen(): void {
 
   const playBtn = makeButton("\u25B6  PLAY", ORANGE, "#000000", HOVER_ORANGE);
   playBtn.onPointerUpObservable.add(() => {
-    startGame().catch(console.error);
+    startGameFromUi().catch(console.error);
   });
   panel.addControl(playBtn);
 
@@ -300,7 +308,7 @@ function buildGameOverScreen(): void {
 
   const restartBtn = makeButton("RESTART", RED, TEXT_COLOR, HOVER_RED);
   restartBtn.onPointerUpObservable.add(() => {
-    startGame().catch(console.error);
+    startGameFromUi().catch(console.error);
   });
   panel.addControl(restartBtn);
 }

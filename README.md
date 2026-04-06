@@ -93,7 +93,7 @@ Then open [http://localhost:5173](http://localhost:5173) in your browser.
 | `src/progression.ts` | Effective stat calculations, score progression, queued score-reward supply drops, weighted upgrade definitions/unlocks, HUD updates, and upgrade menu selection flow                                      |
 | `src/actions.ts`     | Player actions and combat logic: jump, melee, laser hitscan, plasma charge/fire, reload, damage resolution, scoring, crit/proc interactions                                                               |
 | `src/update.ts`      | Main per-frame update loop, timers, player movement, enemy AI, wave progression, heat/spread decay, supply pickup handling, and HUD/crosshair updates                                                     |
-| `src/flow.ts`        | Run lifecycle orchestration: start/reset, pause, resume, scene rebuild, run-state reset, and registering the update loop                                                                                  |
+| `src/flow.ts`        | Run lifecycle orchestration: start/reset, end, pause, resume, scene rebuild, run-state reset, and registering the update loop                                                                             |
 | `src/input.ts`       | Global keyboard/mouse bindings plus per-scene Babylon pointer/action bindings                                                                                                                             |
 | `src/ui.ts`          | Babylon GUI overlay screens for start, pause, options, and game-over flow                                                                                                                                 |
 | `src/main.ts`        | App bootstrap, pointer-lock lifecycle, game-over transition detection, and render loop                                                                                                                    |
@@ -104,7 +104,8 @@ Then open [http://localhost:5173](http://localhost:5173) in your browser.
 - `src/constants.ts` is the source of truth for gameplay tuning. The rest of the code imports grouped config objects instead of defining scattered exported constants.
 - Mesh creation, spawn logic, particle work, and disposal live in `src/spawn.ts`, not in the game loop.
 - The main loop is registered in `src/update.ts` through `scene.registerBeforeRender(update)`.
-- Run startup/reset/pause/resume orchestration lives in `src/flow.ts`; global and per-scene input binding lives in `src/input.ts`.
+- Run startup/reset/end/pause/resume orchestration lives in `src/flow.ts`; global and per-scene input binding lives in `src/input.ts`.
+- Death is observed in `src/main.ts` from shared state and then routed to `endGame()` in `src/flow.ts`, keeping player action code independent from lifecycle orchestration.
 - Score-threshold supply rewards are queued by `incrementScore()` in `src/progression.ts` and spawned by the update loop, which avoids callback wiring between scoring and spawning.
 - Overlay screens use Babylon GUI so pointer lock can be reacquired directly from canvas-driven button events.
 - The HUD and upgrade picker remain DOM-based, which keeps text updates simple and independent from the Babylon GUI overlay stack.

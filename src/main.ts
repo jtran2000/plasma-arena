@@ -6,8 +6,9 @@ import {
   optionsOpen,
   hideOptions,
   hidePause,
+  showPause,
 } from "./ui.js";
-import { pause, resume } from "./flow.js";
+import { endGame, pause, resume } from "./flow.js";
 import { initializeInput } from "./input.js";
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
@@ -35,12 +36,16 @@ document.addEventListener("pointerlockchange", () => {
   if (!g.state.running) return;
   if (optionsOpen()) return;
   if (document.pointerLockElement === dom.canvas) {
-    if (g.state.paused) resume();
+    if (g.state.paused) {
+      resume();
+      hidePause();
+    }
   } else {
     if (escapePaused) {
       escapePaused = false;
     } else if (g.pendingUpgrades.length === 0) {
       pause();
+      showPause();
     }
   }
 });
@@ -63,11 +68,15 @@ window.addEventListener("keydown", (e) => {
     }
     escapePaused = true;
     pause();
+    showPause();
     document.exitPointerLock();
   }
 });
 
 g.engine.runRenderLoop(() => {
+  if (g.state.running && g.state.health <= 0) {
+    endGame();
+  }
   if (previousRunning && !g.state.running) {
     showGameOver(g.state.wave, g.state.score, g.state.kills);
   }

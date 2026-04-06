@@ -9,7 +9,7 @@ import {
 } from "@babylonjs/core";
 import { ARENA, PLAYER, BLASTER, RIFLE } from "./constants.js";
 const { HEAT, PLASMA, SPREAD, MULTISHOT, RICOCHET, LIGHTNING, MELEE } = BLASTER;
-import { g, dom, type Enemy, type Plasma, endGame } from "./game.js";
+import { g, dom, type Enemy, type Plasma } from "./game.js";
 import {
   makeRifleTracerMesh,
   makePlasmaChargeMesh,
@@ -1434,5 +1434,4 @@ export function damagePlayer(amount: number): void {
   updateHUD();
   dom.hitFlash.classList.add("active");
   g.state.hitFlashTime = 200;
-  if (g.state.health <= 0) endGame();
 }

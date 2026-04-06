@@ -325,13 +325,3 @@ export const g = {
   upgrades: makeUpgradeState(),
   pendingUpgrades: [] as string[],
 };
-
-export function endGame(): void {
-  g.state.running = false;
-  g.mouseHeld = false;
-  g.pressedKeys.clear();
-  g.blasterRoot?.setEnabled(false);
-  g.rifleRoot?.setEnabled(false);
-  dom.hud.style.display = "none";
-  document.exitPointerLock();
-}
