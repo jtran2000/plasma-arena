@@ -56,6 +56,9 @@ main.ts       <- Entry point: bootstrap, pointer-lock lifecycle, render loop
 
 ### Circular dependency avoidance
 
+- Prefer module organization over escape hatches. Code should be structured to avoid circular dependencies, runtime/dynamic imports, and cross-module callback bridges wherever possible.
+- Do not use runtime `import()` to paper over a cycle unless the user explicitly asks for lazy loading/code splitting or approves that tradeoff for a specific case.
+- Do not add callback setters like `setFooCallback()` just to avoid an import cycle. Instead, move shared logic into a lower-level module, split orchestration from state, or queue data through `g` for the main loop to process.
 - `updateHUD`, `incrementScore`, and the `effective*()` helpers live in `progression.ts` so `actions.ts`, `spawn.ts`, and `update.ts` can import them directly.
 - Avoid importing `actions.ts` from `spawn.ts` or `spawn.ts` from `progression.ts`; that is what the queued supply-drop path is designed to prevent.
 - `endGame()` in `game.ts` only mutates game state and exits pointer lock. `main.ts` detects the `running -> false` transition in the render loop and calls the game-over UI, avoiding a game-over callback bridge.
