@@ -12,6 +12,7 @@ import { buildScene } from "./build.js";
 import {
   tryJump,
   shoot,
+  meleeAttack,
   startPlasmaCharge,
   releasePlasmaCharge,
   dumpPlasmaCharge,
@@ -50,6 +51,10 @@ function setupInput(): void {
         shoot();
       } else if (info.type === PointerEventTypes.POINTERUP) {
         g.mouseHeld = false;
+      }
+    } else if (info.event.button === 1) {
+      if (info.type === PointerEventTypes.POINTERDOWN) {
+        meleeAttack();
       }
     } else if (info.event.button === 2) {
       if (info.type === PointerEventTypes.POINTERDOWN) {

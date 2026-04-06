@@ -13,7 +13,7 @@ import {
   WAVE,
   BULLET_HOLE,
 } from "./constants.js";
-const { LASER, SPREAD, HEAT, IGNITE } = BLASTER;
+const { LASER, SPREAD, HEAT, IGNITE, MELEE } = BLASTER;
 import { g, dom } from "./game.js";
 import {
   spawnEnemy,
@@ -90,6 +90,9 @@ function updateTimers(dt: number): void {
       dom.hitFlash.classList.remove("active");
     }
   }
+
+  if (g.state.meleeCooldown > 0) g.state.meleeCooldown -= dt;
+  if (g.state.meleeAnimTime > 0) g.state.meleeAnimTime -= dt;
 
   // Heat decay (blocked while charging plasma)
   if (g.state.heat > 0 && !g.plasmaCharging) {
@@ -373,6 +376,18 @@ function updateWeapon(dt: number): void {
 
   dom.crosshair.style.display = "";
   g.sprintBobTime = 0;
+
+  // Pistol whip animation — overrides idle/reload while active
+  if (g.state.meleeAnimTime > 0) {
+    const t = 1 - g.state.meleeAnimTime / MELEE.animDurationMs;
+    // Swing arc: fast forward thrust then return
+    const swing = t < 0.4 ? t / 0.4 : 1 - (t - 0.4) / 0.6;
+    g.weaponRoot.rotation.x = -0.8 * swing;
+    g.weaponRoot.rotation.z = 0.3 * swing;
+    g.weaponCell.isVisible = true;
+    g.weaponCell.position.y = 0.09;
+    return;
+  }
 
   if (!g.state.reloading) {
     g.weaponRoot.rotation.x = 0;

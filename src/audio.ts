@@ -500,6 +500,46 @@ export function playLightningSound(pos: Vector3): void {
   osc.stop(now + 0.13);
 }
 
+// ─── Melee ─────────────────────────────────────────────────────────────────
+export function playMeleeSound(pos: Vector3): void {
+  const ctx = ensureAudioCtx();
+  const now = ctx.currentTime;
+  const panner = makePanner(ctx, pos);
+
+  // Heavy thud — low-freq impact
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(120, now);
+  osc.frequency.exponentialRampToValueAtTime(40, now + 0.15);
+  const oscGain = ctx.createGain();
+  oscGain.gain.setValueAtTime(0.35, now);
+  oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+  osc.connect(oscGain);
+  oscGain.connect(panner);
+  osc.start(now);
+  osc.stop(now + 0.16);
+
+  // Metallic clang — noise burst through bandpass
+  const bufLen = Math.floor(ctx.sampleRate * 0.1);
+  const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+  const noise = ctx.createBufferSource();
+  noise.buffer = buf;
+  const filter = ctx.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.setValueAtTime(2500, now);
+  filter.Q.value = 5;
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.setValueAtTime(0.2, now);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+  noise.connect(filter);
+  filter.connect(noiseGain);
+  noiseGain.connect(panner);
+  noise.start(now);
+  noise.stop(now + 0.11);
+}
+
 // ─── Fire loop ──────────────────────────────────────────────────────────────
 let fireNoiseBuffer: AudioBuffer | null = null;
 

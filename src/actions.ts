@@ -8,7 +8,7 @@ import {
   Ray,
 } from "@babylonjs/core";
 import { ARENA, PLAYER, BLASTER, SUPPLY } from "./constants.js";
-const { HEAT, PLASMA, SPREAD, MULTISHOT, RICOCHET, LIGHTNING } = BLASTER;
+const { HEAT, PLASMA, SPREAD, MULTISHOT, RICOCHET, LIGHTNING, MELEE } = BLASTER;
 import { g, dom, type Enemy, type Plasma, endGame } from "./game.js";
 import {
   makePlasmaChargeMesh,
@@ -36,6 +36,7 @@ import {
   updatePlasmaChargeSound,
   stopPlasmaChargeSound,
   playLightningSound,
+  playMeleeSound,
 } from "./audio.js";
 import {
   effectiveCooldown,
@@ -137,6 +138,69 @@ export function tryJump(): void {
   g.playerAggregate.body.setLinearVelocity(
     new Vector3(g.playerVelocityXZ.x, PLAYER.jumpSpeed, g.playerVelocityXZ.z),
   );
+}
+
+// ─── Melee attack ───────────────────────────────────────────────────────────
+export function meleeAttack(): void {
+  if (
+    !g.state.running ||
+    g.state.paused ||
+    g.isSprinting ||
+    g.state.meleeCooldown > 0 ||
+    g.pendingUpgrades.length > 0
+  )
+    return;
+
+  g.state.meleeCooldown = MELEE.cooldownMs;
+  g.state.meleeAnimTime = MELEE.animDurationMs;
+
+  const pos = g.barrelTip.getAbsolutePosition();
+  playMeleeSound(pos);
+
+  const ray = g.camera.getForwardRay(MELEE.range);
+  const hit = g.scene.pickWithRay(
+    ray,
+    (m: AbstractMesh) =>
+      m.renderingGroupId !== 1 &&
+      m.name !== "player" &&
+      m.name !== "enemyPhys" &&
+      m.name !== "laserBeam" &&
+      m.name !== "bhole" &&
+      m.name !== "supply",
+  );
+
+  if (!hit?.hit || !hit.pickedMesh) return;
+
+  if (isEnemyPart(hit.pickedMesh.name)) {
+    const result = findEnemyByMesh(hit.pickedMesh);
+    if (result) {
+      const headshot = result.hitMesh.name === "enemyHead";
+      const dmg = Math.round(MELEE.damage * (headshot ? 2 : 1));
+      const hitPoint = hit.pickedPoint ?? result.enemy.bodyMesh.getAbsolutePosition();
+      (result.hitMesh.material as StandardMaterial).emissiveColor = new Color3(1, 0, 0);
+      result.enemy.flashMesh = result.hitMesh;
+      result.enemy.flashTime = 200;
+
+      // Knockback
+      const away = result.enemy.bodyMesh.getAbsolutePosition().subtract(g.camera.position);
+      if (away.lengthSquared() > 0.01) {
+        result.enemy.aggregate.body.applyImpulse(
+          away.normalize().scale(30),
+          result.enemy.bodyMesh.getAbsolutePosition(),
+        );
+      }
+
+      damageEnemy(result.enemy, dmg, result.hitMesh, hitPoint, false, { canIgnite: true });
+      spawnHitParticle(hitPoint, new Color4(0.8, 0.0, 0.0, 1), hit.getNormal(true) ?? ray.direction.negate());
+    }
+  } else if (
+    hit.pickedMesh.name === "bodyHalf" ||
+    hit.pickedMesh.name === "headHalf" ||
+    hit.pickedMesh.name === "armHalf" ||
+    hit.pickedMesh.name === "legHalf"
+  ) {
+    hitDebris(hit.pickedMesh as Mesh, ray.direction, hit.pickedPoint ?? undefined);
+  }
 }
 
 // ─── Laser shooting ─────────────────────────────────────────────────────────

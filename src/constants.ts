@@ -118,6 +118,12 @@ export const BLASTER = {
     spreadTickMs: 500, // ms between spread checks per burning enemy
     ticksPerSec: 2, // fire damage ticks per second
   },
+  MELEE: {
+    damage: 20, // base damage per hit
+    range: 2, // m — raycast distance
+    cooldownMs: 500, // ms between melee attacks
+    animDurationMs: 250, // ms for the pistol whip animation
+  },
 } as const;
 
 // ─── Scoring ────────────────────────────────────────────────────────────────

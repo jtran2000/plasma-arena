@@ -34,6 +34,8 @@ export interface GameState {
   running: boolean;
   paused: boolean;
   nextSupplyThreshold: number;
+  meleeCooldown: number;
+  meleeAnimTime: number;
   wave: number;
   waveEnemiesLeft: number;
   waveSpawnTimer: number;
@@ -115,6 +117,8 @@ export function makeState(): GameState {
     overheated: false,
     running: false,
     paused: false,
+    meleeCooldown: 0,
+    meleeAnimTime: 0,
     nextSupplyThreshold: SUPPLY.scoreInterval,
     wave: 1,
     waveEnemiesLeft: WAVE.baseEnemies,
