@@ -171,7 +171,7 @@ function updateTimers(dt: number): void {
     }
   }
 
-  if (g.mouseHeld) {
+  if (g.mouseHeld && g.upgrades.pulseLaser) {
     g.state.shootCooldown -= dt;
     if (g.state.shootCooldown <= 0) {
       shoot();
@@ -549,7 +549,10 @@ function updateWaves(dt: number): void {
   // Between waves — count down the pause timer
   if (!g.state.waveActive) {
     g.state.wavePauseTimer -= dt;
-    if (g.state.wavePauseTimer <= 0) startNextWave();
+    if (g.state.wavePauseTimer <= 0) { startNextWave(); return; }
+    const secs = Math.ceil(g.state.wavePauseTimer / 1000);
+    dom.waveBanner.textContent = `Next wave in ${secs}`;
+    dom.waveBanner.classList.add("visible");
     return;
   }
 

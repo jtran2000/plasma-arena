@@ -97,21 +97,19 @@ canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
   text-shadow: 0 0 3px #000, 0 0 3px #000;
   pointer-events: none;
 }
-#ammo-value   { color: #fa0; }
-#score-value  { color: #4af; }
+#ammo-value { color: #fa0; }
 
-#kills-display {
+#top-right-hud {
   position: absolute;
   top: 20px;
   right: 32px;
-  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  text-align: center;
 }
-
-#wave-display {
-  position: absolute;
-  top: 20px;
-  left: 32px;
-}
+#top-right-hud .hud-value { color: #4af; }
 
 #wave-banner {
   position: absolute;
@@ -204,3 +202,18 @@ canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
 }
 .upgrade-label { color: #ccc; }
 .upgrade-count { font-size: 0.7rem; color: #888; }
+
+#instruction-msg {
+  display: none;
+  position: absolute;
+  top: 55%;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #ff0;
+  font-size: 1.2rem;
+  font-weight: bold;
+  text-shadow: 0 0 8px rgba(255,255,0,0.5);
+  pointer-events: none;
+  z-index: 6;
+}
+#instruction-msg.visible { display: block; }

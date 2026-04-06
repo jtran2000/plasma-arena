@@ -411,6 +411,7 @@ function fireBeamRay(ray: Ray, isCrit: boolean, depth = 0): void {
 // ─── Alt-fire: Orb ──────────────────────────────────────────────────────────
 export function startOrbCharge(): void {
   if (
+    !g.upgrades.plasmaCaster ||
     !g.state.running ||
     g.state.reloading ||
     g.isSprinting ||
@@ -434,8 +435,8 @@ export function startOrbCharge(): void {
   );
   g.state.heatCooldownTimer = HEAT.cooldownDelay;
 
-  // Instant-fire if no spare ammo or overheated
-  if (g.state.ammo === 0 || g.state.heat >= effectiveHeatMax()) {
+  // Instant-fire if no charger upgrade, no spare ammo, or overheated
+  if (!g.upgrades.plasmaCharger || g.state.ammo === 0 || g.state.heat >= effectiveHeatMax()) {
     fireOrb(1.0, isCrit);
     return;
   }
@@ -552,7 +553,7 @@ export function releaseOrbCharge(): void {
 }
 
 export function dumpOrbCharge(): void {
-  if (!g.orbCharging) return;
+  if (!g.orbCharging || !g.upgrades.plasmaGrenadier) return;
 
   const extraAmmo = Math.min(g.orbChargeAmmo, g.state.ammo);
   g.state.ammo -= extraAmmo;

@@ -1404,20 +1404,24 @@ export function spawnFireEffect(enemy: import("./game.js").Enemy): void {
 export function disposeFireEffect(enemy: import("./game.js").Enemy): void {
   if (enemy.fireParticle) {
     enemy.fireParticle.stop();
-    const ps = enemy.fireParticle;
+    enemy.fireParticle.dispose(false);
     enemy.fireParticle = null;
-    setTimeout(() => ps.dispose(false), 800);
   }
   if (enemy.fireLight) {
     enemy.fireLight.dispose();
     enemy.fireLight = null;
   }
-  if (enemy.fireAudioSource && enemy.fireAudioGain) {
-    stopFireSound(enemy.fireAudioSource, enemy.fireAudioGain);
+  if (enemy.fireAudioSource) {
+    if (enemy.fireAudioGain) {
+      stopFireSound(enemy.fireAudioSource, enemy.fireAudioGain);
+    } else {
+      try { enemy.fireAudioSource.stop(); } catch (_) { /* already stopped */ }
+    }
     enemy.fireAudioSource = null;
     enemy.fireAudioPanner = null;
     enemy.fireAudioGain = null;
   }
+  enemy.onFire = false;
 }
 
 export function spawnLaserBeam(from: Vector3, to: Vector3, isCrit = false): void {

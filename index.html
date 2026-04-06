@@ -24,23 +24,27 @@
         <div id="health-bar"><div id="health-fill"></div><span id="health-text"></span></div>
       </div>
       <div class="hud-block" style="align-items:center">
-        <span class="hud-label">Score</span>
-        <span class="hud-value" id="score-value">0</span>
-      </div>
-      <div class="hud-block" style="align-items:center">
         <span class="hud-label">Ammo</span>
         <span class="hud-value" id="ammo-value"></span>
       </div>
     </div>
-    <div id="kills-display">
-      <span class="hud-label">Kills</span><br>
-      <span class="hud-value" id="kills-value" style="color:#f84">0</span>
-    </div>
-    <div id="wave-display">
-      <span class="hud-label">Wave</span><br>
-      <span class="hud-value" id="wave-value" style="color:#f80">1</span><br>
-      <span class="hud-label">Remaining</span><br>
-      <span class="hud-value" id="wave-remaining" style="color:#f80">5</span>
+    <div id="top-right-hud">
+      <div class="hud-block" style="align-items:center">
+        <span class="hud-label">Score</span>
+        <span class="hud-value" id="score-value-alt">0</span>
+      </div>
+      <div class="hud-block" style="align-items:center">
+        <span class="hud-label">Kills</span>
+        <span class="hud-value" id="kills-value">0</span>
+      </div>
+      <div class="hud-block" style="align-items:center">
+        <span class="hud-label">Wave</span>
+        <span class="hud-value" id="wave-value">1</span>
+      </div>
+      <div class="hud-block" style="align-items:center">
+        <span class="hud-label">Remaining</span>
+        <span class="hud-value" id="wave-remaining">5</span>
+      </div>
     </div>
     <div id="wave-banner"></div>
     <div id="heat-bar"><div id="heat-fill"></div></div>
@@ -53,6 +57,7 @@
         <button class="upgrade-option" data-index="2"><span class="upgrade-key">3</span><span class="upgrade-label"></span><span class="upgrade-count"></span></button>
       </div>
     </div>
+    <div id="instruction-msg"></div>
   </div>
 
   <script type="module" src="/src/main.ts"></script>

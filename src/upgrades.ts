@@ -22,13 +22,21 @@ export function effectiveSpeed(): number {
   return PLAYER.speed + g.upgrades.speed * UPGRADE.speed;
 }
 export function effectiveReloadTime(): number {
-  return BEAM.reloadTime * Math.pow(1 - UPGRADE.reloadSpeed, g.upgrades.reloadTime);
+  return (
+    BEAM.reloadTime * Math.pow(1 - UPGRADE.reloadSpeed, g.upgrades.reloadTime)
+  );
 }
 export function effectiveMagSize(): number {
   return BEAM.magSize + g.upgrades.magSize * UPGRADE.magSize;
 }
 export function effectiveCooldown(): number {
-  return 60000 / (BEAM.rateOfFire * (1 + g.upgrades.rateOfFire * UPGRADE.rateOfFire));
+  const pulseMult = g.upgrades.pulseLaser ? 2 : 1;
+  return (
+    60000 /
+    (BEAM.rateOfFire *
+      pulseMult *
+      (1 + g.upgrades.rateOfFire * UPGRADE.rateOfFire))
+  );
 }
 export function effectiveHeatMax(): number {
   return HEAT.max * (1 + g.upgrades.heatCapacity * UPGRADE.heatCapacity);
@@ -37,10 +45,15 @@ export function effectiveHeatDecay(): number {
   return HEAT.decay * (1 + g.upgrades.heatDecay * UPGRADE.heatDecay);
 }
 export function effectiveBloom(): number {
-  return SPREAD.perShot * Math.pow(1 - UPGRADE.bloomReduction, g.upgrades.bloom);
+  return (
+    SPREAD.perShot * Math.pow(1 - UPGRADE.bloomReduction, g.upgrades.bloom)
+  );
 }
 export function effectiveMoveSpreadRate(): number {
-  return SPREAD.moveRate * Math.pow(1 - UPGRADE.moveSpreadReduction, g.upgrades.moveSpread);
+  return (
+    SPREAD.moveRate *
+    Math.pow(1 - UPGRADE.moveSpreadReduction, g.upgrades.moveSpread)
+  );
 }
 export function effectiveBeamDamage(): number {
   return BEAM.damage + g.upgrades.beamDamage * UPGRADE.beamDamage;
@@ -97,15 +110,18 @@ export function updateHUD(): void {
 interface UpgradeDef {
   key: keyof typeof g.upgrades;
   label: string;
-  apply: () => void;
+  weight?: number;
+  instruction?: string;
+  oneTime?: boolean;
+  requires?: keyof typeof g.upgrades;
+  onApply?: () => void;
 }
 
 const UPGRADE_DEFS: UpgradeDef[] = [
   {
     key: "maxHealth",
     label: `+${UPGRADE.maxHealth} Max Health`,
-    apply: () => {
-      g.upgrades.maxHealth++;
+    onApply: () => {
       g.state.health = Math.min(
         g.state.health + UPGRADE.maxHealth,
         effectiveMaxHealth(),
@@ -113,102 +129,121 @@ const UPGRADE_DEFS: UpgradeDef[] = [
       updateHUD();
     },
   },
-  {
-    key: "speed",
-    label: `+${UPGRADE.speed} Speed`,
-    apply: () => { g.upgrades.speed++; },
-  },
+  { key: "speed", label: `+${UPGRADE.speed} Speed` },
   {
     key: "reloadTime",
     label: `+${Math.round(UPGRADE.reloadSpeed * 100)}% Reload Speed`,
-    apply: () => { g.upgrades.reloadTime++; },
   },
-  {
-    key: "magSize",
-    label: `+${UPGRADE.magSize} Mag Size`,
-    apply: () => { g.upgrades.magSize++; },
-  },
-  {
-    key: "rateOfFire",
-    label: `+${UPGRADE.rateOfFire * 100}% Fire Rate`,
-    apply: () => { g.upgrades.rateOfFire++; },
-  },
+  { key: "magSize", label: `+${UPGRADE.magSize} Mag Size` },
+  { key: "rateOfFire", label: `+${UPGRADE.rateOfFire * 100}% Fire Rate` },
   {
     key: "heatCapacity",
     label: `+${Math.round(UPGRADE.heatCapacity * 100)}% Heat Capacity`,
-    apply: () => { g.upgrades.heatCapacity++; },
   },
   {
     key: "heatDecay",
     label: `+${Math.round(UPGRADE.heatDecay * 100)}% Cooling`,
-    apply: () => { g.upgrades.heatDecay++; },
   },
   {
     key: "bloom",
     label: `-${Math.round(UPGRADE.bloomReduction * 100)}% Bloom`,
-    apply: () => { g.upgrades.bloom++; },
   },
   {
     key: "moveSpread",
     label: `+${Math.round(UPGRADE.moveSpreadReduction * 100)}% Accuracy While Moving`,
-    apply: () => { g.upgrades.moveSpread++; },
   },
-  {
-    key: "beamDamage",
-    label: `+${UPGRADE.beamDamage} Beam Damage`,
-    apply: () => { g.upgrades.beamDamage++; },
-  },
+  { key: "beamDamage", label: `+${UPGRADE.beamDamage} Beam Damage` },
   {
     key: "orbDamage",
     label: `+${UPGRADE.orbDamage} Orb Damage`,
-    apply: () => { g.upgrades.orbDamage++; },
+    requires: "plasmaCaster",
   },
   {
     key: "supplyDropRate",
     label: `+${Math.round(UPGRADE.supplyDropRate * 100)}% Supply Drop Rate`,
-    apply: () => { g.upgrades.supplyDropRate++; },
   },
   {
     key: "critChance",
     label: `+${Math.round(UPGRADE.critChance * 100)}% Crit Chance`,
-    apply: () => { g.upgrades.critChance++; },
   },
-  {
-    key: "critDamage",
-    label: `+${UPGRADE.critDamage}x Crit Damage`,
-    apply: () => { g.upgrades.critDamage++; },
-  },
+  { key: "critDamage", label: `+${UPGRADE.critDamage}x Crit Damage` },
   {
     key: "orbSelfDamage",
     label: `-${Math.round(UPGRADE.orbSelfDamageReduction * 100)}% Orb Self-Damage`,
-    apply: () => { g.upgrades.orbSelfDamage++; },
+    requires: "plasmaCaster",
   },
   {
     key: "multishot",
     label: `+${Math.round(UPGRADE.multishotChance * 100)}% Multishot Chance`,
-    apply: () => { g.upgrades.multishot++; },
   },
   {
     key: "ricochet",
     label: `+${Math.round(UPGRADE.ricochetChance * 100)}% Ricochet Chance`,
-    apply: () => { g.upgrades.ricochet++; },
   },
   {
     key: "lightning",
     label: `+${Math.round(UPGRADE.lightningChance * 100)}% Lightning Chance`,
-    apply: () => { g.upgrades.lightning++; },
   },
   {
     key: "ignite",
     label: `+${Math.round(UPGRADE.igniteChance * 100)}% Ignite Chance`,
-    apply: () => { g.upgrades.ignite++; },
+  },
+  {
+    key: "pulseLaser",
+    label: "Pulse Laser",
+    weight: 10,
+    instruction: "Hold LMB to fire continuously",
+    oneTime: true,
+  },
+  {
+    key: "plasmaCaster",
+    label: "Plasma Caster",
+    weight: 10,
+    instruction: "Press RMB to fire plasma",
+    oneTime: true,
+  },
+  {
+    key: "plasmaCharger",
+    label: "Plasma Charger",
+    weight: 2,
+    instruction: "Hold RMB to charge plasma",
+    oneTime: true,
+    requires: "plasmaCaster",
+  },
+  {
+    key: "plasmaGrenadier",
+    label: "Plasma Grenadier",
+    weight: 2,
+    instruction: "Press LMB while holding RMB to fire grenade",
+    oneTime: true,
+    requires: "plasmaCharger",
   },
 ];
 
 // ─── Upgrade menu functions ─────────────────────────────────────────────────
 function pickRandomUpgrades(): UpgradeDef[] {
-  const shuffled = [...UPGRADE_DEFS].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, 3);
+  const pool = UPGRADE_DEFS.filter(
+    (d) =>
+      !(d.oneTime && g.upgrades[d.key]) &&
+      !(d.requires && !g.upgrades[d.requires]),
+  );
+  const picked: UpgradeDef[] = [];
+  const remaining = [...pool];
+  for (let i = 0; i < 3 && remaining.length > 0; i++) {
+    const totalWeight = remaining.reduce((sum, d) => sum + (d.weight ?? 1), 0);
+    let roll = Math.random() * totalWeight;
+    let chosen = remaining.length - 1;
+    for (let j = 0; j < remaining.length; j++) {
+      roll -= remaining[j].weight ?? 1;
+      if (roll <= 0) {
+        chosen = j;
+        break;
+      }
+    }
+    picked.push(remaining[chosen]);
+    remaining.splice(chosen, 1);
+  }
+  return picked;
 }
 
 export function showUpgradeMenu(): void {
@@ -216,8 +251,9 @@ export function showUpgradeMenu(): void {
   g.pendingUpgrades = choices.map((c) => c.key);
   for (let i = 0; i < 3; i++) {
     dom.upgradeLabels[i].textContent = choices[i].label;
-    const n = g.upgrades[choices[i].key];
-    dom.upgradeCounts[i].textContent = n > 0 ? `(${n}x)` : "";
+    const val = g.upgrades[choices[i].key];
+    dom.upgradeCounts[i].textContent =
+      typeof val === "number" && val > 0 ? `(${val}x)` : "";
   }
   dom.upgradeMenu.classList.add("visible");
   g.mouseHeld = false;
@@ -230,10 +266,24 @@ function hideUpgradeMenu(): void {
   dom.canvas.requestPointerLock({ unadjustedMovement: true });
 }
 
+function showInstruction(text: string): void {
+  dom.instructionMsg.textContent = text;
+  dom.instructionMsg.classList.add("visible");
+  setTimeout(() => dom.instructionMsg.classList.remove("visible"), 3000);
+}
+
 export function selectUpgrade(index: number): void {
   if (g.pendingUpgrades.length === 0) return;
   const key = g.pendingUpgrades[index];
   const def = UPGRADE_DEFS.find((d) => d.key === key);
-  if (def) def.apply();
+  if (!def) return;
+  const val = g.upgrades[def.key];
+  if (typeof val === "boolean") {
+    (g.upgrades as Record<string, number | boolean>)[def.key] = true;
+  } else {
+    (g.upgrades as Record<string, number | boolean>)[def.key] = val + 1;
+  }
+  def.onApply?.();
+  if (def.instruction) showInstruction(def.instruction);
   hideUpgradeMenu();
 }

@@ -567,12 +567,18 @@ export function stopFireSound(
   gain: GainNode,
 ): void {
   if (!g.audioCtx) {
-    source.stop();
+    try { source.stop(); } catch (_) { /* already stopped */ }
+    source.disconnect();
+    gain.disconnect();
     return;
   }
   const now = g.audioCtx.currentTime;
   gain.gain.cancelScheduledValues(now);
   gain.gain.setValueAtTime(gain.gain.value, now);
   gain.gain.linearRampToValueAtTime(0, now + 0.2);
-  source.stop(now + 0.25);
+  try { source.stop(now + 0.25); } catch (_) { /* already stopped */ }
+  setTimeout(() => {
+    source.disconnect();
+    gain.disconnect();
+  }, 300);
 }

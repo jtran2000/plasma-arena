@@ -137,7 +137,7 @@ export const dom = {
   healthFill: getEl("health-fill"),
   healthText: getEl("health-text"),
   ammoEl: getEl("ammo-value"),
-  scoreEl: getEl("score-value"),
+  scoreEl: getEl("score-value-alt"),
   killsEl: getEl("kills-value"),
   hitFlash: getEl("hit-flash"),
   reloadMsg: getEl("reload-msg"),
@@ -146,7 +146,6 @@ export const dom = {
   chBottom: document.querySelector(".ch-bottom") as HTMLElement,
   chLeft: document.querySelector(".ch-left") as HTMLElement,
   chRight: document.querySelector(".ch-right") as HTMLElement,
-  waveDisplay: getEl("wave-display"),
   waveValue: getEl("wave-value"),
   waveRemaining: getEl("wave-remaining"),
   waveBanner: getEl("wave-banner"),
@@ -163,6 +162,7 @@ export const dom = {
   upgradeButtons: Array.from(
     document.querySelectorAll(".upgrade-option"),
   ) as HTMLButtonElement[],
+  instructionMsg: getEl("instruction-msg"),
 };
 
 // ─── Shared mutable game context ──────────────────────────────────────────────
@@ -225,6 +225,10 @@ export const g = {
     ricochet: 0,
     lightning: 0,
     ignite: 0,
+    pulseLaser: false,
+    plasmaCaster: false,
+    plasmaCharger: false,
+    plasmaGrenadier: false,
   },
   pendingUpgrades: [] as string[],
 };

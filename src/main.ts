@@ -117,6 +117,10 @@ async function startGame(): Promise<void> {
     ricochet: 0,
     lightning: 0,
     ignite: 0,
+    pulseLaser: false,
+    plasmaCaster: false,
+    plasmaCharger: false,
+    plasmaGrenadier: false,
   };
   g.pendingUpgrades = [];
   if (g.orbCharging) {
@@ -186,6 +190,7 @@ dom.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
 dom.canvas.addEventListener("click", () => {
   if (optionsOpen()) return;
+  if (g.pendingUpgrades.length > 0) return;
   if (
     g.state.running &&
     !g.state.paused &&
@@ -213,10 +218,9 @@ document.addEventListener("pointerlockchange", () => {
 
 document.addEventListener("pointerlockerror", () => {
   hidePause();
-  console.error("Pointer lock error");
   setTimeout(() => {
     dom.canvas.requestPointerLock({ unadjustedMovement: true });
-  }, 1);
+  }, 500);
 });
 
 window.addEventListener("keydown", (e) => {
