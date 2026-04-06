@@ -16,13 +16,13 @@ import {
   ARENA,
   LIGHTING,
   PLAYER,
-  PLASMA,
-  HEAT,
+  BLASTER,
   SCORING,
   ENEMY,
   BULLET_HOLE,
   ENEMY_HEALTH_BAR,
 } from "./constants.js";
+const { PLASMA, HEAT } = BLASTER;
 import { g, type Enemy } from "./game.js";
 import {
   playEnemySpawnSound,

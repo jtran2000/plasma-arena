@@ -1,17 +1,6 @@
-import {
-  PLAYER,
-  LASER,
-  SPREAD,
-  HEAT,
-  PLASMA,
-  SUPPLY,
-  CRIT,
-  MULTISHOT,
-  RICOCHET,
-  LIGHTNING,
-  IGNITE,
-  UPGRADE,
-} from "./constants.js";
+import { PLAYER, BLASTER, SUPPLY, CRIT, UPGRADE } from "./constants.js";
+const { LASER, SPREAD, HEAT, PLASMA, MULTISHOT, RICOCHET, LIGHTNING, IGNITE } =
+  BLASTER;
 import { g, dom } from "./game.js";
 
 // ─── Effective stat functions ─────────────────────────────────────────────────

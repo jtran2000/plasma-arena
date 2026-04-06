@@ -8,14 +8,12 @@ import {
   ENEMY,
   SUPPLY,
   PLAYER,
-  LASER,
-  SPREAD,
-  HEAT,
+  BLASTER,
   SCORING,
   WAVE,
   BULLET_HOLE,
-  IGNITE,
 } from "./constants.js";
+const { LASER, SPREAD, HEAT, IGNITE } = BLASTER;
 import { g, dom } from "./game.js";
 import {
   spawnEnemy,

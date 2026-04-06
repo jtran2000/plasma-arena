@@ -12,7 +12,8 @@ import {
   PointLight,
 } from "@babylonjs/core";
 import { AdvancedDynamicTexture, Rectangle } from "@babylonjs/gui";
-import { PLAYER, LASER, SUPPLY, WAVE } from "./constants.js";
+import { PLAYER, BLASTER, SUPPLY, WAVE } from "./constants.js";
+const { LASER } = BLASTER;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface GameState {

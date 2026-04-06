@@ -7,17 +7,8 @@ import {
   AbstractMesh,
   Ray,
 } from "@babylonjs/core";
-import {
-  ARENA,
-  PLAYER,
-  HEAT,
-  PLASMA,
-  SPREAD,
-  SUPPLY,
-  MULTISHOT,
-  RICOCHET,
-  LIGHTNING,
-} from "./constants.js";
+import { ARENA, PLAYER, BLASTER, SUPPLY } from "./constants.js";
+const { HEAT, PLASMA, SPREAD, MULTISHOT, RICOCHET, LIGHTNING } = BLASTER;
 import { g, dom, type Enemy, type Plasma, endGame } from "./game.js";
 import {
   makePlasmaChargeMesh,

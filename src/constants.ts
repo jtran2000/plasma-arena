@@ -59,47 +59,65 @@ export const PLAYER = {
   jumpSpeed: 13, // m/s upward — with gravity -20 this reaches ~4.2 m
 } as const;
 
-// ─── Player — Weapon ────────────────────────────────────────────────────────
-export const LASER = {
-  damage: 25,
-  rateOfFire: 600, // rounds per minute
-  magSize: 32, // rounds per magazine
-  reserveMags: 4, // starting reserve magazines
-  maxReserveMags: 5,
-  reloadTime: 3000, // ms
-} as const;
-
-// ─── Player — Spread ────────────────────────────────────────────────────────
-export const SPREAD = {
-  perShot: 0.004, // radians added per shot
-  max: 0.06, // radians max
-  decay: 0.12, // radians per second of recovery
-  moveRate: 0.08, // radians per second while moving
-} as const;
-
-// ─── Player — Heat ──────────────────────────────────────────────────────────
-export const HEAT = {
-  perShot: 3,
-  max: 100, // overheat threshold
-  critical: 0.75, // fraction of max for critical threshold
-  decay: 40, // heat lost per second while cooling
-  cooldownDelay: 1000, // ms of not firing before heat decays
-} as const;
-
-// ─── Player — Plasma (Alt-Fire) ─────────────────────────────────────────────
-export const PLASMA = {
-  damage: 50,
-  speed: 30, // m/s
-  radius: 0.1, // visual radius (m)
-  explosionRadius: 2, // m — splash damage range
-  ammoCost: 8,
-  heatMultiplier: 6, // heat per shot multiplied by this
-  cooldownMultiplier: 4, // cooldown multiplied by this
-  splashFalloff: 0.5, // max splash damage = direct * this
-  maxChargeHold: 1000, // ms to hold at max charge before auto-fire
-  gravity: 5, // m/s² gravity for dump-fired plasmas
-  fuse: 6000, // ms — plasma detonation timer
-  bounceDamping: 0.6, // velocity retained after bounce (gravity plasmas)
+// ─── Blaster — Weapon System ────────────────────────────────────────────────
+export const BLASTER = {
+  LASER: {
+    damage: 25,
+    rateOfFire: 300, // rounds per minute
+    magSize: 32, // rounds per magazine
+    reserveMags: 4, // starting reserve magazines
+    maxReserveMags: 5,
+    reloadTime: 3000, // ms
+  },
+  PLASMA: {
+    damage: 50,
+    speed: 30, // m/s
+    radius: 0.1, // visual radius (m)
+    explosionRadius: 2, // m — splash damage range
+    ammoCost: 8,
+    heatMultiplier: 6, // heat per shot multiplied by this
+    cooldownMultiplier: 2, // cooldown multiplied by this
+    splashFalloff: 0.5, // max splash damage = direct * this
+    maxChargeHold: 1000, // ms to hold at max charge before auto-fire
+    gravity: 5, // m/s² gravity for dump-fired plasmas
+    fuse: 6000, // ms — plasma detonation timer
+    bounceDamping: 0.6, // velocity retained after bounce (gravity plasmas)
+  },
+  SPREAD: {
+    perShot: 0.004, // radians added per shot
+    max: 0.06, // radians max
+    decay: 0.12, // radians per second of recovery
+    moveRate: 0.08, // radians per second while moving
+  },
+  HEAT: {
+    perShot: 3,
+    max: 100, // overheat threshold
+    critical: 0.75, // fraction of max for critical threshold
+    decay: 40, // heat lost per second while cooling
+    cooldownDelay: 1000, // ms of not firing before heat decays
+  },
+  MULTISHOT: {
+    chance: 0.1, // base % chance to fire 3 shots
+    angle: 0.1, // radians — spread angle for side shots
+  },
+  RICOCHET: {
+    chance: 0.1, // base % chance to ricochet on impact
+    spread: 0.05, // radians — random spread added to reflection
+    maxDepth: 10, // max ricochet chain length
+  },
+  LIGHTNING: {
+    chance: 0.05, // base % chance per hit to trigger lightning
+    damage: 300, // base damage per bolt
+    chainRange: 5, // m — max distance to chain to next enemy
+    maxChains: 3, // max number of chain jumps
+  },
+  IGNITE: {
+    chance: 0.1, // base % chance to ignite on any damage
+    damagePerSec: 8, // fire DOT damage per second
+    spreadRange: 2, // m — max distance fire can spread to nearby enemies
+    spreadTickMs: 500, // ms between spread checks per burning enemy
+    ticksPerSec: 2, // fire damage ticks per second
+  },
 } as const;
 
 // ─── Scoring ────────────────────────────────────────────────────────────────
@@ -129,36 +147,6 @@ export const WAVE = {
 export const CRIT = {
   chance: 0.05, // base % chance
   damage: 2, // base multiplier
-} as const;
-
-// ─── Multishot ────────────────────────────────────────────────────────────
-export const MULTISHOT = {
-  chance: 0.1, // base % chance to fire 3 shots
-  angle: 0.1, // radians — spread angle for side shots
-} as const;
-
-// ─── Ricochet ─────────────────────────────────────────────────────────────
-export const RICOCHET = {
-  chance: 0.1, // base % chance to ricochet on impact
-  spread: 0.05, // radians — random spread added to reflection
-  maxDepth: 10, // max ricochet chain length
-} as const;
-
-// ─── Lightning ────────────────────────────────────────────────────────────
-export const LIGHTNING = {
-  chance: 0.05, // base % chance per hit to trigger lightning
-  damage: 300, // base damage per bolt
-  chainRange: 5, // m — max distance to chain to next enemy
-  maxChains: 3, // max number of chain jumps
-} as const;
-
-// ─── Ignite ──────────────────────────────────────────────────────────────
-export const IGNITE = {
-  chance: 0.1, // base % chance to ignite on any damage
-  damagePerSec: 8, // fire DOT damage per second
-  spreadRange: 2, // m — max distance fire can spread to nearby enemies
-  spreadTickMs: 500, // ms between spread checks per burning enemy
-  ticksPerSec: 2, // fire damage ticks per second
 } as const;
 
 // ─── Upgrades — Amount Gained Per Upgrade ───────────────────────────────────
