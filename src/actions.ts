@@ -72,7 +72,12 @@ export function damageEnemy(
   killMesh: Mesh,
   hitPoint: Vector3,
   isCrit: boolean,
-  opts?: { plasmaKill?: boolean; canLightning?: boolean; canIgnite?: boolean; showNumber?: boolean },
+  opts?: {
+    plasmaKill?: boolean;
+    canLightning?: boolean;
+    canIgnite?: boolean;
+    showNumber?: boolean;
+  },
 ): boolean {
   enemy.hp -= amount;
   if (opts?.showNumber !== false) spawnDamageNumber(hitPoint, amount, isCrit);
@@ -176,13 +181,20 @@ export function meleeAttack(): void {
     if (result) {
       const headshot = result.hitMesh.name === "enemyHead";
       const dmg = Math.round(MELEE.damage * (headshot ? 2 : 1));
-      const hitPoint = hit.pickedPoint ?? result.enemy.bodyMesh.getAbsolutePosition();
-      (result.hitMesh.material as StandardMaterial).emissiveColor = new Color3(1, 0, 0);
+      const hitPoint =
+        hit.pickedPoint ?? result.enemy.bodyMesh.getAbsolutePosition();
+      (result.hitMesh.material as StandardMaterial).emissiveColor = new Color3(
+        1,
+        0,
+        0,
+      );
       result.enemy.flashMesh = result.hitMesh;
       result.enemy.flashTime = 200;
 
       // Knockback
-      const away = result.enemy.bodyMesh.getAbsolutePosition().subtract(g.camera.position);
+      const away = result.enemy.bodyMesh
+        .getAbsolutePosition()
+        .subtract(g.camera.position);
       if (away.lengthSquared() > 0.01) {
         result.enemy.aggregate.body.applyImpulse(
           away.normalize().scale(30),
@@ -190,8 +202,14 @@ export function meleeAttack(): void {
         );
       }
 
-      damageEnemy(result.enemy, dmg, result.hitMesh, hitPoint, false, { canIgnite: true });
-      spawnHitParticle(hitPoint, new Color4(0.8, 0.0, 0.0, 1), hit.getNormal(true) ?? ray.direction.negate());
+      damageEnemy(result.enemy, dmg, result.hitMesh, hitPoint, false, {
+        canIgnite: true,
+      });
+      spawnHitParticle(
+        hitPoint,
+        new Color4(0.8, 0.0, 0.0, 1),
+        hit.getNormal(true) ?? ray.direction.negate(),
+      );
     }
   } else if (
     hit.pickedMesh.name === "bodyHalf" ||
@@ -199,7 +217,11 @@ export function meleeAttack(): void {
     hit.pickedMesh.name === "armHalf" ||
     hit.pickedMesh.name === "legHalf"
   ) {
-    hitDebris(hit.pickedMesh as Mesh, ray.direction, hit.pickedPoint ?? undefined);
+    hitDebris(
+      hit.pickedMesh as Mesh,
+      ray.direction,
+      hit.pickedPoint ?? undefined,
+    );
   }
 }
 
@@ -491,7 +513,11 @@ export function startPlasmaCharge(): void {
   g.state.heatCooldownTimer = HEAT.cooldownDelay;
 
   // Instant-fire if no charger upgrade, no spare ammo, or overheated
-  if (!g.upgrades.plasmaCharger || g.state.ammo === 0 || g.state.heat >= effectiveHeatMax()) {
+  if (
+    !g.upgrades.plasmaCharger ||
+    g.state.ammo === 0 ||
+    g.state.heat >= effectiveHeatMax()
+  ) {
     firePlasma(1.0, isCrit);
     return;
   }
@@ -641,7 +667,10 @@ function firePlasma(
 ): void {
   g.state.plasmaCooldown =
     effectiveCooldown() * PLASMA.cooldownMultiplier * chargeMultiplier;
-  g.state.shootCooldown = Math.max(g.state.shootCooldown, g.state.plasmaCooldown);
+  g.state.shootCooldown = Math.max(
+    g.state.shootCooldown,
+    g.state.plasmaCooldown,
+  );
   g.state.heatCooldownTimer = HEAT.cooldownDelay;
   if (g.state.heat >= effectiveHeatMax()) {
     g.state.overheated = true;
@@ -840,7 +869,11 @@ export function updatePlasmas(dt: number): void {
   }
 }
 
-function detonatePlasma(plasma: Plasma, pos: Vector3, laserIsCrit = false): void {
+function detonatePlasma(
+  plasma: Plasma,
+  pos: Vector3,
+  laserIsCrit = false,
+): void {
   const directHits = new Map<Enemy, Mesh>();
   const critLevel = (plasma.isCrit ? 1 : 0) + (laserIsCrit ? 1 : 0);
   explodePlasma(
@@ -939,7 +972,11 @@ function explodePlasma(
       );
     }
 
-    damageEnemy(enemy, dmg, flashMesh, ePos, isCrit, { plasmaKill: true, canLightning: true, canIgnite: true });
+    damageEnemy(enemy, dmg, flashMesh, ePos, isCrit, {
+      plasmaKill: true,
+      canLightning: true,
+      canIgnite: true,
+    });
   }
 
   // Knockback and split/shrink on ragdoll debris
@@ -1050,7 +1087,12 @@ function triggerLightning(enemy: Enemy, critMult: number): void {
   (enemy.bodyMesh.material as StandardMaterial).emissiveColor = flashColor;
   enemy.flashMesh = enemy.bodyMesh;
   enemy.flashTime = 200;
-  if (damageEnemy(enemy, dmg, enemy.bodyMesh, enemyPos, isCrit, { canIgnite: true })) return;
+  if (
+    damageEnemy(enemy, dmg, enemy.bodyMesh, enemyPos, isCrit, {
+      canIgnite: true,
+    })
+  )
+    return;
 
   // Chain to nearby enemies
   const struck = new Set<Enemy>([enemy]);
@@ -1079,7 +1121,9 @@ function triggerLightning(enemy: Enemy, critMult: number): void {
     (closest.bodyMesh.material as StandardMaterial).emissiveColor = flashColor;
     closest.flashMesh = closest.bodyMesh;
     closest.flashTime = 200;
-    damageEnemy(closest, chainDmg, closest.bodyMesh, targetPos, isCrit, { canIgnite: true });
+    damageEnemy(closest, chainDmg, closest.bodyMesh, targetPos, isCrit, {
+      canIgnite: true,
+    });
     chainSource = targetPos;
   }
 }
@@ -1111,7 +1155,10 @@ function hitEnemy(
   enemy.flashTime = effectiveCooldown() * 0.6;
 
   const dmgPos = hitPoint ?? enemy.bodyMesh.getAbsolutePosition();
-  damageEnemy(enemy, dmg, hitMesh, dmgPos, isCrit, { canLightning: true, canIgnite: true });
+  damageEnemy(enemy, dmg, hitMesh, dmgPos, isCrit, {
+    canLightning: true,
+    canIgnite: true,
+  });
 }
 
 // ─── Score ───────────────────────────────────────────────────────────────────

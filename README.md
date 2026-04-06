@@ -1,36 +1,36 @@
 # Babylon FPS
 
-A browser-based first-person shooter built with [Babylon.js](https://www.babylonjs.com/) and [Vite](https://vitejs.dev/).
+A browser-based first-person arena shooter built with [Babylon.js](https://www.babylonjs.com/), Havok physics, and [Vite](https://vitejs.dev/).
+
+## Overview
+
+The game starts with a basic semi-auto laser blaster and unfolds through randomized between-wave upgrades. As runs progress, you can unlock continuous-fire pulse shots, plasma casting and charging, grenade-style dump fire, proc-based damage systems, and a stack of stat upgrades that all feed back into the same shared ammo, heat, and wave loop.
 
 ## Features
 
 - First-person camera with pointer lock and mouse look
-- WASD movement with gravity and collision detection
-- Sprint (hold Shift) — disables firing and reloading while active, sways the weapon, and hides the crosshair
-- Raycast laser beam weapon with electric buzzing sound, blood splatter particles, and bullet hole decals that glow yellow → orange → red before fading
-- Weapon spread system — sustained fire and movement both increase inaccuracy; crosshair lines separate to indicate current spread
-- Weapon overheat system — continuous fire builds heat; at critical heat (75%) damage is reduced and the beam weakens; at max heat the gun locks, the barrel glows red, smoke particles emit, and cooling must occur before firing resumes
-- Orb charge system — hold right-click to charge an orb that consumes extra ammo over time for a bigger explosion; release to fire, or left-click while charging to dump-fire a heavy gravity-affected orb that bounces off geometry
-- Critical hit system — beam and orb shots can critically hit for bonus damage; a critical beam detonating a critical orb stacks crit multipliers
-- Multishot — chance for each shot (beam or orb) to fire 3 projectiles (one normal, two angled); upgradeable
-- Ricochet — beams and orbs can bounce off surfaces or enemies on impact, spawning new projectiles at the reflection angle; recursive with depth limit; upgradeable
-- Lightning — on-hit chance to call a lightning bolt from the ceiling that chains to nearby enemies; critical hits produce purple lightning with crit-multiplied damage; upgradeable
-- Ignite — any damage source has a chance to set enemies on fire; burning enemies take continuous DOT damage, have fire particles and a crackling fire sound, spread fire to nearby enemies, and leave blackened ragdoll parts on death; ignite chance is upgradeable
-- Enemy health bars — world-space GUI bars above each enemy's head, with floating damage numbers (red for normal hits, purple for crits)
-- Wave-based enemy spawning — each wave brings more enemies with increasing health, speed, damage, and attack rate; enemies drop from the ceiling and zigzag while chasing
-- Enemy death ragdoll — head, body, arms, and legs separate on death, receive physics impulses; the killing-shot part splits in half; all ragdoll parts and debris can be shot for bonus score
-- Upgrade system — choose from randomized upgrades between waves: max health, speed, reload speed, mag size, rate of fire, heat capacity, beam damage, orb damage, crit chance, crit damage, orb self-damage reduction, multishot chance, ricochet chance, lightning chance, ignite chance
-- Scoring — base kill score with 1.5x headshot multiplier; shooting ragdoll parts and debris awards 1 point each
-- Pickup system — health and ammo pickups with physics drop at hit locations every 500 points (50% chance); wave completion grants bonus pickups and score
-- 100-round magazine with manual (`R`) and auto reload; reload plays an eject-and-insert sound sequence; ammo pickups restore a full magazine
-- Reload animation — gun tilts up and the energy cell slides out and back in
-- Dynamic crosshair — turns red when aimed at a living enemy
-- Centre lamppost with spotlight and shadow casting; low ambient light
-- Pause/resume via Babylon GUI overlay screens (start, pause, options, game over); pointer lock resumes directly from button clicks on the canvas
-- Shadow mapping, exponential fog, and particle effects
-- HUD showing health, ammo reserve, score, kill count, wave number, enemies remaining, and heat bar
-- Distinct sounds for shooting, enemy death, enemy spawn, health pickup, ammo pickup, reload, overheat, lightning, and fire crackling
-- Game over screen with wave reached, final score/kills, and restart; all audio suspends when paused
+- WASD movement with jump, sprint, acceleration smoothing, and physics-backed collision
+- Middle-click melee attack with knockback and headshot bonus damage
+- Semi-auto laser by default, with `Pulse Laser` unlock enabling hold-to-fire continuous shooting
+- Shared ammo magazine, reserve ammo, auto-reload on empty, and manual reload on `R`
+- Heat and overheat system shared by laser and plasma; critical heat weakens shots and max heat locks the weapon until it cools
+- Spread/bloom system driven by sustained fire and movement, with the crosshair widening to match current inaccuracy
+- Plasma weapon path gated through upgrades:
+  - `Plasma Caster` unlocks RMB plasma shots
+  - `Plasma Charger` unlocks hold-to-charge plasma
+  - `Plasma Grenadier` unlocks left-click dump fire while charging
+- Plasma shots are physics-simulated projectiles with splash damage, crit support, ricochet support, and optional gravity on grenade-style shots
+- Critical hit system for both laser and plasma, including laser-on-plasma interactions
+- Unlockable proc systems for multishot, ricochet, lightning, and ignite, each with follow-up chance upgrades
+- Ignite applies DOT, particle/fire audio, and fire spread to nearby enemies
+- Wave system with between-wave downtime, randomized upgrade picks, supply rewards, and escalating enemy stats
+- Enemy spawning from the ceiling, chase/patrol behavior, zigzag movement, melee attacks, and world-space health bars
+- Ragdoll enemy death with detachable limbs, split kill meshes, shootable debris, and bonus score for cleanup shots
+- Score-based health/ammo supply drops plus guaranteed wave-complete reward pickups in front of the player
+- Babylon GUI overlay flow for start, pause, options, and game-over screens
+- DOM HUD for health, ammo, score, kills, wave status, heat, crosshair, and upgrade selection
+- Synthesized audio only: Web Audio oscillators/noise buffers, no sound asset files
+- Saved options for volume and mouse sensitivity via `localStorage`
 
 ## Getting Started
 
@@ -45,43 +45,59 @@ Then open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ## Controls
 
-| Input                       | Action                                 |
-| --------------------------- | -------------------------------------- |
-| `W A S D`                   | Move                                   |
-| Mouse                       | Look                                   |
-| `Space`                     | Jump                                   |
-| Left Click                  | Shoot beam (hold to fire continuously) |
-| Right Click (hold)          | Charge orb — release to fire           |
-| Left Click (while charging) | Dump-fire gravity orb                  |
-| `R`                         | Reload                                 |
-| `Shift`                     | Sprint                                 |
-| `Esc` / lose pointer lock   | Pause                                  |
+| Input                                  | Action                                                                   |
+| -------------------------------------- | ------------------------------------------------------------------------ |
+| `W A S D`                              | Move                                                                     |
+| Mouse                                  | Look                                                                     |
+| `Space`                                | Jump                                                                     |
+| Left Click                             | Fire laser                                                               |
+| Left Click (hold, after `Pulse Laser`) | Continuous laser fire                                                    |
+| Right Click                            | Fire plasma after `Plasma Caster`; hold to charge after `Plasma Charger` |
+| Left Click while charging              | Dump-fire plasma grenade after `Plasma Grenadier`                        |
+| Middle Click                           | Melee attack                                                             |
+| `R`                                    | Reload                                                                   |
+| `Shift`                                | Sprint                                                                   |
+| `1` `2` `3`                            | Pick one of the current upgrade options                                  |
+| `Esc` / pointer lock loss              | Pause                                                                    |
 
 ## Scripts
 
-| Command           | Description                  |
-| ----------------- | ---------------------------- |
-| `npm run dev`     | Start local dev server       |
-| `npm run build`   | Production build to `dist/`  |
-| `npm run preview` | Preview the production build |
+| Command                | Description                                         |
+| ---------------------- | --------------------------------------------------- |
+| `npm run dev`          | Start the Vite dev server                           |
+| `npm run build`        | Create a production build in `dist/`                |
+| `npm run preview`      | Preview the production build locally                |
+| `npx tsc --noEmit`     | Run the strict TypeScript check used by the project |
+| `npm run format`       | Format the repo with Prettier                       |
+| `npm run format:check` | Check repo formatting with Prettier                 |
 
 ## Tech Stack
 
-- **[Babylon.js](https://www.babylonjs.com/)** — 3D engine (rendering, physics via Havok, particles, shadows)
-- **[Vite](https://vitejs.dev/)** — build tool and dev server
-- **TypeScript** — type-checked source throughout
+- **[Babylon.js](https://www.babylonjs.com/)** for rendering, GUI, meshes, particles, picking, and physics integration
+- **[@babylonjs/havok](https://www.npmjs.com/package/@babylonjs/havok)** for Havok-backed rigid-body physics
+- **TypeScript** with strict compiler settings
+- **Vite** for bundling and local development
 
 ## Source Files
 
-| File               | Responsibility                                                                                                                                                                                                                   |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/constants.ts` | All game-tuning values as grouped `as const` objects — `ARENA`, `ENEMY`, `PLAYER`, `BEAM`, `ORB`, `HEAT`, `SPREAD`, `WAVE`, `SUPPLY`, `SCORING`, `CRIT`, `MULTISHOT`, `RICOCHET`, `LIGHTNING`, `IGNITE`, `UPGRADE`, `AUDIO`, `BULLET_HOLE`, `ENEMY_HEALTH_BAR`, `LIGHTING` |
-| `src/spawn.ts`     | Mesh geometry definitions, material colours, factory functions, and all spawn/visual-effect functions (enemies, orbs, supplies, particles, laser beams, bullet holes, lightning bolts, enemy death/ragdoll)                      |
-| `src/game.ts`      | Shared types (`GameState`, `Enemy`, `Orb`, `Supply`), DOM element refs, and the mutable `g` context object imported by all other modules                                                                                         |
-| `src/audio.ts`     | Synthesized spatial audio (Web Audio API, HRTF panners) — all sounds are generated from oscillators and noise buffers, no audio files                                                                                            |
-| `src/build.ts`     | Scene initialisation — camera, lamppost lighting, Havok physics, particle texture — then orchestrates arena, weapon, and initial setup via `spawn.ts` helpers                                                                    |
-| `src/upgrades.ts`  | `effective*()` stat functions, upgrade definitions, and upgrade menu UI                                                                                                                                                          |
-| `src/actions.ts`   | Player actions — jumping, beam shooting, orb charging/firing, reloading, damage, scoring, lightning proc                                                                                                                         |
-| `src/update.ts`    | Per-frame game loop, player movement, enemy AI, wave system, timers, spread/heat decay, pickup collection, HUD                                                                                                                   |
-| `src/ui.ts`        | Babylon GUI overlay screens (start, pause, options, game over) built with `AdvancedDynamicTexture.CreateFullscreenUI`; exports show/hide functions and callbacks                                                                   |
-| `src/main.ts`      | Entry point — input event listeners, `startGame()`, render loop                                                                                                                                                                  |
+| File               | Responsibility                                                                                                                                                                                   |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/constants.ts` | Tunable gameplay constants grouped into exported `as const` objects such as `ARENA`, `LIGHTING`, `ENEMY`, `PLAYER`, `BLASTER`, `SCORING`, `SUPPLY`, `WAVE`, `CRIT`, `UPGRADE`, and `BULLET_HOLE` |
+| `src/game.ts`      | Core shared types (`GameState`, `Enemy`, `Supply`, `Plasma`), cached DOM refs, the mutable `g` game context, and the game-over callback bridge                                                   |
+| `src/build.ts`     | Scene/bootstrap assembly: Babylon scene creation, Havok setup, camera, lights, particle texture, arena construction, and weapon construction                                                     |
+| `src/spawn.ts`     | Arena mesh factories, weapon/enemy/supply creation, plasma spawning, bullet holes, particles, lightning, fire effects, damage numbers, health bars, ragdolls, and other mesh lifecycle work      |
+| `src/audio.ts`     | Procedural audio generation and spatial playback helpers                                                                                                                                         |
+| `src/upgrades.ts`  | Effective stat calculations, weighted upgrade definitions/unlocks, HUD updates, and upgrade menu selection flow                                                                                  |
+| `src/actions.ts`   | Player actions and combat logic: jump, melee, laser hitscan, plasma charge/fire, reload, damage resolution, scoring, crit/proc interactions                                                      |
+| `src/update.ts`    | Main per-frame update loop, timers, player movement, enemy AI, wave progression, heat/spread decay, supply pickup handling, and HUD/crosshair updates                                            |
+| `src/ui.ts`        | Babylon GUI overlay screens for start, pause, options, and game-over flow                                                                                                                        |
+| `src/main.ts`      | App bootstrap, input wiring, pointer-lock lifecycle, start/restart flow, and render loop                                                                                                         |
+
+## Architecture Notes
+
+- Shared mutable state lives in `g` from `src/game.ts`; nearly every module reads or writes through it.
+- `src/constants.ts` is the source of truth for gameplay tuning. The rest of the code imports grouped config objects instead of defining scattered exported constants.
+- Mesh creation, spawn logic, particle work, and disposal live in `src/spawn.ts`, not in the game loop.
+- The main loop is registered in `src/update.ts` through `scene.registerBeforeRender(update)`.
+- Overlay screens use Babylon GUI so pointer lock can be reacquired directly from canvas-driven button events.
+- The HUD and upgrade picker remain DOM-based, which keeps text updates simple and independent from the Babylon GUI overlay stack.

@@ -162,8 +162,14 @@ function updateTimers(dt: number): void {
       const pos = e.bodyMesh.getAbsolutePosition();
       for (const other of g.enemies) {
         if (other === e || other.onFire) continue;
-        const dist = Vector3.Distance(pos, other.bodyMesh.getAbsolutePosition());
-        if (dist < IGNITE.spreadRange && Math.random() < effectiveIgniteChance()) {
+        const dist = Vector3.Distance(
+          pos,
+          other.bodyMesh.getAbsolutePosition(),
+        );
+        if (
+          dist < IGNITE.spreadRange &&
+          Math.random() < effectiveIgniteChance()
+        ) {
           other.onFire = true;
           other.fireSpreadTimer = IGNITE.spreadTickMs;
           spawnFireEffect(other);
@@ -562,7 +568,10 @@ function updateWaves(dt: number): void {
   // Between waves — count down the pause timer
   if (!g.state.waveActive) {
     g.state.wavePauseTimer -= dt;
-    if (g.state.wavePauseTimer <= 0) { startNextWave(); return; }
+    if (g.state.wavePauseTimer <= 0) {
+      startNextWave();
+      return;
+    }
     const secs = Math.ceil(g.state.wavePauseTimer / 1000);
     dom.waveBanner.textContent = `Next wave in ${secs}`;
     dom.waveBanner.classList.add("visible");

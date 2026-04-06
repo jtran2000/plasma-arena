@@ -319,7 +319,10 @@ export function stopPlasmaChargeSound(): void {
 }
 
 // ─── Plasma sounds ───────────────────────────────────────────────────────────
-export function playPlasmaLaunchSound(pos: Vector3, chargeMultiplier = 1): void {
+export function playPlasmaLaunchSound(
+  pos: Vector3,
+  chargeMultiplier = 1,
+): void {
   const ctx = ensureAudioCtx();
   const now = ctx.currentTime;
   const panner = makePanner(ctx, pos);
@@ -607,7 +610,11 @@ export function stopFireSound(
   gain: GainNode,
 ): void {
   if (!g.audioCtx) {
-    try { source.stop(); } catch (_) { /* already stopped */ }
+    try {
+      source.stop();
+    } catch (_) {
+      /* already stopped */
+    }
     source.disconnect();
     gain.disconnect();
     return;
@@ -616,7 +623,11 @@ export function stopFireSound(
   gain.gain.cancelScheduledValues(now);
   gain.gain.setValueAtTime(gain.gain.value, now);
   gain.gain.linearRampToValueAtTime(0, now + 0.2);
-  try { source.stop(now + 0.25); } catch (_) { /* already stopped */ }
+  try {
+    source.stop(now + 0.25);
+  } catch (_) {
+    /* already stopped */
+  }
   setTimeout(() => {
     source.disconnect();
     gain.disconnect();

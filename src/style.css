@@ -1,51 +1,86 @@
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #000; overflow: hidden; }
-canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+body {
+  background: #000;
+  overflow: hidden;
+}
+canvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  touch-action: none;
+}
 
 #hud {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   color: #fff;
   display: none;
 }
 #crosshair {
   position: absolute;
-  top: 50%; left: 50%;
+  top: 50%;
+  left: 50%;
   transform: translate(-50%, -50%);
-  width: 0; height: 0;
+  width: 0;
+  height: 0;
 }
 .ch-line {
   position: absolute;
-  background: rgba(255,255,255,0.85);
+  background: rgba(255, 255, 255, 0.85);
 }
-.ch-top    { width: 2px; height: 8px; left: -1px; }
-.ch-bottom { width: 2px; height: 8px; left: -1px; }
-.ch-left   { width: 8px; height: 2px; top: -1px; }
-.ch-right  { width: 8px; height: 2px; top: -1px; }
+.ch-top {
+  width: 2px;
+  height: 8px;
+  left: -1px;
+}
+.ch-bottom {
+  width: 2px;
+  height: 8px;
+  left: -1px;
+}
+.ch-left {
+  width: 8px;
+  height: 2px;
+  top: -1px;
+}
+.ch-right {
+  width: 8px;
+  height: 2px;
+  top: -1px;
+}
 
 #heat-bar {
   display: none;
   position: absolute;
   bottom: 80px;
-  left: 0; right: 0;
+  left: 0;
+  right: 0;
   margin: 0 auto;
   width: 120px;
   height: 6px;
-  background: rgba(0,0,0,0.5);
-  border: 1px solid rgba(255,255,255,0.3);
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 3px;
   overflow: hidden;
 }
-#heat-bar.visible { display: block; }
+#heat-bar.visible {
+  display: block;
+}
 #heat-fill {
   height: 100%;
   width: 0%;
   background: #f80;
   transition: background 0.2s;
 }
-#heat-fill.critical { background: #f22; }
+#heat-fill.critical {
+  background: #f22;
+}
 #overheat-msg {
   display: none;
   position: absolute;
@@ -57,33 +92,51 @@ canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
   font-weight: bold;
   text-shadow: 0 0 6px #f00;
 }
-#overheat-msg.visible { display: block; }
+#overheat-msg.visible {
+  display: block;
+}
 
 #bottom-hud {
   position: absolute;
   bottom: 24px;
-  left: 0; right: 0;
+  left: 0;
+  right: 0;
   display: flex;
   justify-content: space-between;
   padding: 0 32px;
   align-items: flex-end;
 }
-.hud-block { display: flex; flex-direction: column; gap: 2px; }
-.hud-label { font-size: 0.65rem; color: #aaa; letter-spacing: 0.15em; text-transform: uppercase; }
-.hud-value { font-size: 1.6rem; font-weight: bold; letter-spacing: 0.05em; }
+.hud-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.hud-label {
+  font-size: 0.65rem;
+  color: #aaa;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.hud-value {
+  font-size: 1.6rem;
+  font-weight: bold;
+  letter-spacing: 0.05em;
+}
 #health-bar {
   position: relative;
   width: 120px;
   height: 24px;
-  background: rgba(255,255,255,0.1);
-  border: 1px solid rgba(255,255,255,0.3);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   transition: width 0.3s;
 }
 #health-fill {
   height: 100%;
   width: 100%;
   background: #4f4;
-  transition: width 0.15s, background 0.3s;
+  transition:
+    width 0.15s,
+    background 0.3s;
 }
 #health-text {
   position: absolute;
@@ -94,10 +147,14 @@ canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
   font-size: 0.75rem;
   font-weight: bold;
   color: #fff;
-  text-shadow: 0 0 3px #000, 0 0 3px #000;
+  text-shadow:
+    0 0 3px #000,
+    0 0 3px #000;
   pointer-events: none;
 }
-#ammo-value { color: #fa0; }
+#ammo-value {
+  color: #fa0;
+}
 
 #top-right-hud {
   position: absolute;
@@ -109,7 +166,9 @@ canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
   align-items: center;
   text-align: center;
 }
-#top-right-hud .hud-value { color: #4af; }
+#top-right-hud .hud-value {
+  color: #4af;
+}
 
 #wave-banner {
   position: absolute;
@@ -118,7 +177,7 @@ canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
   transform: translate(-50%, -50%);
   font-size: 2.5rem;
   font-weight: bold;
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   color: #f80;
   letter-spacing: 0.15em;
   text-transform: uppercase;
@@ -127,16 +186,20 @@ canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
   transition: opacity 0.4s ease-out;
   pointer-events: none;
 }
-#wave-banner.visible { opacity: 1; }
+#wave-banner.visible {
+  opacity: 1;
+}
 
 #hit-flash {
   position: absolute;
   inset: 0;
-  background: rgba(255,50,50,0);
+  background: rgba(255, 50, 50, 0);
   pointer-events: none;
   transition: background 0.15s ease-out;
 }
-#hit-flash.active { background: rgba(255,50,50,0.35); }
+#hit-flash.active {
+  background: rgba(255, 50, 50, 0.35);
+}
 
 #reload-msg {
   position: absolute;
@@ -149,9 +212,13 @@ canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
   opacity: 0;
   transition: opacity 0.2s;
 }
-#reload-msg.visible { opacity: 1; }
+#reload-msg.visible {
+  opacity: 1;
+}
 
-#hud.paused #crosshair { display: none; }
+#hud.paused #crosshair {
+  display: none;
+}
 
 #upgrade-menu {
   display: none;
@@ -163,7 +230,9 @@ canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
   pointer-events: auto;
   z-index: 5;
 }
-#upgrade-menu.visible { display: block; }
+#upgrade-menu.visible {
+  display: block;
+}
 .upgrade-title {
   font-size: 1.4rem;
   color: #f80;
@@ -172,7 +241,10 @@ canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
   font-weight: bold;
   margin-bottom: 16px;
 }
-.upgrade-options { display: flex; gap: 12px; }
+.upgrade-options {
+  display: flex;
+  gap: 12px;
+}
 .upgrade-option {
   display: flex;
   flex-direction: column;
@@ -180,15 +252,20 @@ canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
   gap: 8px;
   padding: 16px 20px;
   min-width: 140px;
-  background: rgba(0,0,0,0.7);
-  border: 1px solid rgba(255,136,0,0.5);
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 136, 0, 0.5);
   color: #fff;
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   font-size: 0.85rem;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
 }
-.upgrade-option:hover { border-color: #f80; background: rgba(255,136,0,0.15); }
+.upgrade-option:hover {
+  border-color: #f80;
+  background: rgba(255, 136, 0, 0.15);
+}
 .upgrade-key {
   display: inline-block;
   width: 24px;
@@ -200,8 +277,13 @@ canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
   font-weight: bold;
   text-align: center;
 }
-.upgrade-label { color: #ccc; }
-.upgrade-count { font-size: 0.7rem; color: #888; }
+.upgrade-label {
+  color: #ccc;
+}
+.upgrade-count {
+  font-size: 0.7rem;
+  color: #888;
+}
 
 #instruction-msg {
   display: none;
@@ -212,8 +294,10 @@ canvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
   color: #ff0;
   font-size: 1.2rem;
   font-weight: bold;
-  text-shadow: 0 0 8px rgba(255,255,0,0.5);
+  text-shadow: 0 0 8px rgba(255, 255, 0, 0.5);
   pointer-events: none;
   z-index: 6;
 }
-#instruction-msg.visible { display: block; }
+#instruction-msg.visible {
+  display: block;
+}

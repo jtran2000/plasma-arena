@@ -11,7 +11,12 @@ import {
   ParticleSystem,
   PointLight,
 } from "@babylonjs/core";
-import { AdvancedDynamicTexture, Rectangle, TextBlock, Control } from "@babylonjs/gui";
+import {
+  AdvancedDynamicTexture,
+  Rectangle,
+  TextBlock,
+  Control,
+} from "@babylonjs/gui";
 import {
   ARENA,
   LIGHTING,
@@ -31,10 +36,7 @@ import {
   startFireSound,
   stopFireSound,
 } from "./audio.js";
-import {
-  effectiveCooldown,
-  effectiveHeatMax,
-} from "./upgrades.js";
+import { effectiveCooldown, effectiveHeatMax } from "./upgrades.js";
 
 // ─── Mesh definitions ────────────────────────────────────────────────────────
 
@@ -242,7 +244,11 @@ function makeCrateMat(): StandardMaterial {
 function makeFloor(): Mesh {
   return MeshBuilder.CreateBox(
     "floor",
-    { width: ARENA_STYLE.room, height: ARENA_STYLE.floor.size.height, depth: ARENA_STYLE.room },
+    {
+      width: ARENA_STYLE.room,
+      height: ARENA_STYLE.floor.size.height,
+      depth: ARENA_STYLE.room,
+    },
     g.scene,
   );
 }
@@ -250,7 +256,11 @@ function makeFloor(): Mesh {
 function makeCeil(): Mesh {
   return MeshBuilder.CreateBox(
     "ceil",
-    { width: ARENA_STYLE.room, height: ARENA_STYLE.ceiling.size.height, depth: ARENA_STYLE.room },
+    {
+      width: ARENA_STYLE.room,
+      height: ARENA_STYLE.ceiling.size.height,
+      depth: ARENA_STYLE.room,
+    },
     g.scene,
   );
 }
@@ -276,7 +286,11 @@ function makePillar(): Mesh {
 }
 
 function makeCrate(): Mesh {
-  return MeshBuilder.CreateBox("crate", { size: ARENA_STYLE.crate.size }, g.scene);
+  return MeshBuilder.CreateBox(
+    "crate",
+    { size: ARENA_STYLE.crate.size },
+    g.scene,
+  );
 }
 
 function makeAccentStrip(): Mesh {
@@ -888,7 +902,10 @@ export function makeBulletHoleDisc(): Mesh {
   mat.backFaceCulling = false;
   const disc = MeshBuilder.CreateDisc(
     "bhole",
-    { radius: BULLET_HOLE_STYLE.radius, tessellation: BULLET_HOLE_STYLE.tessellation },
+    {
+      radius: BULLET_HOLE_STYLE.radius,
+      tessellation: BULLET_HOLE_STYLE.tessellation,
+    },
     g.scene,
   );
   disc.material = mat;
@@ -933,8 +950,11 @@ export function makePlasmaChargeMesh(): Mesh {
 }
 
 // ─── Callback for incrementScore (lives in update.ts) ───────────────────────
-let _incrementScore: ((amount: number, hitPoint?: Vector3) => void) | null = null;
-export function setIncrementScore(fn: (amount: number, hitPoint?: Vector3) => void): void {
+let _incrementScore: ((amount: number, hitPoint?: Vector3) => void) | null =
+  null;
+export function setIncrementScore(
+  fn: (amount: number, hitPoint?: Vector3) => void,
+): void {
   _incrementScore = fn;
 }
 
@@ -1044,7 +1064,10 @@ export function spawnEnemy(): void {
   playEnemySpawnSound(new Vector3(x, ARENA.ceil - 0.5, z));
 }
 
-export function spawnSupply(position: Vector3, forceType?: "health" | "ammo"): void {
+export function spawnSupply(
+  position: Vector3,
+  forceType?: "health" | "ammo",
+): void {
   const type = forceType ?? (Math.random() < 0.5 ? "health" : "ammo");
   const { mesh, aggregate } =
     type === "health" ? makeHealthSupply(position) : makeAmmoSupply(position);
@@ -1090,7 +1113,11 @@ export function spawnPlasma(
 
 // ─── Visual effects (moved from update.ts) ──────────────────────────────────
 
-export function spawnLightningBolt(from: Vector3, to: Vector3, isCrit = false): void {
+export function spawnLightningBolt(
+  from: Vector3,
+  to: Vector3,
+  isCrit = false,
+): void {
   const segments = 8;
   const path: Vector3[] = [from.clone()];
   const dir = to.subtract(from);
@@ -1119,22 +1146,31 @@ export function spawnLightningBolt(from: Vector3, to: Vector3, isCrit = false): 
   );
   const mat = new StandardMaterial("lightningMat", g.scene);
   mat.diffuseColor = isCrit ? new Color3(0.6, 0, 1) : new Color3(0.5, 0.7, 1);
-  mat.emissiveColor = isCrit ? new Color3(0.5, 0, 0.9) : new Color3(0.6, 0.8, 1);
+  mat.emissiveColor = isCrit
+    ? new Color3(0.5, 0, 0.9)
+    : new Color3(0.6, 0.8, 1);
   mat.disableLighting = true;
   bolt.material = mat;
   bolt.isPickable = false;
   setTimeout(() => bolt.dispose(), 150);
 }
 
-export function spawnExplosionParticle(position: Vector3, isCrit = false): void {
+export function spawnExplosionParticle(
+  position: Vector3,
+  isCrit = false,
+): void {
   const ps = new ParticleSystem("explosion", 120, g.scene);
   ps.particleTexture = g.particleTex;
   ps.emitter = position;
   ps.minEmitBox = new Vector3(-0.3, -0.3, -0.3);
   ps.maxEmitBox = new Vector3(0.3, 0.3, 0.3);
   ps.color1 = isCrit ? new Color4(0.7, 0.1, 1, 1) : new Color4(0, 1, 1, 1);
-  ps.color2 = isCrit ? new Color4(0.4, 0, 0.8, 0.8) : new Color4(0, 0.5, 1, 0.8);
-  ps.colorDead = isCrit ? new Color4(0.15, 0, 0.2, 0) : new Color4(0.1, 0.15, 0.2, 0);
+  ps.color2 = isCrit
+    ? new Color4(0.4, 0, 0.8, 0.8)
+    : new Color4(0, 0.5, 1, 0.8);
+  ps.colorDead = isCrit
+    ? new Color4(0.15, 0, 0.2, 0)
+    : new Color4(0.1, 0.15, 0.2, 0);
   ps.minSize = 0.15;
   ps.maxSize = 0.5;
   ps.minLifeTime = 0.3;
@@ -1254,17 +1290,23 @@ export function spawnSmokeParticles(): void {
 
 // ─── Enemy Health Bar (3D GUI — world space) ──────────────────────────────
 function createEnemyHealthBar(enemy: import("./game.js").Enemy): void {
-  const plane = MeshBuilder.CreatePlane("hpBarPlane", {
-    width: ENEMY_HEALTH_BAR.width,
-    height: ENEMY_HEALTH_BAR.height,
-  }, g.scene);
+  const plane = MeshBuilder.CreatePlane(
+    "hpBarPlane",
+    {
+      width: ENEMY_HEALTH_BAR.width,
+      height: ENEMY_HEALTH_BAR.height,
+    },
+    g.scene,
+  );
   plane.parent = enemy.physMesh;
   plane.position.y = ENEMY_HEALTH_BAR.offsetY;
   plane.billboardMode = Mesh.BILLBOARDMODE_ALL;
   plane.isPickable = false;
 
   const tex = AdvancedDynamicTexture.CreateForMesh(
-    plane, ENEMY_HEALTH_BAR.texW, ENEMY_HEALTH_BAR.texH,
+    plane,
+    ENEMY_HEALTH_BAR.texW,
+    ENEMY_HEALTH_BAR.texH,
   );
 
   const bg = new Rectangle("hpBg");
@@ -1310,8 +1352,16 @@ export function updateEnemyHealthBar(enemy: import("./game.js").Enemy): void {
   enemy.healthBarPlane.setEnabled(frac < 1);
 }
 
-export function spawnDamageNumber(position: Vector3, amount: number, isCrit: boolean): void {
-  const plane = MeshBuilder.CreatePlane("dmgPlane", { width: 1.2, height: 0.4 }, g.scene);
+export function spawnDamageNumber(
+  position: Vector3,
+  amount: number,
+  isCrit: boolean,
+): void {
+  const plane = MeshBuilder.CreatePlane(
+    "dmgPlane",
+    { width: 1.2, height: 0.4 },
+    g.scene,
+  );
   plane.position = position.clone();
   plane.position.y += 0.5;
   plane.billboardMode = Mesh.BILLBOARDMODE_ALL;
@@ -1415,7 +1465,11 @@ export function disposeFireEffect(enemy: import("./game.js").Enemy): void {
     if (enemy.fireAudioGain) {
       stopFireSound(enemy.fireAudioSource, enemy.fireAudioGain);
     } else {
-      try { enemy.fireAudioSource.stop(); } catch (_) { /* already stopped */ }
+      try {
+        enemy.fireAudioSource.stop();
+      } catch (_) {
+        /* already stopped */
+      }
     }
     enemy.fireAudioSource = null;
     enemy.fireAudioPanner = null;
@@ -1424,7 +1478,11 @@ export function disposeFireEffect(enemy: import("./game.js").Enemy): void {
   enemy.onFire = false;
 }
 
-export function spawnLaserBeam(from: Vector3, to: Vector3, isCrit = false): void {
+export function spawnLaserBeam(
+  from: Vector3,
+  to: Vector3,
+  isCrit = false,
+): void {
   const dist = Vector3.Distance(from, to);
   if (dist < 0.05) return;
 
@@ -1513,14 +1571,28 @@ export function killEnemy(
     mat.specularColor = new Color3(0.02, 0.02, 0.02);
   };
 
-  const limbs: { mesh: Mesh; pos: Vector3; name: string; splitFn: (p: Vector3, m: StandardMaterial) => [Mesh, Mesh]; makeAgg: (m: Mesh) => PhysicsAggregate; mass: number }[] = [];
+  const limbs: {
+    mesh: Mesh;
+    pos: Vector3;
+    name: string;
+    splitFn: (p: Vector3, m: StandardMaterial) => [Mesh, Mesh];
+    makeAgg: (m: Mesh) => PhysicsAggregate;
+    mass: number;
+  }[] = [];
   for (const pivot of [enemy.leftLeg, enemy.rightLeg]) {
     const box = pivot.getChildMeshes()[0] as Mesh;
     const wPos = box.getAbsolutePosition().clone();
     box.parent = null;
     box.position = wPos;
     pivot.dispose();
-    limbs.push({ mesh: box, pos: wPos, name: "enemyLeg", splitFn: makeLegSplitHalves, makeAgg: makeRagdollLegAggregate, mass: 2 });
+    limbs.push({
+      mesh: box,
+      pos: wPos,
+      name: "enemyLeg",
+      splitFn: makeLegSplitHalves,
+      makeAgg: makeRagdollLegAggregate,
+      mass: 2,
+    });
   }
   for (const pivot of [enemy.leftArm, enemy.rightArm]) {
     const box = pivot.getChildMeshes()[0] as Mesh;
@@ -1528,7 +1600,14 @@ export function killEnemy(
     box.parent = null;
     box.position = wPos;
     pivot.dispose();
-    limbs.push({ mesh: box, pos: wPos, name: "enemyArm", splitFn: makeArmSplitHalves, makeAgg: makeRagdollArmAggregate, mass: 1 });
+    limbs.push({
+      mesh: box,
+      pos: wPos,
+      name: "enemyArm",
+      splitFn: makeArmSplitHalves,
+      makeAgg: makeRagdollArmAggregate,
+      mass: 1,
+    });
   }
 
   enemy.bodyMesh.parent = null;
@@ -1556,27 +1635,54 @@ export function killEnemy(
       ).normalizeToNew()
     : new Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalizeToNew();
 
-  const splitPart = (mesh: Mesh, pos: Vector3, splitFn: (p: Vector3, m: StandardMaterial) => [Mesh, Mesh], mass: number, impulseScale: number) => {
+  const splitPart = (
+    mesh: Mesh,
+    pos: Vector3,
+    splitFn: (p: Vector3, m: StandardMaterial) => [Mesh, Mesh],
+    mass: number,
+    impulseScale: number,
+  ) => {
     const mat = mesh.material as StandardMaterial;
     mesh.dispose();
     const [top, bot] = splitFn(pos, mat);
     const topAgg = makeRagdollHalfAggregate(top, mass);
     topAgg.body.applyImpulse(
-      new Vector3(awayDir.x * impulseScale, impulseScale * 0.8, awayDir.z * impulseScale),
+      new Vector3(
+        awayDir.x * impulseScale,
+        impulseScale * 0.8,
+        awayDir.z * impulseScale,
+      ),
       pos,
     );
     const botAgg = makeRagdollHalfAggregate(bot, mass);
     botAgg.body.applyImpulse(
-      new Vector3(awayDir.x * impulseScale * 0.6, -2, awayDir.z * impulseScale * 0.6),
+      new Vector3(
+        awayDir.x * impulseScale * 0.6,
+        -2,
+        awayDir.z * impulseScale * 0.6,
+      ),
       pos,
     );
-    setTimeout(() => { topAgg.dispose(); top.dispose(); botAgg.dispose(); bot.dispose(); }, 3500);
+    setTimeout(() => {
+      topAgg.dispose();
+      top.dispose();
+      botAgg.dispose();
+      bot.dispose();
+    }, 3500);
   };
 
-  const ragdollPiece = (mesh: Mesh, pos: Vector3, makeAgg: (m: Mesh) => PhysicsAggregate, impulse: Vector3) => {
+  const ragdollPiece = (
+    mesh: Mesh,
+    pos: Vector3,
+    makeAgg: (m: Mesh) => PhysicsAggregate,
+    impulse: Vector3,
+  ) => {
     const agg = makeAgg(mesh);
     agg.body.applyImpulse(impulse, pos);
-    setTimeout(() => { agg.dispose(); mesh.dispose(); }, 3500);
+    setTimeout(() => {
+      agg.dispose();
+      mesh.dispose();
+    }, 3500);
   };
 
   const killName = killMesh.name;
@@ -1587,29 +1693,67 @@ export function killEnemy(
     for (const l of limbs) splitPart(l.mesh, l.pos, l.splitFn, l.mass, 6);
   } else if (isHeadshot) {
     splitPart(enemy.headMesh, headWorldPos, makeHeadSplitHalves, 1, 4);
-    ragdollPiece(enemy.bodyMesh, bodyWorldPos, makeRagdollBodyAggregate,
-      awayDir.scale(40).addInPlaceFromFloats(0, 5, 0));
-    for (const l of limbs) ragdollPiece(l.mesh, l.pos, l.makeAgg,
-      new Vector3(awayDir.x * 10, 3 + Math.random() * 3, awayDir.z * 10));
+    ragdollPiece(
+      enemy.bodyMesh,
+      bodyWorldPos,
+      makeRagdollBodyAggregate,
+      awayDir.scale(40).addInPlaceFromFloats(0, 5, 0),
+    );
+    for (const l of limbs)
+      ragdollPiece(
+        l.mesh,
+        l.pos,
+        l.makeAgg,
+        new Vector3(awayDir.x * 10, 3 + Math.random() * 3, awayDir.z * 10),
+      );
   } else if (killName === "enemyArm" || killName === "enemyLeg") {
     for (const l of limbs) {
       if (l.mesh === killMesh) {
         splitPart(l.mesh, l.pos, l.splitFn, l.mass, 6);
       } else {
-        ragdollPiece(l.mesh, l.pos, l.makeAgg,
-          new Vector3(awayDir.x * 10, 3 + Math.random() * 3, awayDir.z * 10));
+        ragdollPiece(
+          l.mesh,
+          l.pos,
+          l.makeAgg,
+          new Vector3(awayDir.x * 10, 3 + Math.random() * 3, awayDir.z * 10),
+        );
       }
     }
-    ragdollPiece(enemy.bodyMesh, bodyWorldPos, makeRagdollBodyAggregate,
-      awayDir.scale(40).addInPlaceFromFloats(0, 5, 0));
-    ragdollPiece(enemy.headMesh, headWorldPos, makeRagdollHeadAggregate,
-      new Vector3((Math.random() - 0.5) * 8, 3 + Math.random() * 4, (Math.random() - 0.5) * 8));
+    ragdollPiece(
+      enemy.bodyMesh,
+      bodyWorldPos,
+      makeRagdollBodyAggregate,
+      awayDir.scale(40).addInPlaceFromFloats(0, 5, 0),
+    );
+    ragdollPiece(
+      enemy.headMesh,
+      headWorldPos,
+      makeRagdollHeadAggregate,
+      new Vector3(
+        (Math.random() - 0.5) * 8,
+        3 + Math.random() * 4,
+        (Math.random() - 0.5) * 8,
+      ),
+    );
   } else {
     splitPart(enemy.bodyMesh, bodyWorldPos, makeBodySplitHalves, 5, 22);
-    ragdollPiece(enemy.headMesh, headWorldPos, makeRagdollHeadAggregate,
-      new Vector3((Math.random() - 0.5) * 8, 3 + Math.random() * 4, (Math.random() - 0.5) * 8));
-    for (const l of limbs) ragdollPiece(l.mesh, l.pos, l.makeAgg,
-      new Vector3(awayDir.x * 10, 3 + Math.random() * 3, awayDir.z * 10));
+    ragdollPiece(
+      enemy.headMesh,
+      headWorldPos,
+      makeRagdollHeadAggregate,
+      new Vector3(
+        (Math.random() - 0.5) * 8,
+        3 + Math.random() * 4,
+        (Math.random() - 0.5) * 8,
+      ),
+    );
+    for (const l of limbs)
+      ragdollPiece(
+        l.mesh,
+        l.pos,
+        l.makeAgg,
+        new Vector3(awayDir.x * 10, 3 + Math.random() * 3, awayDir.z * 10),
+      );
   }
 
   g.state.kills++;
@@ -1619,7 +1763,11 @@ export function killEnemy(
   );
 }
 
-export function splitRagdoll(mesh: Mesh, beamDir: Vector3, hitPoint?: Vector3): void {
+export function splitRagdoll(
+  mesh: Mesh,
+  beamDir: Vector3,
+  hitPoint?: Vector3,
+): void {
   const worldPos = mesh.getAbsolutePosition().clone();
   const mat = mesh.material as StandardMaterial;
   const name = mesh.name;
@@ -1670,7 +1818,11 @@ export function splitRagdoll(mesh: Mesh, beamDir: Vector3, hitPoint?: Vector3): 
   _incrementScore!(1, hitPoint);
 }
 
-export function hitDebris(mesh: Mesh, beamDir: Vector3, hitPoint?: Vector3): void {
+export function hitDebris(
+  mesh: Mesh,
+  beamDir: Vector3,
+  hitPoint?: Vector3,
+): void {
   const shrink = 0.75;
   mesh.scaling.scaleInPlace(shrink);
 

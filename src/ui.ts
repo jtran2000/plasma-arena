@@ -38,8 +38,12 @@ let sensitivitySlider: Slider;
 export let onPlay: () => void = () => {};
 export let onRestart: () => void = () => {};
 
-export function setOnPlay(fn: () => void): void { onPlay = fn; }
-export function setOnRestart(fn: () => void): void { onRestart = fn; }
+export function setOnPlay(fn: () => void): void {
+  onPlay = fn;
+}
+export function setOnRestart(fn: () => void): void {
+  onRestart = fn;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function makeScreen(bg: string): Rectangle {
@@ -95,8 +99,12 @@ function makeButton(
   btn.fontWeight = "bold";
   btn.thickness = 0;
   btn.cornerRadius = 0;
-  btn.onPointerEnterObservable.add(() => { btn.background = hoverColor; });
-  btn.onPointerOutObservable.add(() => { btn.background = bgColor; });
+  btn.onPointerEnterObservable.add(() => {
+    btn.background = hoverColor;
+  });
+  btn.onPointerOutObservable.add(() => {
+    btn.background = bgColor;
+  });
   return btn;
 }
 
@@ -120,11 +128,15 @@ function buildStartScreen(): void {
   panel.addControl(instructions);
 
   const playBtn = makeButton("\u25B6  PLAY", ORANGE, "#000000", HOVER_ORANGE);
-  playBtn.onPointerUpObservable.add(() => { onPlay(); });
+  playBtn.onPointerUpObservable.add(() => {
+    onPlay();
+  });
   panel.addControl(playBtn);
 
   const optBtn = makeButton("\u2699  OPTIONS", ORANGE, "#000000", HOVER_ORANGE);
-  optBtn.onPointerUpObservable.add(() => { showOptions("start"); });
+  optBtn.onPointerUpObservable.add(() => {
+    showOptions("start");
+  });
   panel.addControl(optBtn);
 
   startScreen.isVisible = true;
@@ -140,14 +152,21 @@ function buildPauseScreen(): void {
 
   panel.addControl(makeTitle("PAUSED", 40, ORANGE));
 
-  const resumeBtn = makeButton("\u25B6  RESUME", ORANGE, "#000000", HOVER_ORANGE);
+  const resumeBtn = makeButton(
+    "\u25B6  RESUME",
+    ORANGE,
+    "#000000",
+    HOVER_ORANGE,
+  );
   resumeBtn.onPointerUpObservable.add(() => {
     dom.canvas.requestPointerLock({ unadjustedMovement: true });
   });
   panel.addControl(resumeBtn);
 
   const optBtn = makeButton("\u2699  OPTIONS", ORANGE, "#000000", HOVER_ORANGE);
-  optBtn.onPointerUpObservable.add(() => { showOptions("pause"); });
+  optBtn.onPointerUpObservable.add(() => {
+    showOptions("pause");
+  });
   panel.addControl(optBtn);
 }
 
@@ -253,7 +272,8 @@ function buildOptionsScreen(): void {
   sensitivityValueText.fontFamily = FONT;
   sensitivityValueText.fontWeight = "bold";
   sensitivityValueText.width = "50px";
-  sensitivityValueText.textHorizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
+  sensitivityValueText.textHorizontalAlignment =
+    Control.HORIZONTAL_ALIGNMENT_LEFT;
   sensitivityValueText.paddingLeft = "12px";
   sensRow.addControl(sensitivityValueText);
 
@@ -289,7 +309,9 @@ function buildGameOverScreen(): void {
   panel.addControl(scoreText);
 
   const restartBtn = makeButton("RESTART", RED, TEXT_COLOR, HOVER_RED);
-  restartBtn.onPointerUpObservable.add(() => { onRestart(); });
+  restartBtn.onPointerUpObservable.add(() => {
+    onRestart();
+  });
   panel.addControl(restartBtn);
 }
 
@@ -318,11 +340,19 @@ export function getSensitivityValue(): number {
   return sensitivitySlider.value;
 }
 
-export function showStart(): void { startScreen.isVisible = true; }
-export function hideStart(): void { startScreen.isVisible = false; }
+export function showStart(): void {
+  startScreen.isVisible = true;
+}
+export function hideStart(): void {
+  startScreen.isVisible = false;
+}
 
-export function showPause(): void { pauseScreen.isVisible = true; }
-export function hidePause(): void { pauseScreen.isVisible = false; }
+export function showPause(): void {
+  pauseScreen.isVisible = true;
+}
+export function hidePause(): void {
+  pauseScreen.isVisible = false;
+}
 
 export function showOptions(from: "start" | "pause"): void {
   optionsFrom = from;
