@@ -127,34 +127,34 @@ export const WAVE = {
 
 // ─── Critical Hits ─────────────────────────────────────────────────────────
 export const CRIT = {
-  chance: 0.08, // base % chance
+  chance: 0.05, // base % chance
   damage: 2, // base multiplier
 } as const;
 
 // ─── Multishot ────────────────────────────────────────────────────────────
 export const MULTISHOT = {
-  chance: 0.08, // base % chance to fire 3 shots
-  angle: 0.12, // radians — spread angle for side shots
+  chance: 0.1, // base % chance to fire 3 shots
+  angle: 0.1, // radians — spread angle for side shots
 } as const;
 
 // ─── Ricochet ─────────────────────────────────────────────────────────────
 export const RICOCHET = {
-  chance: 0.08, // base % chance to ricochet on impact
+  chance: 0.1, // base % chance to ricochet on impact
   spread: 0.05, // radians — random spread added to reflection
   maxDepth: 10, // max ricochet chain length
 } as const;
 
 // ─── Lightning ────────────────────────────────────────────────────────────
 export const LIGHTNING = {
-  chance: 0.08, // base % chance per hit to trigger lightning
-  damage: 15, // base damage per bolt
+  chance: 0.05, // base % chance per hit to trigger lightning
+  damage: 300, // base damage per bolt
   chainRange: 5, // m — max distance to chain to next enemy
   maxChains: 3, // max number of chain jumps
 } as const;
 
 // ─── Ignite ──────────────────────────────────────────────────────────────
 export const IGNITE = {
-  chance: 0.5, // base % chance to ignite on any damage
+  chance: 0.1, // base % chance to ignite on any damage
   damagePerSec: 8, // fire DOT damage per second
   spreadRange: 2, // m — max distance fire can spread to nearby enemies
   spreadTickMs: 500, // ms between spread checks per burning enemy
@@ -178,10 +178,10 @@ export const UPGRADE = {
   critChance: 0.03, // + % per upgrade
   critDamage: 0.25, // +0.25x per upgrade
   plasmaSelfDamageReduction: 0.5, // % less self-damage per upgrade (exponential)
-  multishotChance: 0.04, // + % per upgrade
+  multishotChance: 0.05, // + % per upgrade
   ricochetChance: 0.04, // + % per upgrade
   lightningChance: 0.03, // + % per upgrade
-  igniteChance: 0.03, // + % per upgrade
+  igniteChance: 0.05, // + % per upgrade
 } as const;
 
 // ─── Audio ──────────────────────────────────────────────────────────────────

@@ -71,18 +71,25 @@ export function effectiveCritDamage(): number {
   return CRIT.damage + g.upgrades.critDamage * UPGRADE.critDamage;
 }
 export function effectivePlasmaSelfDamage(): number {
-  return Math.pow(1 - UPGRADE.plasmaSelfDamageReduction, g.upgrades.plasmaSelfDamage);
+  return Math.pow(
+    1 - UPGRADE.plasmaSelfDamageReduction,
+    g.upgrades.plasmaSelfDamage,
+  );
 }
 export function effectiveMultishotChance(): number {
+  if (!g.upgrades.multishotUnlock) return 0;
   return MULTISHOT.chance + g.upgrades.multishot * UPGRADE.multishotChance;
 }
 export function effectiveRicochetChance(): number {
+  if (!g.upgrades.ricochetUnlock) return 0;
   return RICOCHET.chance + g.upgrades.ricochet * UPGRADE.ricochetChance;
 }
 export function effectiveLightningChance(): number {
+  if (!g.upgrades.lightningUnlock) return 0;
   return LIGHTNING.chance + g.upgrades.lightning * UPGRADE.lightningChance;
 }
 export function effectiveIgniteChance(): number {
+  if (!g.upgrades.igniteUnlock) return 0;
   return IGNITE.chance + g.upgrades.ignite * UPGRADE.igniteChance;
 }
 
@@ -173,20 +180,54 @@ const UPGRADE_DEFS: UpgradeDef[] = [
     requires: "plasmaCaster",
   },
   {
+    key: "multishotUnlock",
+    label: "Multishot",
+    weight: 5,
+    instruction: "Blaster shots have a chance to split into 3",
+    oneTime: true,
+  },
+  {
     key: "multishot",
     label: `+${Math.round(UPGRADE.multishotChance * 100)}% Multishot Chance`,
+    requires: "multishotUnlock",
+  },
+  {
+    key: "ricochetUnlock",
+    label: "Ricochet",
+    weight: 5,
+    instruction: "Lasers and plasma can bounce off surfaces and hit again",
+    oneTime: true,
   },
   {
     key: "ricochet",
     label: `+${Math.round(UPGRADE.ricochetChance * 100)}% Ricochet Chance`,
+    requires: "ricochetUnlock",
+  },
+  {
+    key: "lightningUnlock",
+    label: "Lightning",
+    weight: 5,
+    instruction:
+      "Blaster hits can call down lightning that chains between enemies",
+    oneTime: true,
   },
   {
     key: "lightning",
     label: `+${Math.round(UPGRADE.lightningChance * 100)}% Lightning Chance`,
+    requires: "lightningUnlock",
+  },
+  {
+    key: "igniteUnlock",
+    label: "Ignite",
+    weight: 5,
+    instruction:
+      "Blaster hits can set enemies on fire, spreading to nearby foes",
+    oneTime: true,
   },
   {
     key: "ignite",
     label: `+${Math.round(UPGRADE.igniteChance * 100)}% Ignite Chance`,
+    requires: "igniteUnlock",
   },
   {
     key: "pulseLaser",
