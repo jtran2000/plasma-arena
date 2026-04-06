@@ -12,7 +12,7 @@ import {
   PointLight,
 } from "@babylonjs/core";
 import { AdvancedDynamicTexture, Rectangle } from "@babylonjs/gui";
-import { PLAYER, BEAM, SUPPLY, WAVE } from "./constants.js";
+import { PLAYER, LASER, SUPPLY, WAVE } from "./constants.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface GameState {
@@ -26,7 +26,7 @@ export interface GameState {
   autoReloadDelay: number;
   hitFlashTime: number;
   shootCooldown: number;
-  orbCooldown: number;
+  plasmaCooldown: number;
   heat: number;
   heatCooldownTimer: number;
   overheated: boolean;
@@ -46,7 +46,7 @@ export interface Supply {
   type: "health" | "ammo";
 }
 
-export interface Orb {
+export interface Plasma {
   mesh: Mesh;
   velocity: Vector3;
   age: number;
@@ -99,8 +99,8 @@ export interface Enemy {
 export function makeState(): GameState {
   return {
     health: PLAYER.maxHealth,
-    ammo: BEAM.magSize,
-    reserve: BEAM.magSize * BEAM.reserveMags,
+    ammo: LASER.magSize,
+    reserve: LASER.magSize * LASER.reserveMags,
     score: 0,
     kills: 0,
     reloading: false,
@@ -108,7 +108,7 @@ export function makeState(): GameState {
     autoReloadDelay: 0,
     hitFlashTime: 0,
     shootCooldown: 0,
-    orbCooldown: 0,
+    plasmaCooldown: 0,
     heat: 0,
     heatCooldownTimer: 0,
     overheated: false,
@@ -177,7 +177,7 @@ export const g = {
   playerAggregate: null as unknown as PhysicsAggregate,
   playerVelocityXZ: Vector3.Zero(),
   enemies: [] as Enemy[],
-  orbs: [] as Orb[],
+  plasmas: [] as Plasma[],
   supplies: [] as Supply[],
   bulletHoles: [] as Mesh[],
   bulletHoleTimes: [] as number[],
@@ -189,14 +189,14 @@ export const g = {
   weaponCell: null as unknown as Mesh,
   mouseHeld: false,
   mouse2Held: false,
-  orbCharging: false,
-  orbChargeTime: 0,
-  orbChargeAmmo: 0,
-  orbChargeMesh: null as Mesh | null,
-  orbChargeOsc: null as OscillatorNode | null,
-  orbChargeGain: null as GainNode | null,
-  orbChargeCrit: false,
-  orbMaxChargeTimer: 0,
+  plasmaCharging: false,
+  plasmaChargeTime: 0,
+  plasmaChargeAmmo: 0,
+  plasmaChargeMesh: null as Mesh | null,
+  plasmaChargeOsc: null as OscillatorNode | null,
+  plasmaChargeGain: null as GainNode | null,
+  plasmaChargeCrit: false,
+  plasmaMaxChargeTimer: 0,
   shootSpread: 0,
   moveSpread: 0,
   isSprinting: false,
@@ -215,12 +215,12 @@ export const g = {
     heatDecay: 0,
     bloom: 0,
     moveSpread: 0,
-    beamDamage: 0,
-    orbDamage: 0,
+    laserDamage: 0,
+    plasmaDamage: 0,
     supplyDropRate: 0,
     critChance: 0,
     critDamage: 0,
-    orbSelfDamage: 0,
+    plasmaSelfDamage: 0,
     multishot: 0,
     ricochet: 0,
     lightning: 0,

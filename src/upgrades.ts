@@ -1,9 +1,9 @@
 import {
   PLAYER,
-  BEAM,
+  LASER,
   SPREAD,
   HEAT,
-  ORB,
+  PLASMA,
   SUPPLY,
   CRIT,
   MULTISHOT,
@@ -23,17 +23,17 @@ export function effectiveSpeed(): number {
 }
 export function effectiveReloadTime(): number {
   return (
-    BEAM.reloadTime * Math.pow(1 - UPGRADE.reloadSpeed, g.upgrades.reloadTime)
+    LASER.reloadTime * Math.pow(1 - UPGRADE.reloadSpeed, g.upgrades.reloadTime)
   );
 }
 export function effectiveMagSize(): number {
-  return BEAM.magSize + g.upgrades.magSize * UPGRADE.magSize;
+  return LASER.magSize + g.upgrades.magSize * UPGRADE.magSize;
 }
 export function effectiveCooldown(): number {
   const pulseMult = g.upgrades.pulseLaser ? 2 : 1;
   return (
     60000 /
-    (BEAM.rateOfFire *
+    (LASER.rateOfFire *
       pulseMult *
       (1 + g.upgrades.rateOfFire * UPGRADE.rateOfFire))
   );
@@ -55,11 +55,11 @@ export function effectiveMoveSpreadRate(): number {
     Math.pow(1 - UPGRADE.moveSpreadReduction, g.upgrades.moveSpread)
   );
 }
-export function effectiveBeamDamage(): number {
-  return BEAM.damage + g.upgrades.beamDamage * UPGRADE.beamDamage;
+export function effectiveLaserDamage(): number {
+  return LASER.damage + g.upgrades.laserDamage * UPGRADE.laserDamage;
 }
-export function effectiveOrbDamage(): number {
-  return ORB.damage + g.upgrades.orbDamage * UPGRADE.orbDamage;
+export function effectivePlasmaDamage(): number {
+  return PLASMA.damage + g.upgrades.plasmaDamage * UPGRADE.plasmaDamage;
 }
 export function effectiveSupplyDropRate(): number {
   return SUPPLY.dropRate + g.upgrades.supplyDropRate * UPGRADE.supplyDropRate;
@@ -70,8 +70,8 @@ export function effectiveCritChance(): number {
 export function effectiveCritDamage(): number {
   return CRIT.damage + g.upgrades.critDamage * UPGRADE.critDamage;
 }
-export function effectiveOrbSelfDamage(): number {
-  return Math.pow(1 - UPGRADE.orbSelfDamageReduction, g.upgrades.orbSelfDamage);
+export function effectivePlasmaSelfDamage(): number {
+  return Math.pow(1 - UPGRADE.plasmaSelfDamageReduction, g.upgrades.plasmaSelfDamage);
 }
 export function effectiveMultishotChance(): number {
   return MULTISHOT.chance + g.upgrades.multishot * UPGRADE.multishotChance;
@@ -152,10 +152,10 @@ const UPGRADE_DEFS: UpgradeDef[] = [
     key: "moveSpread",
     label: `+${Math.round(UPGRADE.moveSpreadReduction * 100)}% Accuracy While Moving`,
   },
-  { key: "beamDamage", label: `+${UPGRADE.beamDamage} Beam Damage` },
+  { key: "laserDamage", label: `+${UPGRADE.laserDamage} Laser Damage` },
   {
-    key: "orbDamage",
-    label: `+${UPGRADE.orbDamage} Orb Damage`,
+    key: "plasmaDamage",
+    label: `+${UPGRADE.plasmaDamage} Plasma Damage`,
     requires: "plasmaCaster",
   },
   {
@@ -168,8 +168,8 @@ const UPGRADE_DEFS: UpgradeDef[] = [
   },
   { key: "critDamage", label: `+${UPGRADE.critDamage}x Crit Damage` },
   {
-    key: "orbSelfDamage",
-    label: `-${Math.round(UPGRADE.orbSelfDamageReduction * 100)}% Orb Self-Damage`,
+    key: "plasmaSelfDamage",
+    label: `-${Math.round(UPGRADE.plasmaSelfDamageReduction * 100)}% Plasma Self-Damage`,
     requires: "plasmaCaster",
   },
   {

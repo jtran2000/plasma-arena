@@ -60,7 +60,7 @@ export const PLAYER = {
 } as const;
 
 // ─── Player — Weapon ────────────────────────────────────────────────────────
-export const BEAM = {
+export const LASER = {
   damage: 25,
   rateOfFire: 600, // rounds per minute
   magSize: 32, // rounds per magazine
@@ -86,8 +86,8 @@ export const HEAT = {
   cooldownDelay: 1000, // ms of not firing before heat decays
 } as const;
 
-// ─── Player — Orb (Alt-Fire) ────────────────────────────────────────────────
-export const ORB = {
+// ─── Player — Plasma (Alt-Fire) ─────────────────────────────────────────────
+export const PLASMA = {
   damage: 50,
   speed: 30, // m/s
   radius: 0.1, // visual radius (m)
@@ -97,9 +97,9 @@ export const ORB = {
   cooldownMultiplier: 4, // cooldown multiplied by this
   splashFalloff: 0.5, // max splash damage = direct * this
   maxChargeHold: 1000, // ms to hold at max charge before auto-fire
-  gravity: 5, // m/s² gravity for dump-fired orbs
-  fuse: 6000, // ms — orb detonation timer (all orbs)
-  bounceDamping: 0.6, // velocity retained after bounce (gravity orbs)
+  gravity: 5, // m/s² gravity for dump-fired plasmas
+  fuse: 6000, // ms — plasma detonation timer
+  bounceDamping: 0.6, // velocity retained after bounce (gravity plasmas)
 } as const;
 
 // ─── Scoring ────────────────────────────────────────────────────────────────
@@ -172,12 +172,12 @@ export const UPGRADE = {
   heatDecay: 0.5, // + % of base heat decay per upgrade
   bloomReduction: 0.25, // % less bloom per shot per upgrade
   moveSpreadReduction: 0.25, // % less spread from movement per upgrade
-  beamDamage: 5,
-  orbDamage: 10,
+  laserDamage: 5,
+  plasmaDamage: 10,
   supplyDropRate: 0.05, // + % absolute drop chance per upgrade
   critChance: 0.03, // + % per upgrade
   critDamage: 0.25, // +0.25x per upgrade
-  orbSelfDamageReduction: 0.5, // % less self-damage per upgrade (exponential)
+  plasmaSelfDamageReduction: 0.5, // % less self-damage per upgrade (exponential)
   multishotChance: 0.04, // + % per upgrade
   ricochetChance: 0.04, // + % per upgrade
   lightningChance: 0.03, // + % per upgrade

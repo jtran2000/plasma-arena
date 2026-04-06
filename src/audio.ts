@@ -108,7 +108,7 @@ export function playReloadSounds(
   }, reloadTimeMs * 0.65);
 }
 
-export function playBeamSound(durationSec: number): void {
+export function playLaserSound(durationSec: number): void {
   const ctx = ensureAudioCtx();
   const now = ctx.currentTime;
   const panner = makePanner(ctx, g.barrelTip.getAbsolutePosition());
@@ -282,8 +282,8 @@ export function playEnemyAttackSound(pos: Vector3): void {
   osc.stop(now + 0.11);
 }
 
-// ─── Orb charge sounds ───────────────────────────────────────────────────────
-export function startOrbChargeSound(): void {
+// ─── Plasma charge sounds ────────────────────────────────────────────────────
+export function startPlasmaChargeSound(): void {
   const ctx = ensureAudioCtx();
   const now = ctx.currentTime;
   const osc = ctx.createOscillator();
@@ -294,32 +294,32 @@ export function startOrbChargeSound(): void {
   osc.connect(gain);
   gain.connect(audioDest());
   osc.start(now);
-  g.orbChargeOsc = osc;
-  g.orbChargeGain = gain;
+  g.plasmaChargeOsc = osc;
+  g.plasmaChargeGain = gain;
 }
 
-export function updateOrbChargeSound(t: number): void {
-  if (!g.orbChargeOsc || !g.orbChargeGain) return;
+export function updatePlasmaChargeSound(t: number): void {
+  if (!g.plasmaChargeOsc || !g.plasmaChargeGain) return;
   const ctx = g.audioCtx!;
   const now = ctx.currentTime;
-  g.orbChargeOsc.frequency.setTargetAtTime(60 + 140 * t, now, 0.05);
-  g.orbChargeGain.gain.setTargetAtTime(0.05 + 0.3 * t, now, 0.05);
+  g.plasmaChargeOsc.frequency.setTargetAtTime(60 + 140 * t, now, 0.05);
+  g.plasmaChargeGain.gain.setTargetAtTime(0.05 + 0.3 * t, now, 0.05);
 }
 
-export function stopOrbChargeSound(): void {
-  if (g.orbChargeOsc) {
-    g.orbChargeOsc.stop();
-    g.orbChargeOsc.disconnect();
-    g.orbChargeOsc = null;
+export function stopPlasmaChargeSound(): void {
+  if (g.plasmaChargeOsc) {
+    g.plasmaChargeOsc.stop();
+    g.plasmaChargeOsc.disconnect();
+    g.plasmaChargeOsc = null;
   }
-  if (g.orbChargeGain) {
-    g.orbChargeGain.disconnect();
-    g.orbChargeGain = null;
+  if (g.plasmaChargeGain) {
+    g.plasmaChargeGain.disconnect();
+    g.plasmaChargeGain = null;
   }
 }
 
-// ─── Orb sounds ──────────────────────────────────────────────────────────────
-export function playOrbLaunchSound(pos: Vector3, chargeMultiplier = 1): void {
+// ─── Plasma sounds ───────────────────────────────────────────────────────────
+export function playPlasmaLaunchSound(pos: Vector3, chargeMultiplier = 1): void {
   const ctx = ensureAudioCtx();
   const now = ctx.currentTime;
   const panner = makePanner(ctx, pos);
@@ -360,7 +360,7 @@ export function playOrbLaunchSound(pos: Vector3, chargeMultiplier = 1): void {
   noise.start(now);
 }
 
-export function playOrbExplosionSound(
+export function playPlasmaExplosionSound(
   pos: Vector3,
   chargeMultiplier = 1,
 ): void {

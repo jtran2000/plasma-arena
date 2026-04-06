@@ -16,7 +16,7 @@ import {
   ARENA,
   LIGHTING,
   PLAYER,
-  ORB,
+  PLASMA,
   HEAT,
   SCORING,
   ENEMY,
@@ -27,7 +27,7 @@ import { g, type Enemy } from "./game.js";
 import {
   playEnemySpawnSound,
   playEnemyDeathSound,
-  playBeamSound,
+  playLaserSound,
   startFireSound,
   stopFireSound,
 } from "./audio.js";
@@ -896,40 +896,40 @@ export function makeBulletHoleDisc(): Mesh {
   return disc;
 }
 
-// ─── Orb projectile (exported) ──────────────────────────────────────────────
-export function makeOrbMesh(pos: Vector3): Mesh {
-  const mat = new StandardMaterial("orbMat", g.scene);
+// ─── Plasma projectile (exported) ───────────────────────────────────────────
+export function makePlasmaMesh(pos: Vector3): Mesh {
+  const mat = new StandardMaterial("plasmaMat", g.scene);
   mat.diffuseColor = new Color3(0, 1, 1);
   mat.emissiveColor = new Color3(0, 0.9, 1);
   mat.disableLighting = true;
-  const orb = MeshBuilder.CreateSphere(
-    "orb",
-    { diameter: ORB.radius * 2, segments: 8 },
+  const mesh = MeshBuilder.CreateSphere(
+    "plasma",
+    { diameter: PLASMA.radius * 2, segments: 8 },
     g.scene,
   );
-  orb.material = mat;
-  orb.position = pos.clone();
-  orb.isPickable = false;
-  return orb;
+  mesh.material = mat;
+  mesh.position = pos.clone();
+  mesh.isPickable = false;
+  return mesh;
 }
 
-export function makeOrbChargeMesh(): Mesh {
-  const mat = new StandardMaterial("orbChargeMat", g.scene);
+export function makePlasmaChargeMesh(): Mesh {
+  const mat = new StandardMaterial("plasmaChargeMat", g.scene);
   mat.diffuseColor = new Color3(0, 1, 1);
   mat.emissiveColor = new Color3(0, 0.9, 1);
   mat.disableLighting = true;
   mat.alpha = 0.5;
-  const orb = MeshBuilder.CreateSphere(
-    "orbCharge",
-    { diameter: ORB.radius * 2, segments: 8 },
+  const mesh = MeshBuilder.CreateSphere(
+    "plasmaCharge",
+    { diameter: PLASMA.radius * 2, segments: 8 },
     g.scene,
   );
-  orb.material = mat;
-  orb.renderingGroupId = 1;
-  orb.parent = g.barrelTip;
-  orb.position.setAll(0);
-  orb.isPickable = false;
-  return orb;
+  mesh.material = mat;
+  mesh.renderingGroupId = 1;
+  mesh.parent = g.barrelTip;
+  mesh.position.setAll(0);
+  mesh.isPickable = false;
+  return mesh;
 }
 
 // ─── Callback for incrementScore (lives in update.ts) ───────────────────────
@@ -1051,7 +1051,7 @@ export function spawnSupply(position: Vector3, forceType?: "health" | "ammo"): v
   g.supplies.push({ mesh, aggregate, type });
 }
 
-export function spawnOrb(
+export function spawnPlasma(
   pos: Vector3,
   dir: Vector3,
   chargeMultiplier: number,
@@ -1060,25 +1060,25 @@ export function spawnOrb(
   hasGravity: boolean,
   ricochetDepth: number,
 ): void {
-  const mesh = makeOrbMesh(pos);
+  const mesh = makePlasmaMesh(pos);
   mesh.scaling.setAll(chargeMultiplier);
-  const orbMat = mesh.material as StandardMaterial;
+  const plasmaMat = mesh.material as StandardMaterial;
   if (isCrit) {
-    orbMat.diffuseColor = new Color3(0.6, 0, 1);
-    orbMat.emissiveColor = new Color3(0.5, 0, 0.9);
+    plasmaMat.diffuseColor = new Color3(0.6, 0, 1);
+    plasmaMat.emissiveColor = new Color3(0.5, 0, 0.9);
   }
   if (heatPenalty < 1) {
     const t = 1 - heatPenalty;
-    orbMat.alpha = 1 - t * 0.6;
-    orbMat.emissiveColor = Color3.Lerp(
-      orbMat.emissiveColor,
+    plasmaMat.alpha = 1 - t * 0.6;
+    plasmaMat.emissiveColor = Color3.Lerp(
+      plasmaMat.emissiveColor,
       new Color3(0.2, 0.3, 0.3),
       t,
     );
   }
-  g.orbs.push({
+  g.plasmas.push({
     mesh,
-    velocity: dir.scale(ORB.speed / chargeMultiplier),
+    velocity: dir.scale(PLASMA.speed / chargeMultiplier),
     age: 0,
     heatPenalty,
     chargeMultiplier,
@@ -1428,7 +1428,7 @@ export function spawnLaserBeam(from: Vector3, to: Vector3, isCrit = false): void
   const dist = Vector3.Distance(from, to);
   if (dist < 0.05) return;
 
-  playBeamSound((effectiveCooldown() * 0.6) / 1000);
+  playLaserSound((effectiveCooldown() * 0.6) / 1000);
 
   const beam = makeBeam(from, to);
   const mat = beam.material as StandardMaterial;

@@ -7,14 +7,14 @@ import {
   Vector3,
 } from "@babylonjs/core";
 import { g, dom, makeState, setGameOverCallback } from "./game.js";
-import { stopOrbChargeSound } from "./audio.js";
+import { stopPlasmaChargeSound } from "./audio.js";
 import { buildScene } from "./build.js";
 import {
   tryJump,
   shoot,
-  startOrbCharge,
-  releaseOrbCharge,
-  dumpOrbCharge,
+  startPlasmaCharge,
+  releasePlasmaCharge,
+  dumpPlasmaCharge,
   startReload,
 } from "./actions.js";
 import { updateHUD, selectUpgrade } from "./upgrades.js";
@@ -43,8 +43,8 @@ function setupInput(): void {
     if (info.event.button === 0) {
       if (info.type === PointerEventTypes.POINTERDOWN) {
         g.mouseHeld = true;
-        if (g.orbCharging) {
-          dumpOrbCharge();
+        if (g.plasmaCharging) {
+          dumpPlasmaCharge();
           return;
         }
         shoot();
@@ -54,10 +54,10 @@ function setupInput(): void {
     } else if (info.event.button === 2) {
       if (info.type === PointerEventTypes.POINTERDOWN) {
         g.mouse2Held = true;
-        startOrbCharge();
+        startPlasmaCharge();
       } else if (info.type === PointerEventTypes.POINTERUP) {
         g.mouse2Held = false;
-        if (g.orbCharging) releaseOrbCharge();
+        if (g.plasmaCharging) releasePlasmaCharge();
       }
     }
   });
@@ -107,12 +107,12 @@ async function startGame(): Promise<void> {
     heatDecay: 0,
     bloom: 0,
     moveSpread: 0,
-    beamDamage: 0,
-    orbDamage: 0,
+    laserDamage: 0,
+    plasmaDamage: 0,
     supplyDropRate: 0,
     critChance: 0,
     critDamage: 0,
-    orbSelfDamage: 0,
+    plasmaSelfDamage: 0,
     multishot: 0,
     ricochet: 0,
     lightning: 0,
@@ -123,18 +123,18 @@ async function startGame(): Promise<void> {
     plasmaGrenadier: false,
   };
   g.pendingUpgrades = [];
-  if (g.orbCharging) {
-    stopOrbChargeSound();
-    if (g.orbChargeMesh) {
-      g.orbChargeMesh.dispose();
-      g.orbChargeMesh = null;
+  if (g.plasmaCharging) {
+    stopPlasmaChargeSound();
+    if (g.plasmaChargeMesh) {
+      g.plasmaChargeMesh.dispose();
+      g.plasmaChargeMesh = null;
     }
-    g.orbCharging = false;
+    g.plasmaCharging = false;
   }
-  g.orbChargeCrit = false;
+  g.plasmaChargeCrit = false;
   g.mouse2Held = false;
-  for (const orb of g.orbs) orb.mesh.dispose();
-  g.orbs = [];
+  for (const p of g.plasmas) p.mesh.dispose();
+  g.plasmas = [];
 
   g.state = makeState();
   await buildScene();

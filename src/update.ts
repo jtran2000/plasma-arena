@@ -8,7 +8,7 @@ import {
   ENEMY,
   SUPPLY,
   PLAYER,
-  BEAM,
+  LASER,
   SPREAD,
   HEAT,
   SCORING,
@@ -47,8 +47,8 @@ import {
   shoot,
   startReload,
   completeReload,
-  updateOrbCharge,
-  updateOrbs,
+  updatePlasmaCharge,
+  updatePlasmas,
   incrementScore,
   damagePlayer,
   isEnemyPart,
@@ -93,8 +93,8 @@ function updateTimers(dt: number): void {
     }
   }
 
-  // Heat decay (blocked while charging orb)
-  if (g.state.heat > 0 && !g.orbCharging) {
+  // Heat decay (blocked while charging plasma)
+  if (g.state.heat > 0 && !g.plasmaCharging) {
     if (g.state.heatCooldownTimer > 0) {
       g.state.heatCooldownTimer -= dt;
     } else {
@@ -179,7 +179,7 @@ function updateTimers(dt: number): void {
   } else if (
     g.shootSpread > 0 &&
     g.state.shootCooldown <= 0 &&
-    !g.orbCharging
+    !g.plasmaCharging
   ) {
     g.shootSpread = Math.max(0, g.shootSpread - (SPREAD.decay * dt) / 1000);
   }
@@ -187,9 +187,9 @@ function updateTimers(dt: number): void {
     g.state.shootCooldown -= dt;
   }
 
-  if (g.state.orbCooldown > 0) g.state.orbCooldown -= dt;
-  if (g.orbCharging) updateOrbCharge(dt);
-  updateOrbs(dt);
+  if (g.state.plasmaCooldown > 0) g.state.plasmaCooldown -= dt;
+  if (g.plasmaCharging) updatePlasmaCharge(dt);
+  updatePlasmas(dt);
 
   // Movement spread: increase while moving, decay when stopped
   const isMoving =
@@ -286,7 +286,7 @@ function updateTimers(dt: number): void {
     const p = g.supplies[i];
     const dist = Vector3.Distance(g.playerMesh.position, p.mesh.position);
     if (dist < SUPPLY.collectRange) {
-      const maxReserve = BEAM.maxReserveMags * effectiveMagSize();
+      const maxReserve = LASER.maxReserveMags * effectiveMagSize();
       if (p.type === "health" && g.state.health >= effectiveMaxHealth())
         continue;
       if (p.type === "ammo" && g.state.reserve >= maxReserve) continue;

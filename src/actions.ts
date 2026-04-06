@@ -11,17 +11,17 @@ import {
   ARENA,
   PLAYER,
   HEAT,
-  ORB,
+  PLASMA,
   SPREAD,
   SUPPLY,
   MULTISHOT,
   RICOCHET,
   LIGHTNING,
 } from "./constants.js";
-import { g, dom, type Enemy, type Orb, endGame } from "./game.js";
+import { g, dom, type Enemy, type Plasma, endGame } from "./game.js";
 import {
-  makeOrbChargeMesh,
-  spawnOrb,
+  makePlasmaChargeMesh,
+  spawnPlasma,
   spawnLightningBolt,
   spawnExplosionParticle,
   spawnHitParticle,
@@ -39,24 +39,24 @@ import {
 import {
   playReloadSounds,
   playOverheatSound,
-  playOrbLaunchSound,
-  playOrbExplosionSound,
-  startOrbChargeSound,
-  updateOrbChargeSound,
-  stopOrbChargeSound,
+  playPlasmaLaunchSound,
+  playPlasmaExplosionSound,
+  startPlasmaChargeSound,
+  updatePlasmaChargeSound,
+  stopPlasmaChargeSound,
   playLightningSound,
 } from "./audio.js";
 import {
   effectiveCooldown,
   effectiveHeatMax,
   effectiveBloom,
-  effectiveBeamDamage,
-  effectiveOrbDamage,
+  effectiveLaserDamage,
+  effectivePlasmaDamage,
   effectiveReloadTime,
   effectiveMagSize,
   effectiveCritChance,
   effectiveCritDamage,
-  effectiveOrbSelfDamage,
+  effectivePlasmaSelfDamage,
   effectiveMultishotChance,
   effectiveRicochetChance,
   effectiveLightningChance,
@@ -80,13 +80,13 @@ export function damageEnemy(
   killMesh: Mesh,
   hitPoint: Vector3,
   isCrit: boolean,
-  opts?: { orbKill?: boolean; canLightning?: boolean; canIgnite?: boolean; showNumber?: boolean },
+  opts?: { plasmaKill?: boolean; canLightning?: boolean; canIgnite?: boolean; showNumber?: boolean },
 ): boolean {
   enemy.hp -= amount;
   if (opts?.showNumber !== false) spawnDamageNumber(hitPoint, amount, isCrit);
   updateEnemyHealthBar(enemy);
   if (enemy.hp <= 0) {
-    killEnemy(enemy, killMesh, hitPoint, opts?.orbKill);
+    killEnemy(enemy, killMesh, hitPoint, opts?.plasmaKill);
     return true;
   }
   const critMult = isCrit ? effectiveCritDamage() : 1;
@@ -148,7 +148,7 @@ export function tryJump(): void {
   );
 }
 
-// ─── Beam shooting ───────────────────────────────────────────────────────────
+// ─── Laser shooting ─────────────────────────────────────────────────────────
 export function shoot(): void {
   if (
     !g.state.running ||
@@ -203,7 +203,7 @@ export function shoot(): void {
   }
 
   for (const dir of directions) {
-    fireBeamRay(new Ray(ray.origin, dir, 100), isCrit);
+    fireLaserRay(new Ray(ray.origin, dir, 100), isCrit);
   }
 
   if (g.state.ammo === 0 && g.state.reserve > 0) g.state.autoReloadDelay = 300;
@@ -229,7 +229,7 @@ function reflectWithSpread(dir: Vector3, normal: Vector3): Vector3 {
   return addRandomSpread(reflected, RICOCHET.spread);
 }
 
-function fireBeamRay(ray: Ray, isCrit: boolean, depth = 0): void {
+function fireLaserRay(ray: Ray, isCrit: boolean, depth = 0): void {
   const rayFilter = (m: AbstractMesh) =>
     m.renderingGroupId !== 1 &&
     m.name !== "player" &&
@@ -239,15 +239,15 @@ function fireBeamRay(ray: Ray, isCrit: boolean, depth = 0): void {
     m.name !== "supply";
 
   const canRicochet = depth < RICOCHET.maxDepth;
-  const beamOrigin =
+  const laserOrigin =
     depth === 0 ? g.barrelTip.getAbsolutePosition() : ray.origin;
 
   if (isCrit) {
-    // Crit beam: penetrate through enemies
+    // Crit laser: penetrate through enemies
     const hits = g.scene.multiPickWithRay(ray, rayFilter) ?? [];
     hits.sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0));
 
-    let beamEnd = ray.origin.add(ray.direction.scale(100));
+    let laserEnd = ray.origin.add(ray.direction.scale(100));
     for (const h of hits) {
       if (!h.hit || !h.pickedMesh || !h.pickedPoint) continue;
       const name = h.pickedMesh.name;
@@ -272,7 +272,7 @@ function fireBeamRay(ray: Ray, isCrit: boolean, depth = 0): void {
           // Ricochet off each penetrated enemy
           if (canRicochet && Math.random() < effectiveRicochetChance()) {
             const rDir = reflectWithSpread(ray.direction, hitNormal);
-            fireBeamRay(
+            fireLaserRay(
               new Ray(h.pickedPoint.add(rDir.scale(0.1)), rDir, 100),
               isCrit,
               depth + 1,
@@ -294,21 +294,21 @@ function fireBeamRay(ray: Ray, isCrit: boolean, depth = 0): void {
           new Color4(0.8, 0.0, 0.0, 1),
           hitNormal,
         );
-      } else if (name === "orb") {
-        const orbIdx = g.orbs.findIndex((o) => o.mesh === h.pickedMesh);
-        if (orbIdx !== -1) {
-          detonateOrb(g.orbs[orbIdx], h.pickedPoint, isCrit);
-          g.orbs.splice(orbIdx, 1);
+      } else if (name === "plasma") {
+        const plasmaIdx = g.plasmas.findIndex((o) => o.mesh === h.pickedMesh);
+        if (plasmaIdx !== -1) {
+          detonatePlasma(g.plasmas[plasmaIdx], h.pickedPoint, isCrit);
+          g.plasmas.splice(plasmaIdx, 1);
         }
       } else {
-        // Wall/floor — beam stops here
-        beamEnd = h.pickedPoint;
+        // Wall/floor — laser stops here
+        laserEnd = h.pickedPoint;
         spawnBulletHole(h.pickedPoint, h.getNormal(true));
         // Ricochet off geometry
         if (canRicochet && Math.random() < effectiveRicochetChance()) {
           const hitNormal = h.getNormal(true) ?? ray.direction.negate();
           const rDir = reflectWithSpread(ray.direction, hitNormal);
-          fireBeamRay(
+          fireLaserRay(
             new Ray(h.pickedPoint.add(rDir.scale(0.1)), rDir, 100),
             isCrit,
             depth + 1,
@@ -317,16 +317,16 @@ function fireBeamRay(ray: Ray, isCrit: boolean, depth = 0): void {
         break;
       }
     }
-    spawnLaserBeam(beamOrigin, beamEnd, true);
+    spawnLaserBeam(laserOrigin, laserEnd, true);
   } else {
-    // Normal beam: single hit
+    // Normal laser: single hit
     const hit = g.scene.pickWithRay(ray, rayFilter);
 
-    const beamEnd =
+    const laserEnd =
       hit?.hit && hit.pickedPoint
         ? hit.pickedPoint
         : ray.origin.add(ray.direction.scale(100));
-    spawnLaserBeam(beamOrigin, beamEnd, false);
+    spawnLaserBeam(laserOrigin, laserEnd, false);
 
     if (hit?.hit && hit.pickedMesh) {
       if (isEnemyPart(hit.pickedMesh.name)) {
@@ -350,7 +350,7 @@ function fireBeamRay(ray: Ray, isCrit: boolean, depth = 0): void {
             // Ricochet off enemy
             if (canRicochet && Math.random() < effectiveRicochetChance()) {
               const rDir = reflectWithSpread(ray.direction, hitNormal);
-              fireBeamRay(
+              fireLaserRay(
                 new Ray(hit.pickedPoint.add(rDir.scale(0.1)), rDir, 100),
                 isCrit,
                 depth + 1,
@@ -383,13 +383,13 @@ function fireBeamRay(ray: Ray, isCrit: boolean, depth = 0): void {
             hitNormal,
           );
         }
-      } else if (hit.pickedMesh.name === "orb") {
-        const orbIdx = g.orbs.findIndex((o) => o.mesh === hit.pickedMesh);
-        if (orbIdx !== -1) {
-          const orb = g.orbs[orbIdx];
-          const detonatePos = hit.pickedPoint ?? orb.mesh.position.clone();
-          detonateOrb(orb, detonatePos, isCrit);
-          g.orbs.splice(orbIdx, 1);
+      } else if (hit.pickedMesh.name === "plasma") {
+        const plasmaIdx = g.plasmas.findIndex((o) => o.mesh === hit.pickedMesh);
+        if (plasmaIdx !== -1) {
+          const p = g.plasmas[plasmaIdx];
+          const detonatePos = hit.pickedPoint ?? p.mesh.position.clone();
+          detonatePlasma(p, detonatePos, isCrit);
+          g.plasmas.splice(plasmaIdx, 1);
         }
       } else if (hit.pickedPoint) {
         spawnBulletHole(hit.pickedPoint, hit.getNormal(true));
@@ -397,7 +397,7 @@ function fireBeamRay(ray: Ray, isCrit: boolean, depth = 0): void {
         if (canRicochet && Math.random() < effectiveRicochetChance()) {
           const hitNormal = hit.getNormal(true) ?? ray.direction.negate();
           const rDir = reflectWithSpread(ray.direction, hitNormal);
-          fireBeamRay(
+          fireLaserRay(
             new Ray(hit.pickedPoint.add(rDir.scale(0.1)), rDir, 100),
             isCrit,
             depth + 1,
@@ -408,8 +408,8 @@ function fireBeamRay(ray: Ray, isCrit: boolean, depth = 0): void {
   }
 }
 
-// ─── Alt-fire: Orb ──────────────────────────────────────────────────────────
-export function startOrbCharge(): void {
+// ─── Alt-fire: Plasma ───────────────────────────────────────────────────────
+export function startPlasmaCharge(): void {
   if (
     !g.upgrades.plasmaCaster ||
     !g.state.running ||
@@ -417,10 +417,10 @@ export function startOrbCharge(): void {
     g.isSprinting ||
     g.state.overheated ||
     g.pendingUpgrades.length > 0 ||
-    g.state.orbCooldown > 0
+    g.state.plasmaCooldown > 0
   )
     return;
-  if (g.state.ammo < ORB.ammoCost) {
+  if (g.state.ammo < PLASMA.ammoCost) {
     startReload();
     return;
   }
@@ -428,34 +428,34 @@ export function startOrbCharge(): void {
   const isCrit = Math.random() < effectiveCritChance();
 
   // Consume base ammo and apply heat
-  g.state.ammo -= ORB.ammoCost;
+  g.state.ammo -= PLASMA.ammoCost;
   g.state.heat = Math.min(
-    g.state.heat + HEAT.perShot * ORB.heatMultiplier,
+    g.state.heat + HEAT.perShot * PLASMA.heatMultiplier,
     effectiveHeatMax(),
   );
   g.state.heatCooldownTimer = HEAT.cooldownDelay;
 
   // Instant-fire if no charger upgrade, no spare ammo, or overheated
   if (!g.upgrades.plasmaCharger || g.state.ammo === 0 || g.state.heat >= effectiveHeatMax()) {
-    fireOrb(1.0, isCrit);
+    firePlasma(1.0, isCrit);
     return;
   }
-  g.orbChargeCrit = isCrit;
-  g.orbCharging = true;
-  g.orbChargeTime = 0;
-  g.orbChargeAmmo = ORB.ammoCost;
-  g.orbMaxChargeTimer = 0;
-  g.orbChargeMesh = makeOrbChargeMesh();
+  g.plasmaChargeCrit = isCrit;
+  g.plasmaCharging = true;
+  g.plasmaChargeTime = 0;
+  g.plasmaChargeAmmo = PLASMA.ammoCost;
+  g.plasmaMaxChargeTimer = 0;
+  g.plasmaChargeMesh = makePlasmaChargeMesh();
   if (isCrit) {
-    const mat = g.orbChargeMesh.material as StandardMaterial;
+    const mat = g.plasmaChargeMesh.material as StandardMaterial;
     mat.diffuseColor = new Color3(0.6, 0, 1);
     mat.emissiveColor = new Color3(0.5, 0, 0.9);
   }
-  startOrbChargeSound();
+  startPlasmaChargeSound();
   updateHUD();
 }
 
-export function updateOrbCharge(dt: number): void {
+export function updatePlasmaCharge(dt: number): void {
   // Interruption: fire immediately at current charge
   if (
     g.state.reloading ||
@@ -464,50 +464,50 @@ export function updateOrbCharge(dt: number): void {
     !g.state.running ||
     g.state.paused
   ) {
-    releaseOrbCharge();
+    releasePlasmaCharge();
     return;
   }
 
-  g.orbChargeTime += dt;
+  g.plasmaChargeTime += dt;
 
   // Drain extra ammo over time
   const targetExtra = Math.min(
     Math.floor(
-      g.orbChargeTime / (effectiveCooldown() * ORB.cooldownMultiplier),
+      g.plasmaChargeTime / (effectiveCooldown() * PLASMA.cooldownMultiplier),
     ),
-    ORB.ammoCost, // max 8 additional
+    PLASMA.ammoCost, // max 8 additional
   );
-  const currentExtra = g.orbChargeAmmo - ORB.ammoCost;
+  const currentExtra = g.plasmaChargeAmmo - PLASMA.ammoCost;
   for (let i = currentExtra; i < targetExtra; i++) {
     if (g.state.ammo <= 0) {
-      releaseOrbCharge();
+      releasePlasmaCharge();
       return;
     }
     g.state.ammo--;
-    g.orbChargeAmmo++;
+    g.plasmaChargeAmmo++;
     g.state.heat = Math.min(
-      g.state.heat + (HEAT.perShot * ORB.heatMultiplier) / ORB.ammoCost,
+      g.state.heat + (HEAT.perShot * PLASMA.heatMultiplier) / PLASMA.ammoCost,
       effectiveHeatMax(),
     );
     g.state.heatCooldownTimer = HEAT.cooldownDelay;
     if (g.state.heat >= effectiveHeatMax()) {
-      releaseOrbCharge();
+      releasePlasmaCharge();
       return;
     }
   }
 
-  const chargeMultiplier = g.orbChargeAmmo / ORB.ammoCost;
+  const chargeMultiplier = g.plasmaChargeAmmo / PLASMA.ammoCost;
 
   // Update visual: lerp scale and brightness smoothly toward target
-  if (g.orbChargeMesh) {
+  if (g.plasmaChargeMesh) {
     const lerpRate = 1 - Math.pow(0.001, dt / 1000); // ~smooth over ~150ms
-    const curScale = g.orbChargeMesh.scaling.x;
+    const curScale = g.plasmaChargeMesh.scaling.x;
     const s = curScale + (chargeMultiplier - curScale) * lerpRate;
-    g.orbChargeMesh.scaling.setAll(s);
-    g.orbChargeMesh.position.z = ORB.radius * s;
-    const mat = g.orbChargeMesh.material as StandardMaterial;
+    g.plasmaChargeMesh.scaling.setAll(s);
+    g.plasmaChargeMesh.position.z = PLASMA.radius * s;
+    const mat = g.plasmaChargeMesh.material as StandardMaterial;
     const t = s - 1;
-    if (g.orbChargeCrit) {
+    if (g.plasmaChargeCrit) {
       mat.diffuseColor = new Color3(0.6, 0, 1);
       mat.emissiveColor = Color3.Lerp(
         new Color3(0.5, 0, 0.9),
@@ -524,13 +524,13 @@ export function updateOrbCharge(dt: number): void {
   }
 
   // Update sound
-  updateOrbChargeSound(chargeMultiplier - 1);
+  updatePlasmaChargeSound(chargeMultiplier - 1);
 
   // At max charge, start hold timer — auto-fire after delay
-  if (g.orbChargeAmmo >= ORB.ammoCost * 2) {
-    g.orbMaxChargeTimer += dt;
-    if (g.orbMaxChargeTimer >= ORB.maxChargeHold) {
-      releaseOrbCharge();
+  if (g.plasmaChargeAmmo >= PLASMA.ammoCost * 2) {
+    g.plasmaMaxChargeTimer += dt;
+    if (g.plasmaMaxChargeTimer >= PLASMA.maxChargeHold) {
+      releasePlasmaCharge();
       return;
     }
   }
@@ -538,55 +538,55 @@ export function updateOrbCharge(dt: number): void {
   updateHUD();
 }
 
-export function releaseOrbCharge(): void {
-  if (!g.orbCharging) return;
-  const chargeMultiplier = g.orbChargeAmmo / ORB.ammoCost;
-  stopOrbChargeSound();
-  if (g.orbChargeMesh) {
-    g.orbChargeMesh.dispose();
-    g.orbChargeMesh = null;
+export function releasePlasmaCharge(): void {
+  if (!g.plasmaCharging) return;
+  const chargeMultiplier = g.plasmaChargeAmmo / PLASMA.ammoCost;
+  stopPlasmaChargeSound();
+  if (g.plasmaChargeMesh) {
+    g.plasmaChargeMesh.dispose();
+    g.plasmaChargeMesh = null;
   }
-  g.orbCharging = false;
-  const isCrit = g.orbChargeCrit;
-  g.orbChargeCrit = false;
-  fireOrb(chargeMultiplier, isCrit);
+  g.plasmaCharging = false;
+  const isCrit = g.plasmaChargeCrit;
+  g.plasmaChargeCrit = false;
+  firePlasma(chargeMultiplier, isCrit);
 }
 
-export function dumpOrbCharge(): void {
-  if (!g.orbCharging || !g.upgrades.plasmaGrenadier) return;
+export function dumpPlasmaCharge(): void {
+  if (!g.plasmaCharging || !g.upgrades.plasmaGrenadier) return;
 
-  const extraAmmo = Math.min(g.orbChargeAmmo, g.state.ammo);
+  const extraAmmo = Math.min(g.plasmaChargeAmmo, g.state.ammo);
   g.state.ammo -= extraAmmo;
-  g.orbChargeAmmo += extraAmmo;
+  g.plasmaChargeAmmo += extraAmmo;
 
   for (let i = 0; i < extraAmmo; i++) {
     g.state.heat = Math.min(
-      g.state.heat + (HEAT.perShot * ORB.heatMultiplier) / ORB.ammoCost,
+      g.state.heat + (HEAT.perShot * PLASMA.heatMultiplier) / PLASMA.ammoCost,
       effectiveHeatMax(),
     );
   }
   g.state.heatCooldownTimer = HEAT.cooldownDelay;
 
-  const chargeMultiplier = g.orbChargeAmmo / ORB.ammoCost;
-  stopOrbChargeSound();
-  if (g.orbChargeMesh) {
-    g.orbChargeMesh.dispose();
-    g.orbChargeMesh = null;
+  const chargeMultiplier = g.plasmaChargeAmmo / PLASMA.ammoCost;
+  stopPlasmaChargeSound();
+  if (g.plasmaChargeMesh) {
+    g.plasmaChargeMesh.dispose();
+    g.plasmaChargeMesh = null;
   }
-  g.orbCharging = false;
-  const isCrit = g.orbChargeCrit;
-  g.orbChargeCrit = false;
-  fireOrb(chargeMultiplier, isCrit, true);
+  g.plasmaCharging = false;
+  const isCrit = g.plasmaChargeCrit;
+  g.plasmaChargeCrit = false;
+  firePlasma(chargeMultiplier, isCrit, true);
 }
 
-function fireOrb(
+function firePlasma(
   chargeMultiplier: number,
   isCrit = false,
   hasGravity = false,
 ): void {
-  g.state.orbCooldown =
-    effectiveCooldown() * ORB.cooldownMultiplier * chargeMultiplier;
-  g.state.shootCooldown = Math.max(g.state.shootCooldown, g.state.orbCooldown);
+  g.state.plasmaCooldown =
+    effectiveCooldown() * PLASMA.cooldownMultiplier * chargeMultiplier;
+  g.state.shootCooldown = Math.max(g.state.shootCooldown, g.state.plasmaCooldown);
   g.state.heatCooldownTimer = HEAT.cooldownDelay;
   if (g.state.heat >= effectiveHeatMax()) {
     g.state.overheated = true;
@@ -632,10 +632,10 @@ function fireOrb(
   }
 
   const spawnPos = g.barrelTip.getAbsolutePosition();
-  playOrbLaunchSound(spawnPos, chargeMultiplier);
+  playPlasmaLaunchSound(spawnPos, chargeMultiplier);
 
   for (const dir of directions) {
-    spawnOrb(
+    spawnPlasma(
       spawnPos,
       dir,
       chargeMultiplier,
@@ -650,35 +650,35 @@ function fireOrb(
   updateHUD();
 }
 
-export function updateOrbs(dt: number): void {
+export function updatePlasmas(dt: number): void {
   const dtSec = dt / 1000;
-  for (let i = g.orbs.length - 1; i >= 0; i--) {
-    const orb = g.orbs[i];
-    orb.age += dt;
+  for (let i = g.plasmas.length - 1; i >= 0; i--) {
+    const p = g.plasmas[i];
+    p.age += dt;
 
-    // Move orb
-    if (orb.hasGravity) {
-      orb.velocity.y -= ORB.gravity * dtSec;
+    // Move plasma
+    if (p.hasGravity) {
+      p.velocity.y -= PLASMA.gravity * dtSec;
     }
-    const step = orb.velocity.scale(dtSec);
-    orb.mesh.position.addInPlace(step);
+    const step = p.velocity.scale(dtSec);
+    p.mesh.position.addInPlace(step);
 
-    // 5-ray collision: center + 4 edges of the orb sphere
-    const rayDir = orb.velocity.normalizeToNew();
-    const rayLen = orb.velocity.length() * dtSec + 0.2;
+    // 5-ray collision: center + 4 edges of the plasma sphere
+    const rayDir = p.velocity.normalizeToNew();
+    const rayLen = p.velocity.length() * dtSec + 0.2;
     const up = Vector3.Cross(rayDir, new Vector3(1, 0, 0));
     if (up.lengthSquared() < 0.01)
       up.copyFrom(Vector3.Cross(rayDir, new Vector3(0, 0, 1)));
     up.normalize();
     const right = Vector3.Cross(rayDir, up).normalize();
 
-    const orbR = ORB.radius * orb.chargeMultiplier;
+    const plasmaR = PLASMA.radius * p.chargeMultiplier;
     const rayOrigins = [
-      orb.mesh.position,
-      orb.mesh.position.add(up.scale(orbR)),
-      orb.mesh.position.add(up.scale(-orbR)),
-      orb.mesh.position.add(right.scale(orbR)),
-      orb.mesh.position.add(right.scale(-orbR)),
+      p.mesh.position,
+      p.mesh.position.add(up.scale(plasmaR)),
+      p.mesh.position.add(up.scale(-plasmaR)),
+      p.mesh.position.add(right.scale(plasmaR)),
+      p.mesh.position.add(right.scale(-plasmaR)),
     ];
 
     const rayFilter = (m: AbstractMesh) =>
@@ -688,15 +688,15 @@ export function updateOrbs(dt: number): void {
       m.name !== "laserBeam" &&
       m.name !== "bhole" &&
       m.name !== "supply" &&
-      m.name !== "orb" &&
-      m.name !== "orbCharge";
+      m.name !== "plasma" &&
+      m.name !== "plasmaCharge";
 
     let explode = false;
-    let explodePos = orb.mesh.position.clone();
+    let explodePos = p.mesh.position.clone();
     let explodeNormal: Vector3 | null = null;
     const directHits = new Map<Enemy, Mesh>();
     let bounced = false;
-    const canRicochet = orb.ricochetDepth < RICOCHET.maxDepth;
+    const canRicochet = p.ricochetDepth < RICOCHET.maxDepth;
 
     for (const origin of rayOrigins) {
       const ray = new Ray(origin, rayDir, rayLen);
@@ -715,30 +715,30 @@ export function updateOrbs(dt: number): void {
             explodePos = hit.pickedPoint;
             explodeNormal = hit.getNormal(true) ?? rayDir.negate();
           }
-        } else if (orb.hasGravity && !bounced) {
-          // Gravity orbs bounce off geometry instead of detonating
+        } else if (p.hasGravity && !bounced) {
+          // Gravity plasmas bounce off geometry instead of detonating
           const normal = hit.getNormal(true);
           if (normal) {
-            const dot = Vector3.Dot(orb.velocity, normal);
+            const dot = Vector3.Dot(p.velocity, normal);
             if (dot < 0) {
-              orb.velocity = orb.velocity.subtract(normal.scale(2 * dot));
-              orb.velocity.scaleInPlace(ORB.bounceDamping);
-              orb.mesh.position.addInPlace(normal.scale(orbR + 0.05));
+              p.velocity = p.velocity.subtract(normal.scale(2 * dot));
+              p.velocity.scaleInPlace(PLASMA.bounceDamping);
+              p.mesh.position.addInPlace(normal.scale(plasmaR + 0.05));
               bounced = true;
-              // Ricochet spawns another gravity orb at random angle
+              // Ricochet spawns another gravity plasma at random angle
               if (canRicochet && Math.random() < effectiveRicochetChance()) {
                 const rDir = addRandomSpread(
-                  orb.velocity.normalizeToNew(),
+                  p.velocity.normalizeToNew(),
                   Math.PI * 0.5,
                 );
-                spawnOrb(
-                  orb.mesh.position.add(rDir.scale(orbR + 0.1)),
+                spawnPlasma(
+                  p.mesh.position.add(rDir.scale(plasmaR + 0.1)),
                   rDir,
-                  orb.chargeMultiplier,
-                  orb.heatPenalty,
-                  orb.isCrit,
-                  orb.hasGravity,
-                  orb.ricochetDepth + 1,
+                  p.chargeMultiplier,
+                  p.heatPenalty,
+                  p.isCrit,
+                  p.hasGravity,
+                  p.ricochetDepth + 1,
                 );
               }
             }
@@ -751,71 +751,71 @@ export function updateOrbs(dt: number): void {
       }
     }
 
-    if (orb.age > ORB.fuse) explode = true;
+    if (p.age > PLASMA.fuse) explode = true;
 
     if (explode) {
-      // Ricochet on explosion (non-gravity orbs, or gravity orbs hitting enemies)
+      // Ricochet on explosion
       if (
         canRicochet &&
         explodeNormal &&
         Math.random() < effectiveRicochetChance()
       ) {
         const rDir = reflectWithSpread(rayDir, explodeNormal);
-        spawnOrb(
-          explodePos.add(rDir.scale(orbR + 0.1)),
+        spawnPlasma(
+          explodePos.add(rDir.scale(plasmaR + 0.1)),
           rDir,
-          orb.chargeMultiplier,
-          orb.heatPenalty,
-          orb.isCrit,
-          orb.hasGravity,
-          orb.ricochetDepth + 1,
+          p.chargeMultiplier,
+          p.heatPenalty,
+          p.isCrit,
+          p.hasGravity,
+          p.ricochetDepth + 1,
         );
       }
-      explodeOrb(
+      explodePlasma(
         explodePos,
         directHits,
-        orb.heatPenalty,
-        orb.mesh,
-        orb.chargeMultiplier,
+        p.heatPenalty,
+        p.mesh,
+        p.chargeMultiplier,
         false,
-        orb.isCrit ? 1 : 0,
+        p.isCrit ? 1 : 0,
       );
-      g.orbs.splice(i, 1);
+      g.plasmas.splice(i, 1);
     }
   }
 }
 
-function detonateOrb(orb: Orb, pos: Vector3, beamIsCrit = false): void {
+function detonatePlasma(plasma: Plasma, pos: Vector3, laserIsCrit = false): void {
   const directHits = new Map<Enemy, Mesh>();
-  const critLevel = (orb.isCrit ? 1 : 0) + (beamIsCrit ? 1 : 0);
-  explodeOrb(
+  const critLevel = (plasma.isCrit ? 1 : 0) + (laserIsCrit ? 1 : 0);
+  explodePlasma(
     pos,
     directHits,
-    orb.heatPenalty,
-    orb.mesh,
-    orb.chargeMultiplier,
+    plasma.heatPenalty,
+    plasma.mesh,
+    plasma.chargeMultiplier,
     true,
     critLevel,
   );
 }
 
-function explodeOrb(
+function explodePlasma(
   pos: Vector3,
   directHits: Map<Enemy, Mesh>,
   heatPenalty: number,
-  orbMesh: Mesh,
+  plasmaMesh: Mesh,
   chargeMultiplier: number,
-  beamDetonated = false,
+  laserDetonated = false,
   critLevel = 0,
 ): void {
   const isCrit = critLevel > 0;
-  playOrbExplosionSound(pos, chargeMultiplier);
+  playPlasmaExplosionSound(pos, chargeMultiplier);
   spawnExplosionParticle(pos, isCrit);
 
-  // Animate the orb mesh as an expanding, fading blast sphere
-  orbMesh.position = pos.clone();
-  orbMesh.isPickable = false;
-  const mat = orbMesh.material as StandardMaterial;
+  // Animate the plasma mesh as an expanding, fading blast sphere
+  plasmaMesh.position = pos.clone();
+  plasmaMesh.isPickable = false;
+  const mat = plasmaMesh.material as StandardMaterial;
   if (isCrit) {
     mat.diffuseColor = new Color3(0.6, 0, 1);
     mat.emissiveColor = new Color3(0.5, 0, 0.9);
@@ -823,25 +823,25 @@ function explodeOrb(
   mat.alpha = 0.6;
   const expandDurationMs = 300;
   const startTime = performance.now();
-  const startScale = orbMesh.scaling.x;
+  const startScale = plasmaMesh.scaling.x;
   const explosionRadius =
-    ORB.explosionRadius * chargeMultiplier * Math.pow(2, critLevel);
+    PLASMA.explosionRadius * chargeMultiplier * Math.pow(2, critLevel);
   const endScale = (explosionRadius * 2) / 0.3; // diameter ratio
   const obs = g.scene.onBeforeRenderObservable.add(() => {
     const t = Math.min((performance.now() - startTime) / expandDurationMs, 1);
     const s = startScale + (endScale - startScale) * t;
-    orbMesh.scaling.setAll(s);
+    plasmaMesh.scaling.setAll(s);
     mat.alpha = 0.6 * (1 - t);
     if (t >= 1) {
       g.scene.onBeforeRenderObservable.remove(obs);
-      orbMesh.dispose();
+      plasmaMesh.dispose();
     }
   });
 
   const critMult = Math.pow(effectiveCritDamage(), critLevel);
   const damage =
-    (effectiveOrbDamage() * chargeMultiplier +
-      (beamDetonated ? effectiveBeamDamage() : 0)) *
+    (effectivePlasmaDamage() * chargeMultiplier +
+      (laserDetonated ? effectiveLaserDamage() : 0)) *
     critMult;
 
   for (const enemy of [...g.enemies]) {
@@ -858,7 +858,7 @@ function explodeOrb(
       const dist = Vector3.Distance(pos, enemyPos);
       if (dist > explosionRadius) continue;
       const falloff = 1 - dist / explosionRadius;
-      dmg = damage * (beamDetonated ? 1 : ORB.splashFalloff) * falloff;
+      dmg = damage * (laserDetonated ? 1 : PLASMA.splashFalloff) * falloff;
       flashMesh = enemy.bodyMesh;
     }
 
@@ -884,7 +884,7 @@ function explodeOrb(
       );
     }
 
-    damageEnemy(enemy, dmg, flashMesh, ePos, isCrit, { orbKill: true, canLightning: true, canIgnite: true });
+    damageEnemy(enemy, dmg, flashMesh, ePos, isCrit, { plasmaKill: true, canLightning: true, canIgnite: true });
   }
 
   // Knockback and split/shrink on ragdoll debris
@@ -959,11 +959,11 @@ function explodeOrb(
   if (playerDist < explosionRadius) {
     const falloff = 1 - playerDist / explosionRadius;
     const selfDmg = Math.round(
-      ORB.damage *
+      PLASMA.damage *
         chargeMultiplier *
-        (beamDetonated ? 1 : ORB.splashFalloff) *
+        (laserDetonated ? 1 : PLASMA.splashFalloff) *
         falloff *
-        effectiveOrbSelfDamage(),
+        effectivePlasmaSelfDamage(),
     );
     if (selfDmg > 0) damagePlayer(selfDmg);
 
@@ -1045,7 +1045,7 @@ function hitEnemy(
       : 1;
   const critMult = isCrit ? effectiveCritDamage() : 1;
   const dmg = Math.round(
-    effectiveBeamDamage() *
+    effectiveLaserDamage() *
       (0.8 + Math.random() * 0.4) *
       (headshot ? 2 : 1) *
       heatPenalty *
