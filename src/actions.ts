@@ -173,7 +173,14 @@ function currentMeleeStats() {
 }
 
 function currentRifleRecoilStats() {
-  return g.upgrades.muzzleBrake ? RIFLE.MUZZLE_BRAKE : RIFLE.RECOIL;
+  const scale = g.upgrades.muzzleBrake ? RIFLE.MUZZLE_BRAKE.recoilScale : 1;
+  return {
+    pitch: RIFLE.RECOIL.pitch * scale,
+    recover: RIFLE.RECOIL.recover,
+    maxPitch: RIFLE.RECOIL.maxPitch * scale,
+    cameraRatio: RIFLE.RECOIL.cameraRatio,
+    weaponRoll: RIFLE.RECOIL.weaponRoll * scale,
+  };
 }
 
 export function switchWeapon(): void {
@@ -187,6 +194,7 @@ export function switchWeapon(): void {
   g.recoilPitch = 0;
   g.recoilRoll = 0;
   g.cameraRecoilPitch = 0;
+  g.appliedCameraRecoilPitch = 0;
   g.crosshairRecoil = 0;
   g.state.shootCooldown = 0;
   g.state.plasmaCooldown = 0;
@@ -381,6 +389,13 @@ function addRandomSpread(dir: Vector3, spread: number): Vector3 {
     .normalize();
 }
 
+function aimAtRifleCrosshair(dir: Vector3): Vector3 {
+  const aimLift = g.recoilPitch;
+  if (aimLift <= 0) return dir;
+  const cameraUp = g.camera.getDirection(Vector3.Up()).normalize();
+  return dir.add(cameraUp.scale(Math.tan(aimLift))).normalize();
+}
+
 function shootRifle(): void {
   if (
     !g.upgrades.rifleUnlock ||
@@ -403,6 +418,7 @@ function shootRifle(): void {
     Math.min(g.shootSpread, RIFLE.SPREAD.max) +
     g.moveSpread;
   const ray = g.camera.getForwardRay(100);
+  ray.direction.copyFrom(aimAtRifleCrosshair(ray.direction));
   if (spread > 0)
     ray.direction.copyFrom(addRandomSpread(ray.direction, spread));
   g.shootSpread = Math.min(g.shootSpread + effectiveBloom(), RIFLE.SPREAD.max);
@@ -431,16 +447,30 @@ function shootRifle(): void {
 
 function applyRifleRecoil(): void {
   const recoil = currentRifleRecoilStats();
-  g.recoilPitch = Math.min(g.recoilPitch + recoil.weaponPitch, 0.45);
   g.recoilRoll = Math.max(
     -0.2,
     Math.min(0.2, g.recoilRoll + (Math.random() - 0.5) * recoil.weaponRoll),
   );
   g.cameraRecoilPitch = Math.min(
-    g.cameraRecoilPitch + recoil.cameraPitch,
-    0.24,
+    g.cameraRecoilPitch + recoil.pitch,
+    recoil.maxPitch,
   );
-  g.crosshairRecoil = Math.min(g.crosshairRecoil + recoil.crosshairLift, 48);
+  g.recoilPitch = g.cameraRecoilPitch * (1 - recoil.cameraRatio);
+}
+
+const RIFLE_GEOMETRY_BULLET_HOLE = new Color3(0.35, 0.35, 0.35);
+const RIFLE_FLESH_BULLET_HOLE = new Color3(0.8, 0.02, 0.02);
+
+function spawnRifleBulletHole(
+  position: Vector3,
+  normal: Vector3 | null,
+  parentMesh?: Mesh,
+  flesh = false,
+): void {
+  spawnBulletHole(position, normal, parentMesh, {
+    color: flesh ? RIFLE_FLESH_BULLET_HOLE : RIFLE_GEOMETRY_BULLET_HOLE,
+    glow: false,
+  });
 }
 
 export function updateRifleBullets(dt: number): void {
@@ -491,7 +521,12 @@ export function updateRifleBullets(dt: number): void {
             hit.getNormal(true) ?? dir.negate(),
           );
           if (g.enemies.includes(result.enemy)) {
-            spawnBulletHole(point, hit.getNormal(true), hit.pickedMesh as Mesh);
+            spawnRifleBulletHole(
+              point,
+              hit.getNormal(true),
+              hit.pickedMesh as Mesh,
+              true,
+            );
           }
         } else {
           splitRagdoll(hit.pickedMesh as Mesh, dir, point);
@@ -503,6 +538,12 @@ export function updateRifleBullets(dt: number): void {
         hit.pickedMesh.name === "legHalf"
       ) {
         hitDebris(hit.pickedMesh as Mesh, dir, point);
+        spawnRifleBulletHole(
+          point,
+          hit.getNormal(true),
+          hit.pickedMesh as Mesh,
+          true,
+        );
         spawnHitParticle(
           point,
           new Color4(0.8, 0.0, 0.0, 1),
@@ -516,7 +557,7 @@ export function updateRifleBullets(dt: number): void {
           g.plasmas.splice(plasmaIdx, 1);
         }
       } else {
-        spawnBulletHole(point, hit.getNormal(true));
+        spawnRifleBulletHole(point, hit.getNormal(true));
       }
       bullet.mesh.dispose();
       g.rifleBullets.splice(i, 1);

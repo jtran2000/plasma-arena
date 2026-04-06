@@ -201,7 +201,7 @@ export function makeUpgradeState(): UpgradeState {
     plasmaCaster: false,
     plasmaCharger: false,
     plasmaGrenadier: false,
-    rifleUnlock: false,
+    rifleUnlock: true,
     muzzleBrake: false,
   };
 }

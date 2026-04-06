@@ -283,7 +283,7 @@ const UPGRADE_DEFS: UpgradeDef[] = [
   {
     key: "muzzleBrake",
     label: "Muzzle Brake",
-    weight: 4,
+    weight: 400,
     instruction: "Rifle recoil and flash are reduced",
     oneTime: true,
     requires: "rifleUnlock",

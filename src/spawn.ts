@@ -1166,7 +1166,10 @@ export function spawnRifleMuzzleFlash(isCrit: boolean): void {
   const start = performance.now();
   const obs = g.scene.onBeforeRenderObservable.add(() => {
     const t = Math.min((performance.now() - start) / 60, 1);
-    flash.scaling.setAll((1.25 + t * 1.8) * flashScale);
+    flash.scaling.setAll(
+      (RIFLE.MUZZLE_FLASH.baseScale + t * RIFLE.MUZZLE_FLASH.expandScale) *
+        flashScale,
+    );
     mat.alpha = 0.95 * (1 - t);
     if (t >= 1) {
       g.scene.onBeforeRenderObservable.remove(obs);
@@ -1730,6 +1733,10 @@ export function spawnBulletHole(
   position: Vector3,
   normal: Vector3 | null,
   parentMesh?: Mesh,
+  opts?: {
+    color?: Color3;
+    glow?: boolean;
+  },
 ): void {
   if (!parentMesh && g.bulletHoles.length >= 200) {
     g.bulletHoles.shift()!.dispose();
@@ -1737,7 +1744,14 @@ export function spawnBulletHole(
   }
 
   const disc = makeBulletHoleDisc();
-  (disc.material as StandardMaterial).emissiveColor = new Color3(1, 0.9, 0.2);
+  const mat = disc.material as StandardMaterial;
+  const color = opts?.color;
+  if (color) {
+    mat.diffuseColor = color;
+    mat.emissiveColor = Color3.Black();
+  } else {
+    mat.emissiveColor = new Color3(1, 0.9, 0.2);
+  }
   const n = normal ?? Vector3.Up();
   const worldPos = position.add(n.scale(BULLET_HOLE_SURFACE_OFFSET));
 
@@ -1752,7 +1766,9 @@ export function spawnBulletHole(
     g.bulletHoles.push(disc);
     g.bulletHoleTimes.push(60_000);
   }
-  g.glowingHoles.push({ mesh: disc, time: BULLET_HOLE.glowMs });
+  if (opts?.glow !== false) {
+    g.glowingHoles.push({ mesh: disc, time: BULLET_HOLE.glowMs });
+  }
 }
 
 // ─── Kill / Ragdoll (moved from update.ts) ──────────────────────────────────

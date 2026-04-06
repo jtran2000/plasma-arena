@@ -210,33 +210,34 @@ function updateTimers(dt: number): void {
   updatePlasmas(dt);
   updateRifleBullets(dt);
 
-  const rifleRecoil = g.upgrades.muzzleBrake
-    ? RIFLE.MUZZLE_BRAKE
-    : RIFLE.RECOIL;
-  g.recoilPitch = Math.max(
-    0,
-    g.recoilPitch - rifleRecoil.weaponRecover * (dt / 1000),
-  );
-  if (g.recoilRoll > 0) {
-    g.recoilRoll = Math.max(
+  const recoilScale = g.upgrades.muzzleBrake
+    ? RIFLE.MUZZLE_BRAKE.recoilScale
+    : 1;
+  const rifleRecoil = {
+    recover: RIFLE.RECOIL.recover,
+    cameraRatio: RIFLE.RECOIL.cameraRatio,
+    maxPitch: RIFLE.RECOIL.maxPitch * recoilScale,
+  };
+  const rifleShooting = g.state.activeWeapon === "rifle" && g.mouseHeld;
+  if (!rifleShooting) {
+    if (g.recoilRoll > 0) {
+      g.recoilRoll = Math.max(
+        0,
+        g.recoilRoll - rifleRecoil.recover * (dt / 1000),
+      );
+    } else if (g.recoilRoll < 0) {
+      g.recoilRoll = Math.min(
+        0,
+        g.recoilRoll + rifleRecoil.recover * (dt / 1000),
+      );
+    }
+    g.cameraRecoilPitch = Math.max(
       0,
-      g.recoilRoll - rifleRecoil.weaponRecover * (dt / 1000),
-    );
-  } else if (g.recoilRoll < 0) {
-    g.recoilRoll = Math.min(
-      0,
-      g.recoilRoll + rifleRecoil.weaponRecover * (dt / 1000),
+      g.cameraRecoilPitch - rifleRecoil.recover * (dt / 1000),
     );
   }
-  g.cameraRecoilPitch = Math.max(
-    0,
-    g.cameraRecoilPitch - rifleRecoil.cameraRecover * (dt / 1000),
-  );
-  g.crosshairRecoil = Math.max(
-    0,
-    g.crosshairRecoil - rifleRecoil.crosshairRecover * (dt / 1000),
-  );
-
+  g.cameraRecoilPitch = Math.min(g.cameraRecoilPitch, rifleRecoil.maxPitch);
+  g.recoilPitch = g.cameraRecoilPitch * (1 - rifleRecoil.cameraRatio);
   // Movement spread: increase while moving, decay when stopped
   const isMoving =
     g.pressedKeys.has("KeyW") ||
@@ -265,6 +266,7 @@ function updateTimers(dt: number): void {
   const halfFov = g.camera.fov / 2;
   const screenDist = g.engine.getRenderHeight() / (2 * Math.tan(halfFov));
   const chOffset = Math.round(Math.tan(totalSpread) * screenDist);
+  g.crosshairRecoil = Math.tan(g.recoilPitch) * screenDist;
   dom.chTop.style.bottom = `${3 + chOffset}px`;
   dom.chBottom.style.top = `${3 + chOffset}px`;
   dom.chLeft.style.right = `${3 + chOffset}px`;
@@ -273,6 +275,12 @@ function updateTimers(dt: number): void {
 
   // Crosshair color: red when over a living enemy
   const centerRay = g.camera.getForwardRay(100);
+  if (g.state.activeWeapon === "rifle" && g.recoilPitch > 0) {
+    const cameraUp = g.camera.getDirection(Vector3.Up()).normalize();
+    centerRay.direction = centerRay.direction
+      .add(cameraUp.scale(Math.tan(g.recoilPitch)))
+      .normalize();
+  }
   const centerHit = g.scene.pickWithRay(
     centerRay,
     (m: AbstractMesh) =>
@@ -375,10 +383,11 @@ function updatePlayer(): void {
 
   const p = g.playerMesh.position;
   g.camera.position.set(p.x, p.y + 0.7, p.z);
-  const recoilDelta = g.cameraRecoilPitch - g.appliedCameraRecoilPitch;
+  const cameraRecoilPitch = g.cameraRecoilPitch * RIFLE.RECOIL.cameraRatio;
+  const recoilDelta = cameraRecoilPitch - g.appliedCameraRecoilPitch;
   if (recoilDelta !== 0) {
     g.camera.rotation.x -= recoilDelta;
-    g.appliedCameraRecoilPitch = g.cameraRecoilPitch;
+    g.appliedCameraRecoilPitch = cameraRecoilPitch;
   }
 
   const fwd = g.camera.getForwardRay().direction;
