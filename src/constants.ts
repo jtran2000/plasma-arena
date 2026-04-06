@@ -126,6 +126,59 @@ export const BLASTER = {
   },
 } as const;
 
+// ─── Rifle ──────────────────────────────────────────────────────────────────
+export const RIFLE = {
+  damage: 18,
+  rateOfFire: 720, // rounds per minute
+  magSize: 36,
+  reserveMags: 5,
+  maxReserveMags: 7,
+  reloadTime: 2200, // ms
+  bulletSpeed: 500, // m/s
+  gravity: 18, // m/s²
+  tracerLifeMs: 1800,
+  tracerLength: 0.42, // m
+  tracerWidth: 0.026, // m
+  SPREAD: {
+    base: 0.012, // first shot is never perfectly accurate
+    perShot: 0.0035,
+    max: 0.1,
+    decay: 0.16,
+    moveRate: 0.11,
+  },
+  RECOIL: {
+    weaponPitch: 0.22,
+    weaponRoll: 0.06,
+    weaponRecover: 5,
+    cameraPitch: 0.095,
+    cameraRecover: 7,
+    crosshairLift: 26,
+    crosshairRecover: 20,
+  },
+  MUZZLE_BRAKE: {
+    weaponPitch: 0.11,
+    weaponRoll: 0.03,
+    weaponRecover: 7,
+    cameraPitch: 0.05,
+    cameraRecover: 9,
+    crosshairLift: 16,
+    crosshairRecover: 28,
+    flashScale: 0.55,
+  },
+  MELEE: {
+    damage: 28,
+    range: 2.4,
+    cooldownMs: 600,
+    animDurationMs: 320,
+  },
+  RELOAD_ANIM: {
+    tilt: -0.5,
+    yaw: 0.18,
+    magDrop: 0.2,
+    magPullBack: 0.08,
+  },
+} as const;
+
 // ─── Scoring ────────────────────────────────────────────────────────────────
 export const SCORING = {
   kill: 100,

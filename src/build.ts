@@ -23,6 +23,8 @@ import {
   setupArenaAccentStrips,
   setupWeaponRoot,
   setupWeaponParts,
+  setupRifleParts,
+  setupRifleRoot,
   setupLamppost,
 } from "./spawn.js";
 
@@ -30,6 +32,8 @@ import {
 export async function buildScene(): Promise<void> {
   if (g.scene) g.scene.dispose();
   g.enemies = [];
+  for (const bullet of g.rifleBullets) bullet.mesh.dispose();
+  g.rifleBullets = [];
   g.bulletHoles = [];
   g.bulletHoleTimes = [];
   g.glowingHoles = [];
@@ -129,9 +133,34 @@ function buildArena(): void {
 
 // ─── Weapon model ─────────────────────────────────────────────────────────────
 function buildWeapon(): void {
-  g.weaponRoot = setupWeaponRoot();
-  const { cell, barrel, barrelTip } = setupWeaponParts(g.weaponRoot);
-  g.weaponCell = cell;
-  g.weaponBarrel = barrel;
-  g.barrelTip = barrelTip;
+  g.blasterRoot = setupWeaponRoot();
+  const blaster = setupWeaponParts(g.blasterRoot);
+  g.blasterCell = blaster.cell;
+  g.blasterBarrel = blaster.barrel;
+  g.blasterBarrelTip = blaster.barrelTip;
+
+  g.rifleRoot = setupRifleRoot();
+  const rifle = setupRifleParts(g.rifleRoot);
+  g.rifleMag = rifle.mag;
+  g.rifleBarrel = rifle.barrel;
+  g.rifleBarrelTip = rifle.barrelTip;
+  g.rifleBrake = rifle.brake;
+  g.rifleBrake.isVisible = g.upgrades.muzzleBrake;
+
+  if (g.state.activeWeapon === "rifle" && g.upgrades.rifleUnlock) {
+    g.weaponRoot = g.rifleRoot;
+    g.weaponCell = g.rifleMag;
+    g.weaponBarrel = g.rifleBarrel;
+    g.barrelTip = g.rifleBarrelTip;
+    g.blasterRoot.setEnabled(false);
+    g.rifleRoot.setEnabled(true);
+  } else {
+    g.state.activeWeapon = "blaster";
+    g.weaponRoot = g.blasterRoot;
+    g.weaponCell = g.blasterCell;
+    g.weaponBarrel = g.blasterBarrel;
+    g.barrelTip = g.blasterBarrelTip;
+    g.blasterRoot.setEnabled(true);
+    g.rifleRoot.setEnabled(false);
+  }
 }

@@ -9,18 +9,14 @@ import {
   SUPPLY,
   PLAYER,
   BLASTER,
+  RIFLE,
   SCORING,
   WAVE,
   BULLET_HOLE,
 } from "./constants.js";
 const { LASER, SPREAD, HEAT, IGNITE, MELEE } = BLASTER;
 import { g, dom } from "./game.js";
-import {
-  spawnEnemy,
-  spawnSupply,
-  setIncrementScore,
-  spawnFireEffect,
-} from "./spawn.js";
+import { spawnEnemy, spawnSupply, spawnFireEffect } from "./spawn.js";
 import {
   updateAudioListener,
   playEnemyFootstep,
@@ -40,23 +36,21 @@ import {
   showUpgradeMenu,
   selectUpgrade,
   updateHUD,
-} from "./upgrades.js";
+  incrementScore,
+} from "./progression.js";
 import {
   shoot,
   startReload,
   completeReload,
   updatePlasmaCharge,
   updatePlasmas,
-  incrementScore,
+  updateRifleBullets,
   damagePlayer,
   isEnemyPart,
   findEnemyByMesh,
   damageEnemy,
 } from "./actions.js";
 export { selectUpgrade };
-
-// Register callback for cross-module dependency
-setIncrementScore(incrementScore);
 
 // ─── Game loop ────────────────────────────────────────────────────────────────
 export function update(): void {
@@ -70,6 +64,11 @@ export function update(): void {
 }
 
 function updateTimers(dt: number): void {
+  while (g.queuedSupplyDrops.length > 0) {
+    const dropPos = g.queuedSupplyDrops.shift();
+    if (dropPos) spawnSupply(dropPos);
+  }
+
   if (g.state.autoReloadDelay > 0) {
     g.state.autoReloadDelay -= dt;
     if (g.state.autoReloadDelay <= 0) {
@@ -110,18 +109,23 @@ function updateTimers(dt: number): void {
     }
   }
   // Heat bar display + barrel glow
-  const heatMax = effectiveHeatMax();
-  const criticalHeat = heatMax * HEAT.critical;
   const barrelMat = g.weaponBarrel.material as StandardMaterial;
-  if (g.state.heat > 0) {
-    dom.heatBar.classList.add("visible");
-    dom.heatBar.style.width = `${120 * (heatMax / HEAT.max)}px`;
-    dom.heatFill.style.width = `${(g.state.heat / heatMax) * 100}%`;
-    dom.heatFill.classList.toggle("critical", g.state.heat >= criticalHeat);
-    if (g.state.heat >= criticalHeat) {
-      const t = (g.state.heat - criticalHeat) / (heatMax - criticalHeat);
-      barrelMat.emissiveColor = new Color3(t * 0.9, t * 0.15, 0);
+  if (g.state.activeWeapon === "blaster") {
+    const heatMax = effectiveHeatMax();
+    const criticalHeat = heatMax * HEAT.critical;
+    if (g.state.heat > 0) {
+      dom.heatBar.classList.add("visible");
+      dom.heatBar.style.width = `${120 * (heatMax / HEAT.max)}px`;
+      dom.heatFill.style.width = `${(g.state.heat / heatMax) * 100}%`;
+      dom.heatFill.classList.toggle("critical", g.state.heat >= criticalHeat);
+      if (g.state.heat >= criticalHeat) {
+        const t = (g.state.heat - criticalHeat) / (heatMax - criticalHeat);
+        barrelMat.emissiveColor = new Color3(t * 0.9, t * 0.15, 0);
+      } else {
+        barrelMat.emissiveColor = Color3.Black();
+      }
     } else {
+      dom.heatBar.classList.remove("visible");
       barrelMat.emissiveColor = Color3.Black();
     }
   } else {
@@ -178,17 +182,24 @@ function updateTimers(dt: number): void {
     }
   }
 
-  if (g.mouseHeld && g.upgrades.pulseLaser) {
+  if (
+    g.mouseHeld &&
+    g.state.activeWeapon === "blaster" &&
+    g.upgrades.pulseLaser
+  ) {
     g.state.shootCooldown -= dt;
-    if (g.state.shootCooldown <= 0) {
-      shoot();
-    }
+    if (g.state.shootCooldown <= 0) shoot();
+  } else if (g.mouseHeld && g.state.activeWeapon === "rifle") {
+    g.state.shootCooldown -= dt;
+    if (g.state.shootCooldown <= 0) shoot();
   } else if (
     g.shootSpread > 0 &&
     g.state.shootCooldown <= 0 &&
     !g.plasmaCharging
   ) {
-    g.shootSpread = Math.max(0, g.shootSpread - (SPREAD.decay * dt) / 1000);
+    const spreadDecay =
+      g.state.activeWeapon === "rifle" ? RIFLE.SPREAD.decay : SPREAD.decay;
+    g.shootSpread = Math.max(0, g.shootSpread - (spreadDecay * dt) / 1000);
   }
   if (!g.mouseHeld && g.state.shootCooldown > 0) {
     g.state.shootCooldown -= dt;
@@ -197,6 +208,34 @@ function updateTimers(dt: number): void {
   if (g.state.plasmaCooldown > 0) g.state.plasmaCooldown -= dt;
   if (g.plasmaCharging) updatePlasmaCharge(dt);
   updatePlasmas(dt);
+  updateRifleBullets(dt);
+
+  const rifleRecoil = g.upgrades.muzzleBrake
+    ? RIFLE.MUZZLE_BRAKE
+    : RIFLE.RECOIL;
+  g.recoilPitch = Math.max(
+    0,
+    g.recoilPitch - rifleRecoil.weaponRecover * (dt / 1000),
+  );
+  if (g.recoilRoll > 0) {
+    g.recoilRoll = Math.max(
+      0,
+      g.recoilRoll - rifleRecoil.weaponRecover * (dt / 1000),
+    );
+  } else if (g.recoilRoll < 0) {
+    g.recoilRoll = Math.min(
+      0,
+      g.recoilRoll + rifleRecoil.weaponRecover * (dt / 1000),
+    );
+  }
+  g.cameraRecoilPitch = Math.max(
+    0,
+    g.cameraRecoilPitch - rifleRecoil.cameraRecover * (dt / 1000),
+  );
+  g.crosshairRecoil = Math.max(
+    0,
+    g.crosshairRecoil - rifleRecoil.crosshairRecover * (dt / 1000),
+  );
 
   // Movement spread: increase while moving, decay when stopped
   const isMoving =
@@ -205,17 +244,24 @@ function updateTimers(dt: number): void {
     g.pressedKeys.has("KeyA") ||
     g.pressedKeys.has("KeyD");
   if (isMoving) {
+    const moveSpreadRate = effectiveMoveSpreadRate();
+    const spreadMax =
+      g.state.activeWeapon === "rifle" ? RIFLE.SPREAD.max : SPREAD.max;
     g.moveSpread = Math.min(
-      SPREAD.max,
-      g.moveSpread + (effectiveMoveSpreadRate() * dt) / 1000,
+      spreadMax,
+      g.moveSpread + (moveSpreadRate * dt) / 1000,
     );
   } else if (g.moveSpread > 0) {
-    g.moveSpread = Math.max(0, g.moveSpread - (SPREAD.decay * dt) / 1000);
+    const spreadDecay =
+      g.state.activeWeapon === "rifle" ? RIFLE.SPREAD.decay : SPREAD.decay;
+    g.moveSpread = Math.max(0, g.moveSpread - (spreadDecay * dt) / 1000);
   }
 
   // Update crosshair spread offset (map radians to screen pixels)
+  const spreadMax =
+    g.state.activeWeapon === "rifle" ? RIFLE.SPREAD.max : SPREAD.max;
   const totalSpread =
-    Math.min(g.shootSpread, SPREAD.max) + Math.min(g.moveSpread, SPREAD.max);
+    Math.min(g.shootSpread, spreadMax) + Math.min(g.moveSpread, spreadMax);
   const halfFov = g.camera.fov / 2;
   const screenDist = g.engine.getRenderHeight() / (2 * Math.tan(halfFov));
   const chOffset = Math.round(Math.tan(totalSpread) * screenDist);
@@ -223,6 +269,7 @@ function updateTimers(dt: number): void {
   dom.chBottom.style.top = `${3 + chOffset}px`;
   dom.chLeft.style.right = `${3 + chOffset}px`;
   dom.chRight.style.left = `${3 + chOffset}px`;
+  dom.crosshair.style.transform = `translate(-50%, calc(-50% - ${g.crosshairRecoil}px))`;
 
   // Crosshair color: red when over a living enemy
   const centerRay = g.camera.getForwardRay(100);
@@ -293,7 +340,10 @@ function updateTimers(dt: number): void {
     const p = g.supplies[i];
     const dist = Vector3.Distance(g.playerMesh.position, p.mesh.position);
     if (dist < SUPPLY.collectRange) {
-      const maxReserve = LASER.maxReserveMags * effectiveMagSize();
+      const maxReserve =
+        (g.state.activeWeapon === "rifle"
+          ? RIFLE.maxReserveMags
+          : LASER.maxReserveMags) * effectiveMagSize();
       if (p.type === "health" && g.state.health >= effectiveMaxHealth())
         continue;
       if (p.type === "ammo" && g.state.reserve >= maxReserve) continue;
@@ -325,6 +375,11 @@ function updatePlayer(): void {
 
   const p = g.playerMesh.position;
   g.camera.position.set(p.x, p.y + 0.7, p.z);
+  const recoilDelta = g.cameraRecoilPitch - g.appliedCameraRecoilPitch;
+  if (recoilDelta !== 0) {
+    g.camera.rotation.x -= recoilDelta;
+    g.appliedCameraRecoilPitch = g.cameraRecoilPitch;
+  }
 
   const fwd = g.camera.getForwardRay().direction;
   const forwardXZ = new Vector3(fwd.x, 0, fwd.z);
@@ -383,6 +438,11 @@ function updateWeapon(dt: number): void {
   dom.crosshair.style.display = "";
   g.sprintBobTime = 0;
 
+  if (g.state.activeWeapon === "rifle") {
+    updateRifleWeapon();
+    return;
+  }
+
   // Pistol whip animation — overrides idle/reload while active
   if (g.state.meleeAnimTime > 0) {
     const t = 1 - g.state.meleeAnimTime / MELEE.animDurationMs;
@@ -396,8 +456,8 @@ function updateWeapon(dt: number): void {
   }
 
   if (!g.state.reloading) {
-    g.weaponRoot.rotation.x = 0;
-    g.weaponRoot.rotation.z = 0;
+    g.weaponRoot.rotation.x = -g.recoilPitch;
+    g.weaponRoot.rotation.z = g.recoilRoll;
     g.weaponCell.isVisible = true;
     g.weaponCell.position.y = 0.09;
     return;
@@ -414,7 +474,8 @@ function updateWeapon(dt: number): void {
   } else {
     tilt = TILT * (1 - (progress - 0.8) / 0.2);
   }
-  g.weaponRoot.rotation.x = tilt;
+  g.weaponRoot.rotation.x = tilt - g.recoilPitch;
+  g.weaponRoot.rotation.z = g.recoilRoll;
 
   if (progress < 0.25) {
     g.weaponCell.isVisible = true;
@@ -433,6 +494,83 @@ function updateWeapon(dt: number): void {
   } else {
     g.weaponCell.isVisible = true;
     g.weaponCell.position.y = 0.09;
+  }
+}
+
+function updateRifleWeapon(): void {
+  const mag = g.weaponCell;
+
+  if (g.state.meleeAnimTime > 0) {
+    const t = 1 - g.state.meleeAnimTime / RIFLE.MELEE.animDurationMs;
+    const swing = t < 0.45 ? t / 0.45 : 1 - (t - 0.45) / 0.55;
+    g.weaponRoot.rotation.x = -0.28 - swing * 0.7 - g.recoilPitch;
+    g.weaponRoot.rotation.y = swing * 0.45;
+    g.weaponRoot.rotation.z = 0.18 * swing + g.recoilRoll;
+    mag.position.copyFrom(new Vector3(0, -0.11, 0.13));
+    return;
+  }
+
+  if (!g.state.reloading) {
+    g.weaponRoot.rotation.x = -0.08 - g.recoilPitch;
+    g.weaponRoot.rotation.y = 0;
+    g.weaponRoot.rotation.z = g.recoilRoll;
+    mag.position.copyFrom(new Vector3(0, -0.11, 0.13));
+    return;
+  }
+
+  const progress = 1 - g.state.reloadTimeLeft / effectiveReloadTime();
+  const anim = RIFLE.RELOAD_ANIM;
+  const magBase = new Vector3(0, -0.11, 0.13);
+  let tilt = 0;
+  let yaw = 0;
+
+  if (progress < 0.2) {
+    const t = progress / 0.2;
+    tilt = anim.tilt * t;
+    yaw = anim.yaw * t;
+  } else if (progress < 0.8) {
+    tilt = anim.tilt;
+    yaw = anim.yaw;
+  } else {
+    const t = 1 - (progress - 0.8) / 0.2;
+    tilt = anim.tilt * t;
+    yaw = anim.yaw * t;
+  }
+
+  g.weaponRoot.rotation.x = -0.08 + tilt - g.recoilPitch;
+  g.weaponRoot.rotation.y = yaw;
+  g.weaponRoot.rotation.z = g.recoilRoll;
+
+  if (progress < 0.3) {
+    mag.position.copyFrom(magBase);
+  } else if (progress < 0.45) {
+    const t = (progress - 0.3) / 0.15;
+    mag.position.copyFrom(
+      new Vector3(
+        magBase.x,
+        magBase.y - anim.magDrop * t,
+        magBase.z - anim.magPullBack * t,
+      ),
+    );
+  } else if (progress < 0.7) {
+    mag.position.copyFrom(
+      new Vector3(
+        magBase.x,
+        magBase.y - anim.magDrop,
+        magBase.z - anim.magPullBack,
+      ),
+    );
+  } else if (progress < 0.85) {
+    const t = (progress - 0.7) / 0.15;
+    mag.position.copyFrom(
+      new Vector3(
+        magBase.x,
+        magBase.y - anim.magDrop * (1 - t),
+        magBase.z - anim.magPullBack * (1 - t),
+      ),
+    );
+  } else {
+    mag.position.copyFrom(magBase);
   }
 }
 

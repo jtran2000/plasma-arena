@@ -26,6 +26,7 @@ import {
   ENEMY,
   BULLET_HOLE,
   ENEMY_HEALTH_BAR,
+  RIFLE,
 } from "./constants.js";
 const { PLASMA, HEAT } = BLASTER;
 import { g, type Enemy } from "./game.js";
@@ -36,7 +37,11 @@ import {
   startFireSound,
   stopFireSound,
 } from "./audio.js";
-import { effectiveCooldown, effectiveHeatMax } from "./upgrades.js";
+import {
+  effectiveCooldown,
+  effectiveHeatMax,
+  incrementScore,
+} from "./progression.js";
 
 // ─── Mesh definitions ────────────────────────────────────────────────────────
 
@@ -170,6 +175,46 @@ const WEAPON = {
   },
 
   barrelTipPos: new Vector3(0, 0.016, 0.58),
+};
+
+const RIFLE_WEAPON = {
+  rootPos: new Vector3(0.24, -0.22, 0.58),
+  body: {
+    size: { width: 0.09, height: 0.09, depth: 0.58 } as const,
+    pos: new Vector3(0, 0, 0.08),
+    diffuse: new Color3(0.12, 0.13, 0.16),
+    specular: new Color3(0.25, 0.25, 0.3),
+    emissive: new Color3(0.02, 0.02, 0.03),
+  },
+  barrel: {
+    size: { width: 0.03, height: 0.03, depth: 0.52 } as const,
+    pos: new Vector3(0, 0.015, 0.48),
+    diffuse: new Color3(0.18, 0.18, 0.2),
+    emissive: new Color3(0.04, 0.03, 0.02),
+  },
+  stock: {
+    size: { width: 0.07, height: 0.07, depth: 0.22 } as const,
+    pos: new Vector3(0, -0.01, -0.18),
+    diffuse: new Color3(0.3, 0.18, 0.08),
+  },
+  grip: {
+    size: { width: 0.05, height: 0.16, depth: 0.05 } as const,
+    pos: new Vector3(0, -0.12, 0.03),
+    diffuse: new Color3(0.08, 0.08, 0.09),
+  },
+  mag: {
+    size: { width: 0.045, height: 0.18, depth: 0.09 } as const,
+    pos: new Vector3(0, -0.11, 0.13),
+    diffuse: new Color3(0.72, 0.32, 0.06),
+    emissive: new Color3(0.26, 0.08, 0.01),
+  },
+  brake: {
+    size: { width: 0.05, height: 0.05, depth: 0.08 } as const,
+    pos: new Vector3(0, 0.015, 0.81),
+    diffuse: new Color3(0.16, 0.16, 0.18),
+    emissive: new Color3(0.04, 0.04, 0.05),
+  },
+  barrelTipPos: new Vector3(0, 0.015, 0.77),
 };
 
 // Enemy
@@ -453,11 +498,84 @@ function makeWeaponLensMesh(): Mesh {
   return MeshBuilder.CreateSphere("wLens", WEAPON.lens.size, g.scene);
 }
 
+function makeRifleBodyMesh(): Mesh {
+  return MeshBuilder.CreateBox("rBody", RIFLE_WEAPON.body.size, g.scene);
+}
+
+function makeRifleBarrelMesh(): Mesh {
+  return MeshBuilder.CreateBox("rBarrel", RIFLE_WEAPON.barrel.size, g.scene);
+}
+
+function makeRifleStockMesh(): Mesh {
+  return MeshBuilder.CreateBox("rStock", RIFLE_WEAPON.stock.size, g.scene);
+}
+
+function makeRifleGripMesh(): Mesh {
+  return MeshBuilder.CreateBox("rGrip", RIFLE_WEAPON.grip.size, g.scene);
+}
+
+function makeRifleMagMesh(): Mesh {
+  return MeshBuilder.CreateBox("rMag", RIFLE_WEAPON.mag.size, g.scene);
+}
+
+function makeRifleBrakeMesh(): Mesh {
+  return MeshBuilder.CreateBox("rBrake", RIFLE_WEAPON.brake.size, g.scene);
+}
+
+function makeRifleBodyMat(): StandardMaterial {
+  const mat = new StandardMaterial("rifleBody", g.scene);
+  mat.diffuseColor = RIFLE_WEAPON.body.diffuse;
+  mat.specularColor = new Color3(0.35, 0.35, 0.38);
+  mat.emissiveColor = RIFLE_WEAPON.body.emissive;
+  return mat;
+}
+
+function makeRifleBarrelMat(): StandardMaterial {
+  const mat = new StandardMaterial("rifleBarrel", g.scene);
+  mat.diffuseColor = RIFLE_WEAPON.barrel.diffuse;
+  mat.emissiveColor = RIFLE_WEAPON.barrel.emissive;
+  return mat;
+}
+
+function makeRifleGripMat(): StandardMaterial {
+  const mat = new StandardMaterial("rifleGrip", g.scene);
+  mat.diffuseColor = RIFLE_WEAPON.grip.diffuse;
+  return mat;
+}
+
+function makeRifleStockMat(): StandardMaterial {
+  const mat = new StandardMaterial("rifleStock", g.scene);
+  mat.diffuseColor = RIFLE_WEAPON.stock.diffuse;
+  return mat;
+}
+
+function makeRifleMagMat(): StandardMaterial {
+  const mat = new StandardMaterial("rifleMag", g.scene);
+  mat.diffuseColor = RIFLE_WEAPON.mag.diffuse;
+  mat.emissiveColor = RIFLE_WEAPON.mag.emissive;
+  return mat;
+}
+
+function makeRifleBrakeMat(): StandardMaterial {
+  const mat = new StandardMaterial("rifleBrake", g.scene);
+  mat.diffuseColor = RIFLE_WEAPON.brake.diffuse;
+  mat.emissiveColor = RIFLE_WEAPON.brake.emissive;
+  return mat;
+}
+
 // ─── Weapon setup (exported) ──────────────────────────────────────────────────
 export function setupWeaponRoot(): Mesh {
   const root = new Mesh("weaponRoot", g.scene);
   root.parent = g.camera;
   root.position = WEAPON.rootPos.clone();
+  root.isPickable = false;
+  return root;
+}
+
+export function setupRifleRoot(): Mesh {
+  const root = new Mesh("rifleRoot", g.scene);
+  root.parent = g.camera;
+  root.position = RIFLE_WEAPON.rootPos.clone();
   root.isPickable = false;
   return root;
 }
@@ -505,6 +623,50 @@ export function setupWeaponParts(root: Mesh): {
   barrelTip.isPickable = false;
 
   return { cell, barrel, barrelTip };
+}
+
+export function setupRifleParts(root: Mesh): {
+  mag: Mesh;
+  barrel: Mesh;
+  barrelTip: Mesh;
+  brake: Mesh;
+} {
+  function wp(mesh: Mesh, mat: StandardMaterial, localPos: Vector3): Mesh {
+    mesh.parent = root;
+    mesh.position = localPos;
+    mesh.material = mat;
+    mesh.isPickable = false;
+    mesh.renderingGroupId = 1;
+    return mesh;
+  }
+
+  wp(makeRifleBodyMesh(), makeRifleBodyMat(), RIFLE_WEAPON.body.pos.clone());
+  wp(makeRifleStockMesh(), makeRifleStockMat(), RIFLE_WEAPON.stock.pos.clone());
+  wp(makeRifleGripMesh(), makeRifleGripMat(), RIFLE_WEAPON.grip.pos.clone());
+  const barrel = wp(
+    makeRifleBarrelMesh(),
+    makeRifleBarrelMat(),
+    RIFLE_WEAPON.barrel.pos.clone(),
+  );
+  const mag = wp(
+    makeRifleMagMesh(),
+    makeRifleMagMat(),
+    RIFLE_WEAPON.mag.pos.clone(),
+  );
+  const brake = wp(
+    makeRifleBrakeMesh(),
+    makeRifleBrakeMat(),
+    RIFLE_WEAPON.brake.pos.clone(),
+  );
+  brake.isVisible = false;
+
+  const barrelTip = new Mesh("rBarrelTip", g.scene);
+  barrelTip.parent = root;
+  barrelTip.position = RIFLE_WEAPON.barrelTipPos.clone();
+  barrelTip.isVisible = false;
+  barrelTip.isPickable = false;
+
+  return { mag, barrel, barrelTip, brake };
 }
 
 // ─── Player mesh (exported) ───────────────────────────────────────────────────
@@ -949,13 +1111,69 @@ export function makePlasmaChargeMesh(): Mesh {
   return mesh;
 }
 
-// ─── Callback for incrementScore (lives in update.ts) ───────────────────────
-let _incrementScore: ((amount: number, hitPoint?: Vector3) => void) | null =
-  null;
-export function setIncrementScore(
-  fn: (amount: number, hitPoint?: Vector3) => void,
-): void {
-  _incrementScore = fn;
+export function makeRifleTracerMesh(
+  pos: Vector3,
+  dir: Vector3,
+  isCrit: boolean,
+): Mesh {
+  const mat = new StandardMaterial("rifleTracerMat", g.scene);
+  mat.diffuseColor = isCrit ? new Color3(0.6, 0, 1) : new Color3(1, 0.9, 0.2);
+  mat.emissiveColor = isCrit
+    ? new Color3(0.5, 0, 0.9)
+    : new Color3(1, 0.85, 0.1);
+  const mesh = MeshBuilder.CreateBox(
+    "rifleTracer",
+    {
+      width: RIFLE.tracerWidth,
+      height: RIFLE.tracerWidth,
+      depth: RIFLE.tracerLength,
+    },
+    g.scene,
+  );
+  mesh.material = mat;
+  mesh.position = pos.clone();
+  mesh.isPickable = false;
+  mesh.renderingGroupId = 1;
+  mesh.rotationQuaternion = Quaternion.FromLookDirectionLH(
+    dir.normalizeToNew(),
+    Vector3.Up(),
+  );
+  return mesh;
+}
+
+export function spawnRifleMuzzleFlash(isCrit: boolean): void {
+  const flash = MeshBuilder.CreateSphere(
+    "rifleMuzzleFlash",
+    { diameter: 0.3, segments: 6 },
+    g.scene,
+  );
+  const mat = new StandardMaterial("rifleMuzzleFlashMat", g.scene);
+  mat.diffuseColor = isCrit
+    ? new Color3(0.7, 0.2, 1)
+    : new Color3(1, 0.9, 0.25);
+  mat.emissiveColor = isCrit
+    ? new Color3(0.6, 0.1, 0.95)
+    : new Color3(1, 0.75, 0.15);
+  mat.alpha = 0.95;
+  flash.material = mat;
+  flash.parent = g.rifleBarrelTip;
+  flash.position = Vector3.Zero();
+  flash.isPickable = false;
+  flash.renderingGroupId = 1;
+
+  const flashScale = g.upgrades.muzzleBrake ? RIFLE.MUZZLE_BRAKE.flashScale : 1;
+
+  const start = performance.now();
+  const obs = g.scene.onBeforeRenderObservable.add(() => {
+    const t = Math.min((performance.now() - start) / 60, 1);
+    flash.scaling.setAll((1.25 + t * 1.8) * flashScale);
+    mat.alpha = 0.95 * (1 - t);
+    if (t >= 1) {
+      g.scene.onBeforeRenderObservable.remove(obs);
+      flash.dispose();
+      mat.dispose();
+    }
+  });
 }
 
 // ─── Spawn functions (moved from update.ts) ─────────────────────────────────
@@ -1757,7 +1975,7 @@ export function killEnemy(
   }
 
   g.state.kills++;
-  _incrementScore!(
+  incrementScore(
     isHeadshot ? Math.round(SCORING.kill * 1.5) : SCORING.kill,
     hitPoint,
   );
@@ -1815,7 +2033,7 @@ export function splitRagdoll(
   if (hitPoint)
     spawnHitParticle(hitPoint, new Color4(0.8, 0.0, 0.0, 1), beamDir.negate());
 
-  _incrementScore!(1, hitPoint);
+  incrementScore(1, hitPoint);
 }
 
 export function hitDebris(
@@ -1839,5 +2057,5 @@ export function hitDebris(
     mesh.dispose();
   }
 
-  _incrementScore!(1, hitPoint);
+  incrementScore(1, hitPoint);
 }

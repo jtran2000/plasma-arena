@@ -7,19 +7,20 @@ import {
   AbstractMesh,
   Ray,
 } from "@babylonjs/core";
-import { ARENA, PLAYER, BLASTER, SUPPLY } from "./constants.js";
+import { ARENA, PLAYER, BLASTER, RIFLE } from "./constants.js";
 const { HEAT, PLASMA, SPREAD, MULTISHOT, RICOCHET, LIGHTNING, MELEE } = BLASTER;
 import { g, dom, type Enemy, type Plasma, endGame } from "./game.js";
 import {
+  makeRifleTracerMesh,
   makePlasmaChargeMesh,
   spawnPlasma,
+  spawnRifleMuzzleFlash,
   spawnLightningBolt,
   spawnExplosionParticle,
   spawnHitParticle,
   spawnSmokeParticles,
   spawnLaserBeam,
   spawnBulletHole,
-  spawnSupply,
   spawnFireEffect,
   spawnDamageNumber,
   updateEnemyHealthBar,
@@ -29,6 +30,7 @@ import {
 } from "./spawn.js";
 import {
   playReloadSounds,
+  playRifleReloadSounds,
   playOverheatSound,
   playPlasmaLaunchSound,
   playPlasmaExplosionSound,
@@ -37,6 +39,7 @@ import {
   stopPlasmaChargeSound,
   playLightningSound,
   playMeleeSound,
+  playRifleShotSound,
 } from "./audio.js";
 import {
   effectiveCooldown,
@@ -53,9 +56,9 @@ import {
   effectiveRicochetChance,
   effectiveLightningChance,
   effectiveIgniteChance,
-  effectiveSupplyDropRate,
   updateHUD,
-} from "./upgrades.js";
+  incrementScore,
+} from "./progression.js";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function tryIgnite(enemy: Enemy): void {
@@ -120,6 +123,79 @@ export function findEnemyByMesh(
   return { enemy, hitMesh };
 }
 
+function cacheActiveWeaponAmmo(): void {
+  g.weaponAmmo[g.state.activeWeapon].ammo = g.state.ammo;
+  g.weaponAmmo[g.state.activeWeapon].reserve = g.state.reserve;
+}
+
+function loadWeaponAmmo(kind: "blaster" | "rifle"): void {
+  g.state.activeWeapon = kind;
+  g.state.ammo = g.weaponAmmo[kind].ammo;
+  g.state.reserve = g.weaponAmmo[kind].reserve;
+}
+
+function applyActiveWeaponRefs(): void {
+  if (g.state.activeWeapon === "rifle") {
+    g.weaponRoot = g.rifleRoot;
+    g.weaponBarrel = g.rifleBarrel;
+    g.barrelTip = g.rifleBarrelTip;
+    g.weaponCell = g.rifleMag;
+    g.blasterRoot.setEnabled(false);
+    g.rifleRoot.setEnabled(true);
+  } else {
+    g.weaponRoot = g.blasterRoot;
+    g.weaponBarrel = g.blasterBarrel;
+    g.barrelTip = g.blasterBarrelTip;
+    g.weaponCell = g.blasterCell;
+    g.blasterRoot.setEnabled(true);
+    g.rifleRoot.setEnabled(false);
+  }
+}
+
+function cancelReloadAndCharge(): void {
+  g.state.reloading = false;
+  g.state.reloadTimeLeft = 0;
+  g.state.autoReloadDelay = 0;
+  dom.reloadMsg.classList.remove("visible");
+  if (g.plasmaCharging) {
+    stopPlasmaChargeSound();
+    if (g.plasmaChargeMesh) {
+      g.plasmaChargeMesh.dispose();
+      g.plasmaChargeMesh = null;
+    }
+    g.plasmaCharging = false;
+    g.plasmaChargeCrit = false;
+  }
+}
+
+function currentMeleeStats() {
+  return g.state.activeWeapon === "rifle" ? RIFLE.MELEE : MELEE;
+}
+
+function currentRifleRecoilStats() {
+  return g.upgrades.muzzleBrake ? RIFLE.MUZZLE_BRAKE : RIFLE.RECOIL;
+}
+
+export function switchWeapon(): void {
+  if (!g.upgrades.rifleUnlock || !g.state.running || g.state.paused) return;
+  cacheActiveWeaponAmmo();
+  cancelReloadAndCharge();
+  g.mouseHeld = false;
+  g.mouse2Held = false;
+  g.shootSpread = 0;
+  g.moveSpread = 0;
+  g.recoilPitch = 0;
+  g.recoilRoll = 0;
+  g.cameraRecoilPitch = 0;
+  g.crosshairRecoil = 0;
+  g.state.shootCooldown = 0;
+  g.state.plasmaCooldown = 0;
+  const next = g.state.activeWeapon === "blaster" ? "rifle" : "blaster";
+  loadWeaponAmmo(next);
+  applyActiveWeaponRefs();
+  updateHUD();
+}
+
 // ─── Jump ────────────────────────────────────────────────────────────────────
 export function tryJump(): void {
   if (!g.state.running || g.state.paused) return;
@@ -156,13 +232,14 @@ export function meleeAttack(): void {
   )
     return;
 
-  g.state.meleeCooldown = MELEE.cooldownMs;
-  g.state.meleeAnimTime = MELEE.animDurationMs;
+  const melee = currentMeleeStats();
+  g.state.meleeCooldown = melee.cooldownMs;
+  g.state.meleeAnimTime = melee.animDurationMs;
 
   const pos = g.barrelTip.getAbsolutePosition();
   playMeleeSound(pos);
 
-  const ray = g.camera.getForwardRay(MELEE.range);
+  const ray = g.camera.getForwardRay(melee.range);
   const hit = g.scene.pickWithRay(
     ray,
     (m: AbstractMesh) =>
@@ -180,7 +257,7 @@ export function meleeAttack(): void {
     const result = findEnemyByMesh(hit.pickedMesh);
     if (result) {
       const headshot = result.hitMesh.name === "enemyHead";
-      const dmg = Math.round(MELEE.damage * (headshot ? 2 : 1));
+      const dmg = Math.round(melee.damage * (headshot ? 2 : 1));
       const hitPoint =
         hit.pickedPoint ?? result.enemy.bodyMesh.getAbsolutePosition();
       (result.hitMesh.material as StandardMaterial).emissiveColor = new Color3(
@@ -227,6 +304,10 @@ export function meleeAttack(): void {
 
 // ─── Laser shooting ─────────────────────────────────────────────────────────
 export function shoot(): void {
+  if (g.state.activeWeapon === "rifle") {
+    shootRifle();
+    return;
+  }
   if (
     !g.state.running ||
     g.state.reloading ||
@@ -298,6 +379,157 @@ function addRandomSpread(dir: Vector3, spread: number): Vector3 {
     .add(right.scale(Math.cos(angle) * magnitude))
     .add(up.scale(Math.sin(angle) * magnitude))
     .normalize();
+}
+
+function shootRifle(): void {
+  if (
+    !g.upgrades.rifleUnlock ||
+    !g.state.running ||
+    g.state.reloading ||
+    g.isSprinting ||
+    g.pendingUpgrades.length > 0
+  )
+    return;
+  if (g.state.ammo <= 0) {
+    startReload();
+    return;
+  }
+
+  g.state.ammo--;
+  g.state.shootCooldown = effectiveCooldown();
+
+  const spread =
+    RIFLE.SPREAD.base +
+    Math.min(g.shootSpread, RIFLE.SPREAD.max) +
+    g.moveSpread;
+  const ray = g.camera.getForwardRay(100);
+  if (spread > 0)
+    ray.direction.copyFrom(addRandomSpread(ray.direction, spread));
+  g.shootSpread = Math.min(g.shootSpread + effectiveBloom(), RIFLE.SPREAD.max);
+
+  const isCrit = Math.random() < effectiveCritChance();
+  const critMult = isCrit ? effectiveCritDamage() : 1;
+  const damage = Math.round(
+    RIFLE.damage * (0.9 + Math.random() * 0.2) * critMult,
+  );
+  const spawnPos = g.barrelTip.getAbsolutePosition();
+  const tracer = makeRifleTracerMesh(spawnPos, ray.direction, isCrit);
+  g.rifleBullets.push({
+    mesh: tracer,
+    velocity: ray.direction.scale(RIFLE.bulletSpeed),
+    age: 0,
+    damage,
+    isCrit,
+  });
+  playRifleShotSound();
+  spawnRifleMuzzleFlash(isCrit);
+  applyRifleRecoil();
+
+  if (g.state.ammo === 0 && g.state.reserve > 0) g.state.autoReloadDelay = 200;
+  updateHUD();
+}
+
+function applyRifleRecoil(): void {
+  const recoil = currentRifleRecoilStats();
+  g.recoilPitch = Math.min(g.recoilPitch + recoil.weaponPitch, 0.45);
+  g.recoilRoll = Math.max(
+    -0.2,
+    Math.min(0.2, g.recoilRoll + (Math.random() - 0.5) * recoil.weaponRoll),
+  );
+  g.cameraRecoilPitch = Math.min(
+    g.cameraRecoilPitch + recoil.cameraPitch,
+    0.24,
+  );
+  g.crosshairRecoil = Math.min(g.crosshairRecoil + recoil.crosshairLift, 48);
+}
+
+export function updateRifleBullets(dt: number): void {
+  const dtSec = dt / 1000;
+  for (let i = g.rifleBullets.length - 1; i >= 0; i--) {
+    const bullet = g.rifleBullets[i];
+    bullet.age += dt;
+    const prevPos = bullet.mesh.position.clone();
+    bullet.velocity.y -= RIFLE.gravity * dtSec;
+    const step = bullet.velocity.scale(dtSec);
+    const nextPos = prevPos.add(step);
+    const dir =
+      step.lengthSquared() > 0.0001 ? step.normalizeToNew() : Vector3.Forward();
+    const hit = g.scene.pickWithRay(
+      new Ray(prevPos, dir, step.length() + RIFLE.tracerLength),
+      (m: AbstractMesh) =>
+        m.renderingGroupId !== 1 &&
+        m.name !== "player" &&
+        m.name !== "enemyPhys" &&
+        m.name !== "laserBeam" &&
+        m.name !== "bhole" &&
+        m.name !== "supply" &&
+        m.name !== "rifleTracer" &&
+        m.name !== "plasmaCharge",
+    );
+
+    if (hit?.hit && hit.pickedMesh && hit.pickedPoint) {
+      const point = hit.pickedPoint;
+      if (isEnemyPart(hit.pickedMesh.name)) {
+        const result = findEnemyByMesh(hit.pickedMesh);
+        if (result) {
+          const headshot = result.hitMesh.name === "enemyHead";
+          const damage = Math.round(bullet.damage * (headshot ? 2 : 1));
+          (result.hitMesh.material as StandardMaterial).emissiveColor =
+            new Color3(1, 0, 0);
+          result.enemy.flashMesh = result.hitMesh;
+          result.enemy.flashTime = 120;
+          damageEnemy(
+            result.enemy,
+            damage,
+            result.hitMesh,
+            point,
+            bullet.isCrit,
+          );
+          spawnHitParticle(
+            point,
+            new Color4(0.8, 0.0, 0.0, 1),
+            hit.getNormal(true) ?? dir.negate(),
+          );
+          if (g.enemies.includes(result.enemy)) {
+            spawnBulletHole(point, hit.getNormal(true), hit.pickedMesh as Mesh);
+          }
+        } else {
+          splitRagdoll(hit.pickedMesh as Mesh, dir, point);
+        }
+      } else if (
+        hit.pickedMesh.name === "bodyHalf" ||
+        hit.pickedMesh.name === "headHalf" ||
+        hit.pickedMesh.name === "armHalf" ||
+        hit.pickedMesh.name === "legHalf"
+      ) {
+        hitDebris(hit.pickedMesh as Mesh, dir, point);
+        spawnHitParticle(
+          point,
+          new Color4(0.8, 0.0, 0.0, 1),
+          hit.getNormal(true) ?? dir.negate(),
+        );
+      } else if (hit.pickedMesh.name === "plasma") {
+        const plasmaIdx = g.plasmas.findIndex((o) => o.mesh === hit.pickedMesh);
+        if (plasmaIdx !== -1) {
+          const plasma = g.plasmas[plasmaIdx];
+          detonatePlasma(plasma, point, bullet.isCrit);
+          g.plasmas.splice(plasmaIdx, 1);
+        }
+      } else {
+        spawnBulletHole(point, hit.getNormal(true));
+      }
+      bullet.mesh.dispose();
+      g.rifleBullets.splice(i, 1);
+      continue;
+    }
+
+    bullet.mesh.position.copyFrom(nextPos);
+    bullet.mesh.lookAt(nextPos.add(dir));
+    if (bullet.age >= RIFLE.tracerLifeMs) {
+      bullet.mesh.dispose();
+      g.rifleBullets.splice(i, 1);
+    }
+  }
 }
 
 function reflectWithSpread(dir: Vector3, normal: Vector3): Vector3 {
@@ -488,6 +720,7 @@ function fireLaserRay(ray: Ray, isCrit: boolean, depth = 0): void {
 // ─── Alt-fire: Plasma ───────────────────────────────────────────────────────
 export function startPlasmaCharge(): void {
   if (
+    g.state.activeWeapon !== "blaster" ||
     !g.upgrades.plasmaCaster ||
     !g.state.running ||
     g.state.reloading ||
@@ -1161,40 +1394,34 @@ function hitEnemy(
   });
 }
 
-// ─── Score ───────────────────────────────────────────────────────────────────
-export function incrementScore(amount: number, hitPoint?: Vector3): void {
-  g.state.score += amount;
-  updateHUD();
-  while (g.state.score >= g.state.nextSupplyThreshold) {
-    g.state.nextSupplyThreshold += SUPPLY.scoreInterval;
-    if (Math.random() < effectiveSupplyDropRate() && hitPoint) {
-      spawnSupply(hitPoint.clone());
-    }
-  }
-}
-
 // ─── Reload ──────────────────────────────────────────────────────────────────
 export function startReload(): void {
+  const maxMag = effectiveMagSize();
   if (
     g.state.reloading ||
     g.state.reserve <= 0 ||
-    g.state.ammo >= effectiveMagSize() ||
+    g.state.ammo >= maxMag ||
     g.isSprinting ||
-    g.state.overheated
+    (g.state.activeWeapon === "blaster" && g.state.overheated)
   )
     return;
   g.state.reloading = true;
-  g.state.reloadTimeLeft = effectiveReloadTime();
+  const reloadTime = effectiveReloadTime();
+  g.state.reloadTimeLeft = reloadTime;
   dom.reloadMsg.classList.add("visible");
-  playReloadSounds(effectiveReloadTime(), () =>
-    g.barrelTip.getAbsolutePosition(),
-  );
+  const barrelPos = () => g.barrelTip.getAbsolutePosition();
+  if (g.state.activeWeapon === "rifle") {
+    playRifleReloadSounds(reloadTime, barrelPos);
+  } else {
+    playReloadSounds(reloadTime, barrelPos);
+  }
 }
 
 export function completeReload(): void {
   const take = Math.min(effectiveMagSize() - g.state.ammo, g.state.reserve);
   g.state.ammo += take;
   g.state.reserve -= take;
+  cacheActiveWeaponAmmo();
   g.state.reloading = false;
   g.state.reloadTimeLeft = 0;
   dom.reloadMsg.classList.remove("visible");

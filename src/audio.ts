@@ -108,6 +108,83 @@ export function playReloadSounds(
   }, reloadTimeMs * 0.65);
 }
 
+export function playRifleReloadSounds(
+  reloadTimeMs: number,
+  barrelPos: () => Vector3,
+): void {
+  const ctx = ensureAudioCtx();
+
+  setTimeout(() => {
+    const now = ctx.currentTime;
+    const panner = makePanner(ctx, barrelPos());
+
+    const bufSize = Math.floor(ctx.sampleRate * 0.05);
+    const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * 0.8;
+    const noise = ctx.createBufferSource();
+    noise.buffer = buf;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.setValueAtTime(1400, now);
+    filter.Q.value = 1.4;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.14, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(panner);
+    noise.start(now);
+
+    const osc = ctx.createOscillator();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(220, now);
+    osc.frequency.exponentialRampToValueAtTime(120, now + 0.1);
+    const oscGain = ctx.createGain();
+    oscGain.gain.setValueAtTime(0.08, now);
+    oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    osc.connect(oscGain);
+    oscGain.connect(panner);
+    osc.start(now);
+    osc.stop(now + 0.11);
+  }, reloadTimeMs * 0.18);
+
+  setTimeout(() => {
+    const now = ctx.currentTime;
+    const panner = makePanner(ctx, barrelPos());
+
+    const osc = ctx.createOscillator();
+    osc.type = "square";
+    osc.frequency.setValueAtTime(520, now);
+    osc.frequency.exponentialRampToValueAtTime(300, now + 0.07);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.09, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+    osc.connect(gain);
+    gain.connect(panner);
+    osc.start(now);
+    osc.stop(now + 0.09);
+  }, reloadTimeMs * 0.52);
+
+  setTimeout(() => {
+    const now = ctx.currentTime;
+    const panner = makePanner(ctx, barrelPos());
+
+    const bufSize = Math.floor(ctx.sampleRate * 0.04);
+    const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+    const noise = ctx.createBufferSource();
+    noise.buffer = buf;
+    const clickGain = ctx.createGain();
+    clickGain.gain.setValueAtTime(0.16, now);
+    clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
+    noise.connect(clickGain);
+    clickGain.connect(panner);
+    noise.start(now);
+  }, reloadTimeMs * 0.78);
+}
+
 export function playLaserSound(durationSec: number): void {
   const ctx = ensureAudioCtx();
   const now = ctx.currentTime;
@@ -126,6 +203,54 @@ export function playLaserSound(durationSec: number): void {
   gain.connect(panner);
   osc.start(now);
   osc.stop(now + durationSec + 0.01);
+}
+
+export function playRifleShotSound(): void {
+  const ctx = ensureAudioCtx();
+  const now = ctx.currentTime;
+  const panner = makePanner(ctx, g.barrelTip.getAbsolutePosition());
+
+  const osc = ctx.createOscillator();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(180, now);
+  osc.frequency.exponentialRampToValueAtTime(70, now + 0.07);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.18, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+  osc.connect(gain);
+  gain.connect(panner);
+  osc.start(now);
+  osc.stop(now + 0.09);
+
+  const bufSize = Math.floor(ctx.sampleRate * 0.055);
+  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+  const noise = ctx.createBufferSource();
+  noise.buffer = buf;
+  const filter = ctx.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.setValueAtTime(1800, now);
+  filter.Q.value = 0.9;
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.setValueAtTime(0.3, now);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+  noise.connect(filter);
+  filter.connect(noiseGain);
+  noiseGain.connect(panner);
+  noise.start(now);
+
+  const snap = ctx.createOscillator();
+  snap.type = "triangle";
+  snap.frequency.setValueAtTime(900, now);
+  snap.frequency.exponentialRampToValueAtTime(260, now + 0.035);
+  const snapGain = ctx.createGain();
+  snapGain.gain.setValueAtTime(0.07, now);
+  snapGain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+  snap.connect(snapGain);
+  snapGain.connect(panner);
+  snap.start(now);
+  snap.stop(now + 0.05);
 }
 
 export function playOverheatSound(): void {

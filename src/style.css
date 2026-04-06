@@ -117,6 +117,16 @@ canvas {
   letter-spacing: 0.15em;
   text-transform: uppercase;
 }
+.hud-weapon {
+  font-size: 0.72rem;
+  color: #ffe16b;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+  text-shadow:
+    0 0 6px rgba(255, 200, 40, 0.4),
+    0 0 10px rgba(255, 200, 40, 0.18);
+}
 .hud-value {
   font-size: 1.6rem;
   font-weight: bold;

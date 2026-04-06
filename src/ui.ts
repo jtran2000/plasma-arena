@@ -9,6 +9,7 @@ import {
 } from "@babylonjs/gui";
 import { g, dom } from "./game.js";
 import { AUDIO } from "./constants.js";
+import { startGame } from "./flow.js";
 
 // ─── Style constants ─────────────────────────────────────────────────────────
 const FONT = "Courier New";
@@ -33,17 +34,6 @@ let volumeValueText: TextBlock;
 let sensitivityValueText: TextBlock;
 let volumeSlider: Slider;
 let sensitivitySlider: Slider;
-
-// ─── Callbacks (set by main.ts) ──────────────────────────────────────────────
-export let onPlay: () => void = () => {};
-export let onRestart: () => void = () => {};
-
-export function setOnPlay(fn: () => void): void {
-  onPlay = fn;
-}
-export function setOnRestart(fn: () => void): void {
-  onRestart = fn;
-}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function makeScreen(bg: string): Rectangle {
@@ -129,7 +119,7 @@ function buildStartScreen(): void {
 
   const playBtn = makeButton("\u25B6  PLAY", ORANGE, "#000000", HOVER_ORANGE);
   playBtn.onPointerUpObservable.add(() => {
-    onPlay();
+    startGame().catch(console.error);
   });
   panel.addControl(playBtn);
 
@@ -310,7 +300,7 @@ function buildGameOverScreen(): void {
 
   const restartBtn = makeButton("RESTART", RED, TEXT_COLOR, HOVER_RED);
   restartBtn.onPointerUpObservable.add(() => {
-    onRestart();
+    startGame().catch(console.error);
   });
   panel.addControl(restartBtn);
 }

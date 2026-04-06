@@ -1,4 +1,5 @@
-import { PLAYER, BLASTER, SUPPLY, CRIT, UPGRADE } from "./constants.js";
+import { Vector3 } from "@babylonjs/core";
+import { PLAYER, BLASTER, RIFLE, SUPPLY, CRIT, UPGRADE } from "./constants.js";
 const { LASER, SPREAD, HEAT, PLASMA, MULTISHOT, RICOCHET, LIGHTNING, IGNITE } =
   BLASTER;
 import { g, dom } from "./game.js";
@@ -11,14 +12,19 @@ export function effectiveSpeed(): number {
   return PLAYER.speed + g.upgrades.speed * UPGRADE.speed;
 }
 export function effectiveReloadTime(): number {
+  if (g.state.activeWeapon === "rifle") return RIFLE.reloadTime;
   return (
     LASER.reloadTime * Math.pow(1 - UPGRADE.reloadSpeed, g.upgrades.reloadTime)
   );
 }
 export function effectiveMagSize(): number {
+  if (g.state.activeWeapon === "rifle") return RIFLE.magSize;
   return LASER.magSize + g.upgrades.magSize * UPGRADE.magSize;
 }
 export function effectiveCooldown(): number {
+  if (g.state.activeWeapon === "rifle") {
+    return 60000 / RIFLE.rateOfFire;
+  }
   const pulseMult = g.upgrades.pulseLaser ? 2 : 1;
   return (
     60000 /
@@ -34,11 +40,13 @@ export function effectiveHeatDecay(): number {
   return HEAT.decay * (1 + g.upgrades.heatDecay * UPGRADE.heatDecay);
 }
 export function effectiveBloom(): number {
+  if (g.state.activeWeapon === "rifle") return RIFLE.SPREAD.perShot;
   return (
     SPREAD.perShot * Math.pow(1 - UPGRADE.bloomReduction, g.upgrades.bloom)
   );
 }
 export function effectiveMoveSpreadRate(): number {
+  if (g.state.activeWeapon === "rifle") return RIFLE.SPREAD.moveRate;
   return (
     SPREAD.moveRate *
     Math.pow(1 - UPGRADE.moveSpreadReduction, g.upgrades.moveSpread)
@@ -82,6 +90,21 @@ export function effectiveIgniteChance(): number {
   return IGNITE.chance + g.upgrades.ignite * UPGRADE.igniteChance;
 }
 
+export function incrementScore(amount: number, hitPoint?: Vector3): void {
+  g.state.score += amount;
+  updateHUD();
+  while (g.state.score >= g.state.nextSupplyThreshold) {
+    g.state.nextSupplyThreshold += SUPPLY.scoreInterval;
+    if (Math.random() < effectiveSupplyDropRate() && hitPoint) {
+      g.queuedSupplyDrops.push(hitPoint.clone());
+    }
+  }
+}
+
+function syncWeaponUpgradeVisuals(): void {
+  if (g.rifleBrake) g.rifleBrake.isVisible = g.upgrades.muzzleBrake;
+}
+
 // ─── HUD ──────────────────────────────────────────────────────────────────────
 export function updateHUD(): void {
   const maxHp = effectiveMaxHealth();
@@ -93,6 +116,8 @@ export function updateHUD(): void {
   dom.healthFill.style.background =
     hpFrac > 0.5 ? "#4f4" : hpFrac > 0.25 ? "#fa0" : "#f44";
   dom.healthText.textContent = `${Math.ceil(g.state.health)} / ${maxHp}`;
+  dom.weaponEl.textContent =
+    g.state.activeWeapon === "rifle" ? "RIFLE" : "BLASTER";
   dom.ammoEl.textContent = `${g.state.ammo} / ${g.state.reserve}`;
   dom.scoreEl.textContent = String(g.state.score);
   dom.killsEl.textContent = String(g.state.kills);
@@ -248,6 +273,22 @@ const UPGRADE_DEFS: UpgradeDef[] = [
     oneTime: true,
     requires: "plasmaCharger",
   },
+  {
+    key: "rifleUnlock",
+    label: "Rifle",
+    weight: 10,
+    instruction: "Scroll to switch between blaster and rifle",
+    oneTime: true,
+  },
+  {
+    key: "muzzleBrake",
+    label: "Muzzle Brake",
+    weight: 4,
+    instruction: "Rifle recoil and flash are reduced",
+    oneTime: true,
+    requires: "rifleUnlock",
+    onApply: syncWeaponUpgradeVisuals,
+  },
 ];
 
 // ─── Upgrade menu functions ─────────────────────────────────────────────────
@@ -308,10 +349,14 @@ export function selectUpgrade(index: number): void {
   const def = UPGRADE_DEFS.find((d) => d.key === key);
   if (!def) return;
   const val = g.upgrades[def.key];
+  const upgrades = g.upgrades as unknown as Record<
+    keyof typeof g.upgrades,
+    number | boolean
+  >;
   if (typeof val === "boolean") {
-    (g.upgrades as Record<string, number | boolean>)[def.key] = true;
+    upgrades[def.key] = true;
   } else {
-    (g.upgrades as Record<string, number | boolean>)[def.key] = val + 1;
+    upgrades[def.key] = val + 1;
   }
   def.onApply?.();
   if (def.instruction) showInstruction(def.instruction);

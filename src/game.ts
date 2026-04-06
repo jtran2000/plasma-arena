@@ -12,14 +12,17 @@ import {
   PointLight,
 } from "@babylonjs/core";
 import { AdvancedDynamicTexture, Rectangle } from "@babylonjs/gui";
-import { PLAYER, BLASTER, SUPPLY, WAVE } from "./constants.js";
+import { PLAYER, BLASTER, RIFLE, SUPPLY, WAVE } from "./constants.js";
 const { LASER } = BLASTER;
+
+export type WeaponKind = "blaster" | "rifle";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface GameState {
   health: number;
   ammo: number;
   reserve: number;
+  activeWeapon: WeaponKind;
   score: number;
   kills: number;
   reloading: boolean;
@@ -58,6 +61,46 @@ export interface Plasma {
   isCrit: boolean;
   hasGravity: boolean;
   ricochetDepth: number;
+}
+
+export interface RifleBullet {
+  mesh: Mesh;
+  velocity: Vector3;
+  age: number;
+  damage: number;
+  isCrit: boolean;
+}
+
+export interface UpgradeState {
+  maxHealth: number;
+  speed: number;
+  reloadTime: number;
+  magSize: number;
+  rateOfFire: number;
+  heatCapacity: number;
+  heatDecay: number;
+  bloom: number;
+  moveSpread: number;
+  laserDamage: number;
+  plasmaDamage: number;
+  supplyDropRate: number;
+  critChance: number;
+  critDamage: number;
+  plasmaSelfDamage: number;
+  multishot: number;
+  multishotUnlock: boolean;
+  ricochet: number;
+  ricochetUnlock: boolean;
+  lightning: number;
+  lightningUnlock: boolean;
+  ignite: number;
+  igniteUnlock: boolean;
+  pulseLaser: boolean;
+  plasmaCaster: boolean;
+  plasmaCharger: boolean;
+  plasmaGrenadier: boolean;
+  rifleUnlock: boolean;
+  muzzleBrake: boolean;
 }
 
 export interface Enemy {
@@ -104,6 +147,7 @@ export function makeState(): GameState {
     health: PLAYER.maxHealth,
     ammo: LASER.magSize,
     reserve: LASER.magSize * LASER.reserveMags,
+    activeWeapon: "blaster",
     score: 0,
     kills: 0,
     reloading: false,
@@ -128,6 +172,56 @@ export function makeState(): GameState {
   };
 }
 
+export function makeUpgradeState(): UpgradeState {
+  return {
+    maxHealth: 0,
+    speed: 0,
+    reloadTime: 0,
+    magSize: 0,
+    rateOfFire: 0,
+    heatCapacity: 0,
+    heatDecay: 0,
+    bloom: 0,
+    moveSpread: 0,
+    laserDamage: 0,
+    plasmaDamage: 0,
+    supplyDropRate: 0,
+    critChance: 0,
+    critDamage: 0,
+    plasmaSelfDamage: 0,
+    multishot: 0,
+    multishotUnlock: false,
+    ricochet: 0,
+    ricochetUnlock: false,
+    lightning: 0,
+    lightningUnlock: false,
+    ignite: 0,
+    igniteUnlock: false,
+    pulseLaser: false,
+    plasmaCaster: false,
+    plasmaCharger: false,
+    plasmaGrenadier: false,
+    rifleUnlock: false,
+    muzzleBrake: false,
+  };
+}
+
+export function makeWeaponAmmoState(): Record<
+  WeaponKind,
+  { ammo: number; reserve: number }
+> {
+  return {
+    blaster: {
+      ammo: LASER.magSize,
+      reserve: LASER.magSize * LASER.reserveMags,
+    },
+    rifle: {
+      ammo: RIFLE.magSize,
+      reserve: RIFLE.magSize * RIFLE.reserveMags,
+    },
+  };
+}
+
 // ─── DOM refs ─────────────────────────────────────────────────────────────────
 function getEl(id: string): HTMLElement {
   const el = document.getElementById(id);
@@ -141,6 +235,7 @@ export const dom = {
   healthBar: getEl("health-bar"),
   healthFill: getEl("health-fill"),
   healthText: getEl("health-text"),
+  weaponEl: getEl("weapon-value"),
   ammoEl: getEl("ammo-value"),
   scoreEl: getEl("score-value-alt"),
   killsEl: getEl("kills-value"),
@@ -183,15 +278,27 @@ export const g = {
   playerVelocityXZ: Vector3.Zero(),
   enemies: [] as Enemy[],
   plasmas: [] as Plasma[],
+  rifleBullets: [] as RifleBullet[],
   supplies: [] as Supply[],
+  queuedSupplyDrops: [] as Vector3[],
   bulletHoles: [] as Mesh[],
   bulletHoleTimes: [] as number[],
   glowingHoles: [] as { mesh: Mesh; time: number }[],
   particleTex: null as unknown as DynamicTexture,
+  blasterRoot: null as unknown as Mesh,
+  blasterBarrel: null as unknown as Mesh,
+  blasterBarrelTip: null as unknown as Mesh,
+  blasterCell: null as unknown as Mesh,
+  rifleRoot: null as unknown as Mesh,
+  rifleBarrel: null as unknown as Mesh,
+  rifleBarrelTip: null as unknown as Mesh,
+  rifleBrake: null as unknown as Mesh,
+  rifleMag: null as unknown as Mesh,
   weaponRoot: null as unknown as Mesh,
   weaponBarrel: null as unknown as Mesh,
   barrelTip: null as unknown as Mesh,
   weaponCell: null as unknown as Mesh,
+  weaponAmmo: makeWeaponAmmoState(),
   mouseHeld: false,
   mouse2Held: false,
   plasmaCharging: false,
@@ -209,50 +316,22 @@ export const g = {
   audioCtx: null as AudioContext | null,
   masterGain: null as GainNode | null,
   sprintBobTime: 0,
+  recoilPitch: 0,
+  recoilRoll: 0,
+  cameraRecoilPitch: 0,
+  appliedCameraRecoilPitch: 0,
+  crosshairRecoil: 0,
   pressedKeys: new Set<string>(),
-  upgrades: {
-    maxHealth: 0,
-    speed: 0,
-    reloadTime: 0,
-    magSize: 0,
-    rateOfFire: 0,
-    heatCapacity: 0,
-    heatDecay: 0,
-    bloom: 0,
-    moveSpread: 0,
-    laserDamage: 0,
-    plasmaDamage: 0,
-    supplyDropRate: 0,
-    critChance: 0,
-    critDamage: 0,
-    plasmaSelfDamage: 0,
-    multishot: 0,
-    multishotUnlock: false,
-    ricochet: 0,
-    ricochetUnlock: false,
-    lightning: 0,
-    lightningUnlock: false,
-    ignite: 0,
-    igniteUnlock: false,
-    pulseLaser: false,
-    plasmaCaster: false,
-    plasmaCharger: false,
-    plasmaGrenadier: false,
-  },
+  upgrades: makeUpgradeState(),
   pendingUpgrades: [] as string[],
 };
-
-let gameOverCallback: (() => void) | null = null;
-export function setGameOverCallback(fn: () => void): void {
-  gameOverCallback = fn;
-}
 
 export function endGame(): void {
   g.state.running = false;
   g.mouseHeld = false;
   g.pressedKeys.clear();
-  g.weaponRoot.setEnabled(false);
+  g.blasterRoot?.setEnabled(false);
+  g.rifleRoot?.setEnabled(false);
   dom.hud.style.display = "none";
   document.exitPointerLock();
-  gameOverCallback?.();
 }
