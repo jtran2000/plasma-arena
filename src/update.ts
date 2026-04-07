@@ -77,6 +77,8 @@ import {
 export { selectUpgrade };
 
 type BayonetTorsoSide = "front" | "back" | "left" | "right";
+type BayonetEmbedResult = "embedded" | "blockedByEnemy" | "blockedByWorld";
+type Aabb = { min: Vector3; max: Vector3 };
 
 // ─── Game loop ────────────────────────────────────────────────────────────────
 export function update(): void {
@@ -647,12 +649,22 @@ function updateBayonetCharge(dt: number): void {
       },
     );
     if (!killed) {
-      embedBayonetInEnemy(
+      const embedResult = embedBayonetInEnemy(
         result.enemy,
         torsoAnchor.position,
         ray.direction,
         torsoAnchor.side,
       );
+      if (embedResult === "blockedByWorld") {
+        damageEnemy(
+          result.enemy,
+          result.enemy.hp,
+          result.enemy.bodyMesh,
+          torsoAnchor.position,
+          false,
+          { canIgnite: false, intactKill: true },
+        );
+      }
     }
     spawnBayonetBloodBurst(torsoAnchor.position);
     spawnHitParticle(
@@ -758,12 +770,12 @@ function embedBayonetInEnemy(
   hitPoint: Vector3,
   chargeDirection: Vector3,
   torsoSide: BayonetTorsoSide,
-): void {
+): BayonetEmbedResult {
   const direction = new Vector3(chargeDirection.x, 0, chargeDirection.z);
   if (direction.lengthSquared() < 0.0001) direction.copyFrom(Vector3.Forward());
   direction.normalize();
 
-  const pin = findBayonetPinPosition(enemy, hitPoint, direction);
+  const pin = findBayonetPinPosition(hitPoint, direction);
   const hitLocalPosition = Vector3.TransformCoordinates(
     hitPoint,
     enemy.visualRoot.getWorldMatrix().clone().invert(),
@@ -771,25 +783,21 @@ function embedBayonetInEnemy(
   const targetVisualRotation = getBayonetEmbedVisualQuaternion(
     pin.normal,
     direction,
-    pin.wallPinned,
     torsoSide,
   );
-  let targetHitPoint = pin.hitPoint.clone();
   const pinPosition = pin.position.clone();
-  if (!pin.wallPinned) {
-    const groundOffset = calculateBayonetGroundOffset(
-      enemy,
-      pinPosition,
-      targetVisualRotation,
-      pin.hitPoint.y,
-    );
-    pinPosition.y += groundOffset;
-    targetHitPoint = transformBayonetEmbedLocalPoint(
-      pinPosition,
-      hitLocalPosition,
-      targetVisualRotation,
-    );
-  }
+  const groundOffset = calculateBayonetGroundOffset(
+    enemy,
+    pinPosition,
+    targetVisualRotation,
+    pin.hitPoint.y,
+  );
+  pinPosition.y += groundOffset;
+  const targetHitPoint = transformBayonetEmbedLocalPoint(
+    pinPosition,
+    hitLocalPosition,
+    targetVisualRotation,
+  );
   const startCameraRotation = g.camera.rotation.clone();
   const {
     playerPosition: targetPlayerPosition,
@@ -800,6 +808,15 @@ function embedBayonetInEnemy(
     direction,
     torsoSide,
   );
+  const collision = getBayonetEmbedCollision(
+    enemy,
+    pinPosition,
+    targetVisualRotation,
+    targetPlayerPosition,
+  );
+  if (collision !== null) {
+    return collision;
+  }
   const { playerCollideMask, enemyMembershipMask } =
     disableBayonetEmbedPlayerEnemyCollision(enemy);
 
@@ -824,7 +841,6 @@ function embedBayonetInEnemy(
     playerCollideMask,
     enemyMembershipMask,
     progress: 0,
-    wallPinned: pin.wallPinned,
   };
   g.bayonetEmbedCameraPitch = 0;
   g.appliedBayonetEmbedCameraPitch = 0;
@@ -832,6 +848,7 @@ function embedBayonetInEnemy(
   enemy.state = "patrol";
   enemy.attackCooldown = enemy.meleeIntervalMs;
   enemy.aggregate.body.setLinearVelocity(Vector3.Zero());
+  return "embedded";
 }
 
 function solveBayonetEmbedPlayerPose(
@@ -870,36 +887,13 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 function findBayonetPinPosition(
-  enemy: Enemy,
   hitPoint: Vector3,
   direction: Vector3,
 ): {
   position: Vector3;
   hitPoint: Vector3;
   normal: Vector3;
-  wallPinned: boolean;
 } {
-  const wallHit = g.scene.pickWithRay(
-    new Ray(
-      hitPoint.add(direction.scale(0.08)),
-      direction,
-      RIFLE.BAYONET.embedWallSearchDistance,
-    ),
-    bayonetPinRayFilter,
-  );
-  if (wallHit?.hit && wallHit.pickedPoint) {
-    const wallPin = wallHit.pickedPoint.subtract(
-      direction.scale(RIFLE.BAYONET.embedEnemyWallOffset),
-    );
-    wallPin.y = enemy.physMesh.position.y;
-    return {
-      position: wallPin,
-      hitPoint: wallHit.pickedPoint,
-      normal: wallHit.getNormal(true)?.normalizeToNew() ?? direction.negate(),
-      wallPinned: true,
-    };
-  }
-
   const groundProbe = hitPoint.add(
     direction.scale(RIFLE.BAYONET.embedGroundKnockbackDistance),
   );
@@ -913,7 +907,6 @@ function findBayonetPinPosition(
     position: groundHitPoint.clone(),
     hitPoint: groundHitPoint,
     normal: groundHit?.getNormal(true)?.normalizeToNew() ?? Vector3.Up(),
-    wallPinned: false,
   };
 }
 
@@ -942,32 +935,21 @@ function getBayonetEmbedLocalOffset(
 function getBayonetEmbedVisualQuaternion(
   surfaceNormal: Vector3,
   direction: Vector3,
-  wallPinned: boolean,
   torsoSide: BayonetTorsoSide,
 ): Quaternion {
-  if (!wallPinned) {
-    return getGroundPinnedRotation(direction, torsoSide);
-  }
-
-  const forward = surfaceNormal.normalizeToNew();
-  let up = Vector3.Up().subtract(
-    forward.scale(Vector3.Dot(Vector3.Up(), forward)),
-  );
-  if (up.lengthSquared() < 0.0001) {
-    up = Vector3.Cross(forward, Vector3.Right());
-  }
-  return Quaternion.FromLookDirectionLH(forward, up.normalize());
+  return getGroundPinnedRotation(direction, surfaceNormal, torsoSide);
 }
 
 function getGroundPinnedRotation(
   direction: Vector3,
+  surfaceNormal: Vector3,
   torsoSide: BayonetTorsoSide,
 ): Quaternion {
   let yAxis = direction.clone();
   yAxis.y = 0;
   if (yAxis.lengthSquared() < 0.0001) yAxis = Vector3.Forward();
   yAxis.normalize();
-  const up = Vector3.Up();
+  const up = surfaceNormal.normalizeToNew();
   const sideAxes = getGroundPinnedSideAxes(torsoSide, yAxis, up);
 
   const rotationMatrix = new Matrix();
@@ -1027,6 +1009,63 @@ function calculateBayonetGroundOffset(
   targetVisualRotation: Quaternion,
   groundY: number,
 ): number {
+  const bounds = calculateBayonetEmbedBounds(
+    enemy,
+    rootPosition,
+    targetVisualRotation,
+  );
+  if (!bounds) return 0;
+  return groundY + 0.02 - bounds.min.y;
+}
+
+function getBayonetEmbedCollision(
+  enemy: Enemy,
+  enemyPosition: Vector3,
+  targetVisualRotation: Quaternion,
+  playerPosition: Vector3,
+): Exclude<BayonetEmbedResult, "embedded"> | null {
+  const enemyBounds = calculateBayonetEmbedBounds(
+    enemy,
+    enemyPosition,
+    targetVisualRotation,
+  );
+  if (!enemyBounds) return null;
+  const playerBounds = calculatePlayerEmbedBounds(playerPosition);
+
+  for (const other of g.enemies) {
+    if (other === enemy) continue;
+    if (
+      aabbIntersectsMesh(enemyBounds, other.physMesh) ||
+      aabbIntersectsMesh(playerBounds, other.physMesh)
+    ) {
+      return "blockedByEnemy";
+    }
+  }
+
+  for (const mesh of g.scene.meshes) {
+    if (!isBayonetEmbedBlockingWorldMesh(mesh)) continue;
+    if (
+      aabbIntersectsMesh(enemyBounds, mesh) ||
+      aabbIntersectsMesh(playerBounds, mesh)
+    ) {
+      return "blockedByWorld";
+    }
+  }
+
+  return null;
+}
+
+function calculatePlayerEmbedBounds(position: Vector3): Aabb {
+  const matrix = Matrix.Translation(position.x, position.y, position.z);
+  const box = g.playerMesh.getBoundingInfo().boundingBox;
+  return calculateTransformedBounds(box.vectors, matrix);
+}
+
+function calculateBayonetEmbedBounds(
+  enemy: Enemy,
+  rootPosition: Vector3,
+  targetVisualRotation: Quaternion,
+): Aabb | null {
   const visualWorld = enemy.visualRoot.getWorldMatrix().clone();
   const invVisualWorld = visualWorld.invert();
   const targetRotation = Matrix.Compose(
@@ -1034,7 +1073,7 @@ function calculateBayonetGroundOffset(
     targetVisualRotation,
     Vector3.Zero(),
   );
-  let minY = Number.POSITIVE_INFINITY;
+  const points: Vector3[] = [];
 
   for (const child of enemy.visualRoot.getChildMeshes(false)) {
     if (!(child instanceof Mesh) || child.getTotalVertices() <= 0) continue;
@@ -1045,12 +1084,58 @@ function calculateBayonetGroundOffset(
         visualLocal,
         targetRotation,
       );
-      minY = Math.min(minY, rootPosition.y + targetLocal.y);
+      points.push(rootPosition.add(targetLocal));
     }
   }
 
-  if (!Number.isFinite(minY)) return 0;
-  return groundY + 0.02 - minY;
+  if (points.length === 0) return null;
+  return calculateBounds(points);
+}
+
+function calculateTransformedBounds(points: Vector3[], matrix: Matrix): Aabb {
+  return calculateBounds(
+    points.map((point) => Vector3.TransformCoordinates(point, matrix)),
+  );
+}
+
+function calculateBounds(points: Vector3[]): Aabb {
+  const min = points[0].clone();
+  const max = points[0].clone();
+  for (const point of points.slice(1)) {
+    min.minimizeInPlace(point);
+    max.maximizeInPlace(point);
+  }
+  return { min, max };
+}
+
+function aabbIntersectsMesh(bounds: Aabb, mesh: AbstractMesh): boolean {
+  mesh.computeWorldMatrix(true);
+  const box = mesh.getBoundingInfo().boundingBox;
+  return aabbIntersects(bounds, {
+    min: box.minimumWorld,
+    max: box.maximumWorld,
+  });
+}
+
+function aabbIntersects(a: Aabb, b: Aabb): boolean {
+  return (
+    a.min.x <= b.max.x &&
+    a.max.x >= b.min.x &&
+    a.min.y <= b.max.y &&
+    a.max.y >= b.min.y &&
+    a.min.z <= b.max.z &&
+    a.max.z >= b.min.z
+  );
+}
+
+function isBayonetEmbedBlockingWorldMesh(mesh: AbstractMesh): boolean {
+  return (
+    mesh.isEnabled() &&
+    (mesh.name === "wall" ||
+      mesh.name === "crate" ||
+      mesh.name === "pillar" ||
+      mesh.name === "ceil")
+  );
 }
 
 function bayonetPinRayFilter(m: AbstractMesh): boolean {
@@ -1117,7 +1202,7 @@ function updateEmbeddedBayonet(dt: number): void {
     embed.targetVisualRotation,
     t,
   );
-  poseEmbeddedEnemy(enemy, embed.wallPinned, t);
+  poseEmbeddedEnemy(enemy, t);
 }
 
 function smoothstep(t: number): number {
@@ -1137,8 +1222,7 @@ function getBayonetWeaponPitch(chargeT: number, embedT: number): number {
   );
 }
 
-function poseEmbeddedEnemy(enemy: Enemy, wallPinned: boolean, t: number): void {
-  if (wallPinned) return;
+function poseEmbeddedEnemy(enemy: Enemy, t: number): void {
   enemy.leftLeg.rotation.x = 0.18 * t;
   enemy.rightLeg.rotation.x = -0.14 * t;
   enemy.leftLeg.rotation.z = 0.22 * t;

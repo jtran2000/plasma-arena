@@ -87,7 +87,6 @@ export interface BayonetEmbed {
   playerCollideMask: number;
   enemyMembershipMask: number;
   progress: number;
-  wallPinned: boolean;
 }
 
 export interface UpgradeState {
@@ -377,7 +376,9 @@ export function disableBayonetEmbedPlayerEnemyCollision(enemy: Enemy): {
   return { playerCollideMask, enemyMembershipMask };
 }
 
-export function releaseBayonetEmbed(): void {
+export function releaseBayonetEmbed(opts?: {
+  preserveEnemyPose?: boolean;
+}): void {
   const embed = g.bayonetEmbed;
   if (embed) {
     g.playerAggregate.shape.filterCollideMask = embed.playerCollideMask;
@@ -386,7 +387,7 @@ export function releaseBayonetEmbed(): void {
         embed.enemyMembershipMask;
     }
   }
-  if (embed && g.enemies.includes(embed.enemy)) {
+  if (embed && g.enemies.includes(embed.enemy) && !opts?.preserveEnemyPose) {
     embed.enemy.visualRoot.rotationQuaternion = null;
     embed.enemy.visualRoot.rotation.x = 0;
     embed.enemy.visualRoot.rotation.y = embed.enemy.facingYaw;

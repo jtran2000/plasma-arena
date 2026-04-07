@@ -35,7 +35,7 @@ import {
   RIFLE,
 } from "./constants.js";
 const { PLASMA, HEAT } = BLASTER;
-import { g, type Enemy } from "./game.js";
+import { g, releaseBayonetEmbed, type Enemy } from "./game.js";
 import {
   playEnemySpawnSound,
   playEnemyDeathSound,
@@ -2102,6 +2102,33 @@ export function killEnemy(
       hitPoint,
     );
   };
+
+  if (g.bayonetEmbed?.enemy === enemy) {
+    const enemyIndex = g.enemies.indexOf(enemy);
+
+    if (wasBurning) {
+      for (const mesh of [
+        enemy.bodyMesh,
+        enemy.headMesh,
+        ...enemy.visualRoot.getChildMeshes(),
+      ]) {
+        const mat = mesh.material;
+        if (mat instanceof StandardMaterial) blacken(mat);
+      }
+    }
+
+    releaseBayonetEmbed({ preserveEnemyPose: true });
+    enemy.physMesh.isPickable = false;
+    enemy.visualRoot.isPickable = false;
+    for (const mesh of enemy.visualRoot.getChildMeshes()) {
+      mesh.isPickable = false;
+    }
+    enemy.aggregate.dispose();
+    if (enemyIndex >= 0) g.enemies.splice(enemyIndex, 1);
+    setTimeout(() => enemy.physMesh.dispose(false, true), 3500);
+    finishKill();
+    return;
+  }
 
   if (intactKill) {
     const enemyIndex = g.enemies.indexOf(enemy);
