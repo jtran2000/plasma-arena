@@ -136,7 +136,7 @@ export const BLASTER = {
 // ─── Rifle ──────────────────────────────────────────────────────────────────
 export const RIFLE = {
   damage: 18,
-  rateOfFire: 720, // rounds per minute
+  rateOfFire: 60, // rounds per minute
   magSize: 50,
   reserveMags: 5,
   maxReserveMags: 7,

@@ -902,7 +902,7 @@ function findBayonetPinPosition(
     bayonetPinRayFilter,
   );
   const groundHitPoint = groundProbe.clone();
-  groundHitPoint.y = (groundHit?.pickedPoint?.y ?? 0) + 0.02;
+  groundHitPoint.y = groundHit?.pickedPoint?.y ?? 0;
   return {
     position: groundHitPoint.clone(),
     hitPoint: groundHitPoint,
@@ -1015,7 +1015,7 @@ function calculateBayonetGroundOffset(
     targetVisualRotation,
   );
   if (!bounds) return 0;
-  return groundY + 0.02 - bounds.min.y;
+  return groundY - bounds.min.y;
 }
 
 function getBayonetEmbedCollision(
@@ -1066,27 +1066,38 @@ function calculateBayonetEmbedBounds(
   rootPosition: Vector3,
   targetVisualRotation: Quaternion,
 ): Aabb | null {
-  const visualWorld = enemy.visualRoot.getWorldMatrix().clone();
-  const invVisualWorld = visualWorld.invert();
-  const targetRotation = Matrix.Compose(
-    Vector3.One(),
-    targetVisualRotation,
-    Vector3.Zero(),
-  );
   const points: Vector3[] = [];
+  const originalPosition = enemy.physMesh.position.clone();
+  const originalVisualRotation = enemy.visualRoot.rotation.clone();
+  const originalVisualRotationQuaternion =
+    enemy.visualRoot.rotationQuaternion?.clone() ?? null;
+  const originalLeftLegRotation = enemy.leftLeg.rotation.clone();
+  const originalRightLegRotation = enemy.rightLeg.rotation.clone();
+  const originalLeftArmRotation = enemy.leftArm.rotation.clone();
+  const originalRightArmRotation = enemy.rightArm.rotation.clone();
+
+  enemy.physMesh.position.copyFrom(rootPosition);
+  enemy.visualRoot.rotationQuaternion = targetVisualRotation.clone();
+  poseEmbeddedEnemy(enemy, 1);
+  enemy.physMesh.computeWorldMatrix(true);
+  enemy.visualRoot.computeWorldMatrix(true);
 
   for (const child of enemy.visualRoot.getChildMeshes(false)) {
     if (!(child instanceof Mesh) || child.getTotalVertices() <= 0) continue;
-    const childToVisual = child.getWorldMatrix().multiply(invVisualWorld);
-    for (const corner of child.getBoundingInfo().boundingBox.vectors) {
-      const visualLocal = Vector3.TransformCoordinates(corner, childToVisual);
-      const targetLocal = Vector3.TransformCoordinates(
-        visualLocal,
-        targetRotation,
-      );
-      points.push(rootPosition.add(targetLocal));
-    }
+    child.computeWorldMatrix(true);
+    const box = child.getBoundingInfo().boundingBox;
+    points.push(box.minimumWorld.clone(), box.maximumWorld.clone());
   }
+
+  enemy.physMesh.position.copyFrom(originalPosition);
+  enemy.visualRoot.rotationQuaternion = originalVisualRotationQuaternion;
+  enemy.visualRoot.rotation.copyFrom(originalVisualRotation);
+  enemy.leftLeg.rotation.copyFrom(originalLeftLegRotation);
+  enemy.rightLeg.rotation.copyFrom(originalRightLegRotation);
+  enemy.leftArm.rotation.copyFrom(originalLeftArmRotation);
+  enemy.rightArm.rotation.copyFrom(originalRightArmRotation);
+  enemy.physMesh.computeWorldMatrix(true);
+  enemy.visualRoot.computeWorldMatrix(true);
 
   if (points.length === 0) return null;
   return calculateBounds(points);

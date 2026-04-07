@@ -2103,7 +2103,8 @@ export function killEnemy(
     );
   };
 
-  if (g.bayonetEmbed?.enemy === enemy) {
+  const bayonetEmbed = g.bayonetEmbed;
+  if (bayonetEmbed?.enemy === enemy) {
     const enemyIndex = g.enemies.indexOf(enemy);
 
     if (wasBurning) {
@@ -2116,6 +2117,26 @@ export function killEnemy(
         if (mat instanceof StandardMaterial) blacken(mat);
       }
     }
+
+    enemy.physMesh.position.copyFrom(bayonetEmbed.pinPosition);
+    enemy.aggregate.body.setTargetTransform(
+      bayonetEmbed.pinPosition,
+      Quaternion.Identity(),
+    );
+    enemy.aggregate.body.setLinearVelocity(Vector3.Zero());
+    enemy.aggregate.body.setAngularVelocity(Vector3.Zero());
+    enemy.visualRoot.rotationQuaternion =
+      bayonetEmbed.targetVisualRotation.clone();
+    enemy.leftLeg.rotation.x = 0.18;
+    enemy.rightLeg.rotation.x = -0.14;
+    enemy.leftLeg.rotation.z = 0.22;
+    enemy.rightLeg.rotation.z = -0.22;
+    enemy.leftArm.rotation.x = -0.25;
+    enemy.rightArm.rotation.x = 0.2;
+    enemy.leftArm.rotation.z = 0.34;
+    enemy.rightArm.rotation.z = -0.34;
+    enemy.physMesh.computeWorldMatrix(true);
+    enemy.visualRoot.computeWorldMatrix(true);
 
     releaseBayonetEmbed({ preserveEnemyPose: true });
     enemy.physMesh.isPickable = false;
