@@ -14,6 +14,8 @@ import { bindSceneInput } from "./input.js";
 export function endGame(): void {
   g.state.running = false;
   g.mouseHeld = false;
+  g.meleeHeld = false;
+  g.bayonetCharging = false;
   g.pressedKeys.clear();
   g.blasterRoot?.setEnabled(false);
   g.rifleRoot?.setEnabled(false);
@@ -42,6 +44,8 @@ export async function startGame(sensitivity: number): Promise<void> {
   }
   g.plasmaChargeCrit = false;
   g.mouse2Held = false;
+  g.meleeHeld = false;
+  g.bayonetCharging = false;
   g.queuedSupplyDrops = [];
   for (const p of g.plasmas) p.mesh.dispose();
   g.plasmas = [];
@@ -62,6 +66,8 @@ export async function startGame(sensitivity: number): Promise<void> {
 export function pause(): void {
   g.state.paused = true;
   g.mouseHeld = false;
+  g.meleeHeld = false;
+  g.bayonetCharging = false;
   g.pressedKeys.clear();
   g.scene.physicsEnabled = false;
   g.camera.detachControl();

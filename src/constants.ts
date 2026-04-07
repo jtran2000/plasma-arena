@@ -21,6 +21,7 @@ export const LIGHTING = {
 // ─── Enemy — Base Stats ─────────────────────────────────────────────────────
 export const ENEMY = {
   hp: 50,
+  mass: 120,
   speed: 2, // m/s
   meleeRange: 1.8, // m
   meleeDamage: 10,
@@ -52,6 +53,7 @@ export const ENEMY_HEALTH_BAR = {
 // ─── Player — Health & Movement ─────────────────────────────────────────────
 export const PLAYER = {
   maxHealth: 10000,
+  mass: 35,
   spawnY: 0.9,
   speed: 5, // m/s
   sprintMultiplier: 2,
@@ -162,10 +164,22 @@ export const RIFLE = {
     expandScale: 2.5,
   },
   MELEE: {
-    damage: 28,
+    damage: 1,
     range: 2.4,
     cooldownMs: 600,
     animDurationMs: 320,
+    thrustDistance: 0.34,
+  },
+  BAYONET: {
+    damageMultiplier: 4,
+    range: 3.1,
+    chargeDamageMultiplier: 2.5,
+    chargeCooldownMultiplier: 4,
+    chargeAnimInMs: 140,
+    chargeAnimOutMs: 180,
+    chargeCenteredY: -0.2,
+    chargeForwardZ: 0.72,
+    chargePitch: -0.4,
   },
   RELOAD_ANIM: {
     tilt: -0.5,

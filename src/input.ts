@@ -66,7 +66,10 @@ export function bindSceneInput(): void {
       }
     } else if (info.event.button === 1) {
       if (info.type === PointerEventTypes.POINTERDOWN) {
+        g.meleeHeld = true;
         meleeAttack();
+      } else if (info.type === PointerEventTypes.POINTERUP) {
+        g.meleeHeld = false;
       }
     } else if (info.event.button === 2) {
       if (info.type === PointerEventTypes.POINTERDOWN) {

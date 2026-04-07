@@ -18,6 +18,7 @@ import {
   spawnLightningBolt,
   spawnExplosionParticle,
   spawnHitParticle,
+  spawnBayonetBloodDrip,
   spawnSmokeParticles,
   spawnLaserBeam,
   spawnBulletHole,
@@ -140,6 +141,7 @@ function applyActiveWeaponRefs(): void {
     g.weaponBarrel = g.rifleBarrel;
     g.barrelTip = g.rifleBarrelTip;
     g.weaponCell = g.rifleMag;
+    g.weaponRestPosition = g.weaponRoot.position.clone();
     g.blasterRoot.setEnabled(false);
     g.rifleRoot.setEnabled(true);
   } else {
@@ -147,6 +149,7 @@ function applyActiveWeaponRefs(): void {
     g.weaponBarrel = g.blasterBarrel;
     g.barrelTip = g.blasterBarrelTip;
     g.weaponCell = g.blasterCell;
+    g.weaponRestPosition = g.weaponRoot.position.clone();
     g.blasterRoot.setEnabled(true);
     g.rifleRoot.setEnabled(false);
   }
@@ -169,7 +172,14 @@ function cancelReloadAndCharge(): void {
 }
 
 function currentMeleeStats() {
-  return g.state.activeWeapon === "rifle" ? RIFLE.MELEE : MELEE;
+  if (g.state.activeWeapon !== "rifle") return MELEE;
+  return {
+    ...RIFLE.MELEE,
+    damage: g.upgrades.bayonet
+      ? RIFLE.MELEE.damage * RIFLE.BAYONET.damageMultiplier
+      : RIFLE.MELEE.damage,
+    range: g.upgrades.bayonet ? RIFLE.BAYONET.range : RIFLE.MELEE.range,
+  };
 }
 
 function currentRifleRecoilStats() {
@@ -189,6 +199,8 @@ export function switchWeapon(): void {
   cancelReloadAndCharge();
   g.mouseHeld = false;
   g.mouse2Held = false;
+  g.meleeHeld = false;
+  g.bayonetCharging = false;
   g.shootSpread = 0;
   g.moveSpread = 0;
   g.recoilPitch = 0;
@@ -290,6 +302,9 @@ export function meleeAttack(): void {
       damageEnemy(result.enemy, dmg, result.hitMesh, hitPoint, false, {
         canIgnite: true,
       });
+      if (g.state.activeWeapon === "rifle" && g.upgrades.bayonet) {
+        spawnBayonetBloodDrip(hitPoint);
+      }
       spawnHitParticle(
         hitPoint,
         new Color4(0.8, 0.0, 0.0, 1),
@@ -307,6 +322,13 @@ export function meleeAttack(): void {
       ray.direction,
       hit.pickedPoint ?? undefined,
     );
+    if (
+      g.state.activeWeapon === "rifle" &&
+      g.upgrades.bayonet &&
+      hit.pickedPoint
+    ) {
+      spawnBayonetBloodDrip(hit.pickedPoint);
+    }
   }
 }
 

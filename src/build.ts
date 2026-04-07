@@ -145,13 +145,16 @@ function buildWeapon(): void {
   g.rifleBarrel = rifle.barrel;
   g.rifleBarrelTip = rifle.barrelTip;
   g.rifleBrake = rifle.brake;
+  g.rifleBayonet = rifle.bayonet;
   g.rifleBrake.isVisible = g.upgrades.muzzleBrake;
+  g.rifleBayonet.setEnabled(g.upgrades.bayonet);
 
   if (g.state.activeWeapon === "rifle" && g.upgrades.rifleUnlock) {
     g.weaponRoot = g.rifleRoot;
     g.weaponCell = g.rifleMag;
     g.weaponBarrel = g.rifleBarrel;
     g.barrelTip = g.rifleBarrelTip;
+    g.weaponRestPosition = g.weaponRoot.position.clone();
     g.blasterRoot.setEnabled(false);
     g.rifleRoot.setEnabled(true);
   } else {
@@ -160,6 +163,7 @@ function buildWeapon(): void {
     g.weaponCell = g.blasterCell;
     g.weaponBarrel = g.blasterBarrel;
     g.barrelTip = g.blasterBarrelTip;
+    g.weaponRestPosition = g.weaponRoot.position.clone();
     g.blasterRoot.setEnabled(true);
     g.rifleRoot.setEnabled(false);
   }

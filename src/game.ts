@@ -101,6 +101,7 @@ export interface UpgradeState {
   plasmaGrenadier: boolean;
   rifleUnlock: boolean;
   muzzleBrake: boolean;
+  bayonet: boolean;
 }
 
 export interface Enemy {
@@ -203,6 +204,7 @@ export function makeUpgradeState(): UpgradeState {
     plasmaGrenadier: false,
     rifleUnlock: true,
     muzzleBrake: false,
+    bayonet: false,
   };
 }
 
@@ -293,14 +295,19 @@ export const g = {
   rifleBarrel: null as unknown as Mesh,
   rifleBarrelTip: null as unknown as Mesh,
   rifleBrake: null as unknown as Mesh,
+  rifleBayonet: null as unknown as Mesh,
   rifleMag: null as unknown as Mesh,
   weaponRoot: null as unknown as Mesh,
   weaponBarrel: null as unknown as Mesh,
   barrelTip: null as unknown as Mesh,
   weaponCell: null as unknown as Mesh,
+  weaponRestPosition: Vector3.Zero(),
   weaponAmmo: makeWeaponAmmoState(),
   mouseHeld: false,
   mouse2Held: false,
+  meleeHeld: false,
+  bayonetCharging: false,
+  bayonetChargeAnim: 0,
   plasmaCharging: false,
   plasmaChargeTime: 0,
   plasmaChargeAmmo: 0,

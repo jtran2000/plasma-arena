@@ -2,7 +2,9 @@ import {
   Vector3,
   StandardMaterial,
   Color3,
+  Color4,
   AbstractMesh,
+  Mesh,
 } from "@babylonjs/core";
 import {
   ENEMY,
@@ -16,13 +18,22 @@ import {
 } from "./constants.js";
 const { LASER, SPREAD, HEAT, IGNITE, MELEE } = BLASTER;
 import { g, dom } from "./game.js";
-import { spawnEnemy, spawnSupply, spawnFireEffect } from "./spawn.js";
+import {
+  spawnEnemy,
+  spawnSupply,
+  spawnFireEffect,
+  spawnBayonetBloodBurst,
+  spawnHitParticle,
+  hitDebris,
+} from "./spawn.js";
 import {
   updateAudioListener,
   playEnemyFootstep,
   playEnemyAttackSound,
   playHealthSupplySound,
   playAmmoSupplySound,
+  startBayonetChargeWindSound,
+  stopBayonetChargeWindSound,
 } from "./audio.js";
 import {
   effectiveMaxHealth,
@@ -54,12 +65,16 @@ export { selectUpgrade };
 
 // ─── Game loop ────────────────────────────────────────────────────────────────
 export function update(): void {
-  if (g.state.paused) return;
+  if (g.state.paused) {
+    stopBayonetChargeWindSound();
+    return;
+  }
   const dt = g.engine.getDeltaTime();
   updateAudioListener();
   updateTimers(dt);
   updatePlayer();
   updateEnemies();
+  updateBayonetCharge(dt);
   updateWeapon(dt);
 }
 
@@ -420,21 +435,125 @@ function updatePlayer(): void {
       ? wish.normalize().scale(maxSpeed)
       : Vector3.Zero();
 
-  g.playerVelocityXZ = Vector3.Lerp(
-    g.playerVelocityXZ,
-    targetXZ,
-    PLAYER.acceleration,
-  );
-
   const vel = g.playerAggregate.body.getLinearVelocity();
+  const currentXZ = new Vector3(vel.x, 0, vel.z);
+  g.playerVelocityXZ = Vector3.Lerp(currentXZ, targetXZ, PLAYER.acceleration);
   g.playerAggregate.body.setLinearVelocity(
     new Vector3(g.playerVelocityXZ.x, vel.y, g.playerVelocityXZ.z),
   );
 }
 
+function wantsBayonetCharge(): boolean {
+  return (
+    g.state.running &&
+    !g.state.paused &&
+    g.state.activeWeapon === "rifle" &&
+    g.upgrades.bayonet &&
+    g.meleeHeld &&
+    g.isSprinting &&
+    g.pendingUpgrades.length === 0
+  );
+}
+
+function updateBayonetCharge(dt: number): void {
+  const wantsCharge = wantsBayonetCharge();
+  if (!g.bayonetCharging && wantsCharge && g.state.meleeCooldown <= 0) {
+    g.bayonetCharging = true;
+  }
+
+  if (g.bayonetCharging && !wantsCharge) {
+    g.bayonetCharging = false;
+  }
+
+  if (!g.bayonetCharging) {
+    g.bayonetChargeAnim = Math.max(
+      0,
+      g.bayonetChargeAnim - dt / RIFLE.BAYONET.chargeAnimOutMs,
+    );
+    stopBayonetChargeWindSound();
+    return;
+  }
+
+  g.bayonetChargeAnim = Math.min(
+    1,
+    g.bayonetChargeAnim + dt / RIFLE.BAYONET.chargeAnimInMs,
+  );
+  startBayonetChargeWindSound();
+  g.state.meleeAnimTime = RIFLE.MELEE.animDurationMs;
+
+  const ray = g.camera.getForwardRay(RIFLE.BAYONET.range);
+  const hit = g.scene.pickWithRay(
+    ray,
+    (m: AbstractMesh) =>
+      m.renderingGroupId !== 1 &&
+      m.name !== "player" &&
+      m.name !== "enemyPhys" &&
+      m.name !== "laserBeam" &&
+      m.name !== "bhole" &&
+      m.name !== "supply",
+  );
+  if (!hit?.hit || !hit.pickedMesh || !hit.pickedPoint) return;
+
+  const hitPoint = hit.pickedPoint;
+  endBayonetChargeOnImpact();
+
+  if (isEnemyPart(hit.pickedMesh.name)) {
+    const result = findEnemyByMesh(hit.pickedMesh);
+    if (!result) return;
+    const headshot = result.hitMesh.name === "enemyHead";
+    const dmg = Math.round(
+      RIFLE.MELEE.damage *
+        RIFLE.BAYONET.damageMultiplier *
+        RIFLE.BAYONET.chargeDamageMultiplier *
+        (headshot ? 2 : 1),
+    );
+    (result.hitMesh.material as StandardMaterial).emissiveColor = new Color3(
+      1,
+      0,
+      0,
+    );
+    result.enemy.flashMesh = result.hitMesh;
+    result.enemy.flashTime = 200;
+    damageEnemy(result.enemy, dmg, result.hitMesh, hitPoint, false, {
+      canIgnite: true,
+    });
+    spawnBayonetBloodBurst(hitPoint);
+    spawnHitParticle(
+      hitPoint,
+      new Color4(0.9, 0.0, 0.0, 1),
+      hit.getNormal(true) ?? ray.direction.negate(),
+    );
+  } else if (
+    hit.pickedMesh.name === "bodyHalf" ||
+    hit.pickedMesh.name === "headHalf" ||
+    hit.pickedMesh.name === "armHalf" ||
+    hit.pickedMesh.name === "legHalf"
+  ) {
+    hitDebris(hit.pickedMesh as Mesh, ray.direction, hitPoint);
+    spawnBayonetBloodBurst(hitPoint);
+  }
+}
+
+function endBayonetChargeOnImpact(): void {
+  const vel = g.playerAggregate.body.getLinearVelocity();
+  g.bayonetCharging = false;
+  g.meleeHeld = false;
+  g.playerVelocityXZ = Vector3.Zero();
+  g.state.meleeCooldown =
+    RIFLE.MELEE.cooldownMs * RIFLE.BAYONET.chargeCooldownMultiplier;
+  g.playerAggregate.body.setLinearVelocity(new Vector3(0, vel.y, 0));
+}
+
 // ─── Weapon animation ─────────────────────────────────────────────────────────
 function updateWeapon(dt: number): void {
   if (!g.weaponRoot) return;
+  g.weaponRoot.position.copyFrom(g.weaponRestPosition);
+
+  if (g.state.activeWeapon === "rifle" && g.bayonetChargeAnim > 0) {
+    updateRifleBayonetChargeWeapon();
+    dom.crosshair.style.display = "none";
+    return;
+  }
 
   if (g.isSprinting) {
     g.sprintBobTime += dt;
@@ -506,11 +625,38 @@ function updateWeapon(dt: number): void {
   }
 }
 
+function updateRifleBayonetChargeWeapon(): void {
+  const t =
+    g.bayonetChargeAnim * g.bayonetChargeAnim * (3 - 2 * g.bayonetChargeAnim);
+  const chargePos = new Vector3(
+    0,
+    RIFLE.BAYONET.chargeCenteredY,
+    RIFLE.BAYONET.chargeForwardZ,
+  );
+  g.weaponRoot.position.copyFrom(
+    Vector3.Lerp(g.weaponRestPosition, chargePos, t),
+  );
+  g.weaponRoot.rotation.x = RIFLE.BAYONET.chargePitch * t - 0.03 * (1 - t);
+  g.weaponRoot.rotation.y = 0;
+  g.weaponRoot.rotation.z = 0;
+  g.weaponCell.position.copyFrom(new Vector3(0, -0.11, 0.13));
+}
+
 function updateRifleWeapon(): void {
   const mag = g.weaponCell;
 
   if (g.state.meleeAnimTime > 0) {
     const t = 1 - g.state.meleeAnimTime / RIFLE.MELEE.animDurationMs;
+    if (g.upgrades.bayonet) {
+      const thrust = t < 0.25 ? t / 0.25 : 1 - (t - 0.25) / 0.75;
+      g.weaponRoot.position.z =
+        g.weaponRestPosition.z + RIFLE.MELEE.thrustDistance * thrust;
+      g.weaponRoot.rotation.x = -0.12 - g.recoilPitch;
+      g.weaponRoot.rotation.y = 0.04 * Math.sin(t * Math.PI);
+      g.weaponRoot.rotation.z = 0.03 * Math.sin(t * Math.PI * 2);
+      mag.position.copyFrom(new Vector3(0, -0.11, 0.13));
+      return;
+    }
     const swing = t < 0.45 ? t / 0.45 : 1 - (t - 0.45) / 0.55;
     g.weaponRoot.rotation.x = -0.28 - swing * 0.7 - g.recoilPitch;
     g.weaponRoot.rotation.y = swing * 0.45;

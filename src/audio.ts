@@ -35,6 +35,9 @@ function makePanner(ctx: AudioContext, pos: Vector3): PannerNode {
   return p;
 }
 
+let bayonetWindSource: AudioBufferSourceNode | null = null;
+let bayonetWindGain: GainNode | null = null;
+
 // ─── Listener sync ────────────────────────────────────────────────────────────
 export function updateAudioListener(): void {
   if (!g.audioCtx) return;
@@ -251,6 +254,55 @@ export function playRifleShotSound(): void {
   snapGain.connect(panner);
   snap.start(now);
   snap.stop(now + 0.05);
+}
+
+export function startBayonetChargeWindSound(): void {
+  if (bayonetWindSource) return;
+  const ctx = ensureAudioCtx();
+  const now = ctx.currentTime;
+
+  const bufSize = Math.floor(ctx.sampleRate * 0.35);
+  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+
+  const noise = ctx.createBufferSource();
+  noise.buffer = buf;
+  noise.loop = true;
+
+  const filter = ctx.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.setValueAtTime(850, now);
+  filter.Q.value = 0.55;
+
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.001, now);
+  gain.gain.exponentialRampToValueAtTime(0.22, now + 0.16);
+
+  noise.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioDest());
+  noise.start(now);
+
+  bayonetWindSource = noise;
+  bayonetWindGain = gain;
+}
+
+export function stopBayonetChargeWindSound(): void {
+  if (!bayonetWindSource || !bayonetWindGain || !g.audioCtx) return;
+  const now = g.audioCtx.currentTime;
+  bayonetWindGain.gain.cancelScheduledValues(now);
+  bayonetWindGain.gain.setValueAtTime(bayonetWindGain.gain.value, now);
+  bayonetWindGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+  const source = bayonetWindSource;
+  const gain = bayonetWindGain;
+  source.stop(now + 0.14);
+  setTimeout(() => {
+    source.disconnect();
+    gain.disconnect();
+  }, 180);
+  bayonetWindSource = null;
+  bayonetWindGain = null;
 }
 
 export function playOverheatSound(): void {

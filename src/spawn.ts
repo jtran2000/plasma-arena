@@ -10,6 +10,7 @@ import {
   Quaternion,
   ParticleSystem,
   PointLight,
+  VertexData,
 } from "@babylonjs/core";
 import {
   AdvancedDynamicTexture,
@@ -214,6 +215,24 @@ const RIFLE_WEAPON = {
     pos: new Vector3(0, 0.015, 1.08),
     diffuse: new Color3(0.16, 0.16, 0.18),
     emissive: new Color3(0.04, 0.04, 0.05),
+  },
+  bayonet: {
+    blade: {
+      length: 0.42,
+      baseHeight: 0.045,
+      tipHeight: 0.008,
+      thickness: 0.012,
+      pos: new Vector3(0, -0.04, 1.305),
+    },
+    hilt: {
+      size: { width: 0.016, height: 0.06, depth: 0.045 } as const,
+      pos: new Vector3(0, -0.04, 1.095),
+      diffuse: new Color3(0.08, 0.07, 0.055),
+      emissive: new Color3(0.02, 0.015, 0.01),
+    },
+    diffuse: new Color3(0.75, 0.78, 0.82),
+    emissive: new Color3(0.08, 0.09, 0.1),
+    specular: new Color3(0.75, 0.78, 0.9),
   },
   barrelTipPos: new Vector3(0, 0.015, 1.13),
 };
@@ -512,7 +531,42 @@ function makeRifleBarrelMesh(): Mesh {
 }
 
 function makeRifleStockMesh(): Mesh {
-  return MeshBuilder.CreateBox("rStock", RIFLE_WEAPON.stock.size, g.scene);
+  const { width, height, depth } = RIFLE_WEAPON.stock.size;
+  const halfWidth = width / 2;
+  const halfHeight = height / 2;
+  const halfDepth = depth / 2;
+  const mesh = new Mesh("rStock", g.scene);
+  const vertexData = new VertexData();
+
+  // Side profile is a right triangle with the right angle at the top rear.
+  vertexData.positions = [
+    -halfWidth,
+    halfHeight,
+    -halfDepth,
+    -halfWidth,
+    -halfHeight,
+    -halfDepth,
+    -halfWidth,
+    halfHeight,
+    halfDepth,
+    halfWidth,
+    halfHeight,
+    -halfDepth,
+    halfWidth,
+    -halfHeight,
+    -halfDepth,
+    halfWidth,
+    halfHeight,
+    halfDepth,
+  ];
+  vertexData.indices = [
+    0, 2, 1, 3, 4, 5, 0, 1, 4, 0, 4, 3, 0, 3, 5, 0, 5, 2, 1, 2, 5, 1, 5, 4,
+  ];
+  const normals: number[] = [];
+  VertexData.ComputeNormals(vertexData.positions, vertexData.indices, normals);
+  vertexData.normals = normals;
+  vertexData.applyToMesh(mesh);
+  return mesh;
 }
 
 function makeRifleGripMesh(): Mesh {
@@ -525,6 +579,71 @@ function makeRifleMagMesh(): Mesh {
 
 function makeRifleBrakeMesh(): Mesh {
   return MeshBuilder.CreateBox("rBrake", RIFLE_WEAPON.brake.size, g.scene);
+}
+
+function makeRifleBayonetMesh(): Mesh {
+  const root = new Mesh("rBayonet", g.scene);
+  root.isPickable = false;
+
+  const { blade, hilt } = RIFLE_WEAPON.bayonet;
+  const halfThickness = blade.thickness / 2;
+  const halfBase = blade.baseHeight / 2;
+  const halfTip = blade.tipHeight / 2;
+  const halfLength = blade.length / 2;
+
+  const bladeMesh = new Mesh("rBayonetBlade", g.scene);
+  const vertexData = new VertexData();
+  vertexData.positions = [
+    -halfThickness,
+    -halfBase,
+    -halfLength,
+    halfThickness,
+    -halfBase,
+    -halfLength,
+    halfThickness,
+    halfBase,
+    -halfLength,
+    -halfThickness,
+    halfBase,
+    -halfLength,
+    -halfThickness,
+    -halfTip,
+    halfLength,
+    halfThickness,
+    -halfTip,
+    halfLength,
+    halfThickness,
+    halfTip,
+    halfLength,
+    -halfThickness,
+    halfTip,
+    halfLength,
+  ];
+  vertexData.indices = [
+    0, 1, 2, 0, 2, 3, 4, 6, 5, 4, 7, 6, 0, 4, 5, 0, 5, 1, 3, 2, 6, 3, 6, 7, 1,
+    5, 6, 1, 6, 2, 0, 3, 7, 0, 7, 4,
+  ];
+  const normals: number[] = [];
+  VertexData.ComputeNormals(vertexData.positions, vertexData.indices, normals);
+  vertexData.normals = normals;
+  vertexData.applyToMesh(bladeMesh);
+  bladeMesh.parent = root;
+  bladeMesh.position = blade.pos.clone();
+  bladeMesh.material = makeRifleBayonetMat();
+  bladeMesh.isPickable = false;
+  bladeMesh.renderingGroupId = 1;
+
+  const hiltMesh = MeshBuilder.CreateBox("rBayonetHilt", hilt.size, g.scene);
+  const hiltMat = new StandardMaterial("rifleBayonetHilt", g.scene);
+  hiltMat.diffuseColor = hilt.diffuse;
+  hiltMat.emissiveColor = hilt.emissive;
+  hiltMesh.parent = root;
+  hiltMesh.position = hilt.pos.clone();
+  hiltMesh.material = hiltMat;
+  hiltMesh.isPickable = false;
+  hiltMesh.renderingGroupId = 1;
+
+  return root;
 }
 
 function makeRifleBodyMat(): StandardMaterial {
@@ -551,6 +670,7 @@ function makeRifleGripMat(): StandardMaterial {
 function makeRifleStockMat(): StandardMaterial {
   const mat = new StandardMaterial("rifleStock", g.scene);
   mat.diffuseColor = RIFLE_WEAPON.stock.diffuse;
+  mat.backFaceCulling = false;
   return mat;
 }
 
@@ -565,6 +685,14 @@ function makeRifleBrakeMat(): StandardMaterial {
   const mat = new StandardMaterial("rifleBrake", g.scene);
   mat.diffuseColor = RIFLE_WEAPON.brake.diffuse;
   mat.emissiveColor = RIFLE_WEAPON.brake.emissive;
+  return mat;
+}
+
+function makeRifleBayonetMat(): StandardMaterial {
+  const mat = new StandardMaterial("rifleBayonet", g.scene);
+  mat.diffuseColor = RIFLE_WEAPON.bayonet.diffuse;
+  mat.emissiveColor = RIFLE_WEAPON.bayonet.emissive;
+  mat.specularColor = RIFLE_WEAPON.bayonet.specular;
   return mat;
 }
 
@@ -635,6 +763,7 @@ export function setupRifleParts(root: Mesh): {
   barrel: Mesh;
   barrelTip: Mesh;
   brake: Mesh;
+  bayonet: Mesh;
 } {
   function wp(
     mesh: Mesh,
@@ -671,6 +800,12 @@ export function setupRifleParts(root: Mesh): {
     RIFLE_WEAPON.brake.pos.clone(),
   );
   brake.isVisible = false;
+  const bayonet = wp(
+    makeRifleBayonetMesh(),
+    makeRifleBayonetMat(),
+    Vector3.Zero(),
+  );
+  bayonet.setEnabled(false);
 
   const barrelTip = new Mesh("rBarrelTip", g.scene);
   barrelTip.parent = root;
@@ -678,7 +813,7 @@ export function setupRifleParts(root: Mesh): {
   barrelTip.isVisible = false;
   barrelTip.isPickable = false;
 
-  return { mag, barrel, barrelTip, brake };
+  return { mag, barrel, barrelTip, brake, bayonet };
 }
 
 // ─── Player mesh (exported) ───────────────────────────────────────────────────
@@ -693,11 +828,11 @@ export function makePlayerMesh(): { mesh: Mesh; aggregate: PhysicsAggregate } {
   const aggregate = new PhysicsAggregate(
     mesh,
     PhysicsShapeType.CAPSULE,
-    { mass: 70, friction: 0.7, restitution: 0 },
+    { mass: PLAYER.mass, friction: 0.7, restitution: 0 },
     g.scene,
   );
   aggregate.body.setMassProperties({
-    mass: 70,
+    mass: PLAYER.mass,
     inertia: Vector3.Zero(),
     inertiaOrientation: Quaternion.Identity(),
   });
@@ -735,11 +870,11 @@ export function makeEnemyPhysCapsule(position: Vector3): {
   const aggregate = new PhysicsAggregate(
     mesh,
     PhysicsShapeType.CAPSULE,
-    { mass: 10, friction: 0.7, restitution: 0 },
+    { mass: ENEMY.mass, friction: 0.7, restitution: 0 },
     g.scene,
   );
   aggregate.body.setMassProperties({
-    mass: 10,
+    mass: ENEMY.mass,
     inertia: Vector3.Zero(),
     inertiaOrientation: Quaternion.Identity(),
   });
@@ -1481,6 +1616,58 @@ export function spawnHitParticle(
   ps.start();
   setTimeout(() => ps.stop(), 80);
   setTimeout(() => ps.dispose(false), 600);
+}
+
+export function spawnBayonetBloodDrip(position: Vector3): void {
+  const ps = new ParticleSystem("bayonetBlood", 28, g.scene);
+  ps.particleTexture = g.particleTex;
+  ps.emitter = position.clone();
+  ps.minEmitBox = new Vector3(-0.025, -0.01, -0.025);
+  ps.maxEmitBox = new Vector3(0.025, 0.01, 0.025);
+  ps.color1 = new Color4(0.85, 0.0, 0.0, 1);
+  ps.color2 = new Color4(0.35, 0.0, 0.0, 0.85);
+  ps.colorDead = new Color4(0.08, 0, 0, 0);
+  ps.minSize = 0.035;
+  ps.maxSize = 0.08;
+  ps.minLifeTime = 0.45;
+  ps.maxLifeTime = 0.9;
+  ps.emitRate = 90;
+  ps.minEmitPower = 0.15;
+  ps.maxEmitPower = 0.55;
+  ps.direction1 = new Vector3(-0.1, -1, -0.1);
+  ps.direction2 = new Vector3(0.1, -0.55, 0.1);
+  ps.gravity = new Vector3(0, -9, 0);
+  ps.updateSpeed = 0.02;
+  ps.blendMode = ParticleSystem.BLENDMODE_STANDARD;
+  ps.start();
+  setTimeout(() => ps.stop(), 260);
+  setTimeout(() => ps.dispose(false), 1200);
+}
+
+export function spawnBayonetBloodBurst(position: Vector3): void {
+  const ps = new ParticleSystem("bayonetBloodBurst", 110, g.scene);
+  ps.particleTexture = g.particleTex;
+  ps.emitter = position.clone();
+  ps.minEmitBox = new Vector3(-0.035, -0.035, -0.035);
+  ps.maxEmitBox = new Vector3(0.035, 0.035, 0.035);
+  ps.color1 = new Color4(1, 0.02, 0.0, 1);
+  ps.color2 = new Color4(0.45, 0.0, 0.0, 0.9);
+  ps.colorDead = new Color4(0.05, 0, 0, 0);
+  ps.minSize = 0.035;
+  ps.maxSize = 0.13;
+  ps.minLifeTime = 0.25;
+  ps.maxLifeTime = 0.85;
+  ps.emitRate = 1600;
+  ps.minEmitPower = 4;
+  ps.maxEmitPower = 12;
+  ps.direction1 = new Vector3(-1, -1, -1);
+  ps.direction2 = new Vector3(1, 1, 1);
+  ps.gravity = new Vector3(0, -14, 0);
+  ps.updateSpeed = 0.02;
+  ps.blendMode = ParticleSystem.BLENDMODE_STANDARD;
+  ps.start();
+  setTimeout(() => ps.stop(), 85);
+  setTimeout(() => ps.dispose(false), 1200);
 }
 
 export function spawnSmokeParticles(): void {

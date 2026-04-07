@@ -103,6 +103,7 @@ export function incrementScore(amount: number, hitPoint?: Vector3): void {
 
 function syncWeaponUpgradeVisuals(): void {
   if (g.rifleBrake) g.rifleBrake.isVisible = g.upgrades.muzzleBrake;
+  if (g.rifleBayonet) g.rifleBayonet.setEnabled(g.upgrades.bayonet);
 }
 
 // ─── HUD ──────────────────────────────────────────────────────────────────────
@@ -287,6 +288,15 @@ const UPGRADE_DEFS: UpgradeDef[] = [
     instruction: "Rifle recoil and flash are reduced",
     oneTime: true,
     requires: "rifleUnlock",
+    onApply: syncWeaponUpgradeVisuals,
+  },
+  {
+    key: "bayonet",
+    label: "Bayonet",
+    weight: 400,
+    instruction: `Rifle melee deals ${RIFLE.BAYONET.damageMultiplier}x damage and stabs enemies`,
+    oneTime: true,
+    requires: "muzzleBrake",
     onApply: syncWeaponUpgradeVisuals,
   },
 ];
