@@ -396,6 +396,30 @@ function aimAtRifleCrosshair(dir: Vector3): Vector3 {
   return dir.add(cameraUp.scale(Math.tan(aimLift))).normalize();
 }
 
+function projectileRayFilter(m: AbstractMesh): boolean {
+  return (
+    m.renderingGroupId !== 1 &&
+    m.name !== "player" &&
+    m.name !== "enemyPhys" &&
+    m.name !== "laserBeam" &&
+    m.name !== "bhole" &&
+    m.name !== "supply" &&
+    m.name !== "rifleTracer" &&
+    m.name !== "plasmaCharge"
+  );
+}
+
+function aimProjectileFromMuzzle(aimRay: Ray, spawnPos: Vector3): Vector3 {
+  const aimHit = g.scene.pickWithRay(aimRay, projectileRayFilter);
+  const aimPoint =
+    aimHit?.hit && aimHit.pickedPoint
+      ? aimHit.pickedPoint
+      : aimRay.origin.add(aimRay.direction.scale(100));
+  const dir = aimPoint.subtract(spawnPos);
+  if (dir.lengthSquared() < 0.0001) return aimRay.direction.clone();
+  return dir.normalize();
+}
+
 function shootRifle(): void {
   if (
     !g.upgrades.rifleUnlock ||
@@ -417,10 +441,10 @@ function shootRifle(): void {
     RIFLE.SPREAD.base +
     Math.min(g.shootSpread, RIFLE.SPREAD.max) +
     g.moveSpread;
-  const ray = g.camera.getForwardRay(100);
-  ray.direction.copyFrom(aimAtRifleCrosshair(ray.direction));
+  const aimRay = g.camera.getForwardRay(100);
+  aimRay.direction.copyFrom(aimAtRifleCrosshair(aimRay.direction));
   if (spread > 0)
-    ray.direction.copyFrom(addRandomSpread(ray.direction, spread));
+    aimRay.direction.copyFrom(addRandomSpread(aimRay.direction, spread));
   g.shootSpread = Math.min(g.shootSpread + effectiveBloom(), RIFLE.SPREAD.max);
 
   const isCrit = Math.random() < effectiveCritChance();
@@ -429,10 +453,11 @@ function shootRifle(): void {
     RIFLE.damage * (0.9 + Math.random() * 0.2) * critMult,
   );
   const spawnPos = g.barrelTip.getAbsolutePosition();
-  const tracer = makeRifleTracerMesh(spawnPos, ray.direction, isCrit);
+  const bulletDir = aimProjectileFromMuzzle(aimRay, spawnPos);
+  const tracer = makeRifleTracerMesh(spawnPos, bulletDir, isCrit);
   g.rifleBullets.push({
     mesh: tracer,
-    velocity: ray.direction.scale(RIFLE.bulletSpeed),
+    velocity: bulletDir.scale(RIFLE.bulletSpeed),
     age: 0,
     damage,
     isCrit,
@@ -485,16 +510,8 @@ export function updateRifleBullets(dt: number): void {
     const dir =
       step.lengthSquared() > 0.0001 ? step.normalizeToNew() : Vector3.Forward();
     const hit = g.scene.pickWithRay(
-      new Ray(prevPos, dir, step.length() + RIFLE.tracerLength),
-      (m: AbstractMesh) =>
-        m.renderingGroupId !== 1 &&
-        m.name !== "player" &&
-        m.name !== "enemyPhys" &&
-        m.name !== "laserBeam" &&
-        m.name !== "bhole" &&
-        m.name !== "supply" &&
-        m.name !== "rifleTracer" &&
-        m.name !== "plasmaCharge",
+      new Ray(prevPos, dir, step.length()),
+      projectileRayFilter,
     );
 
     if (hit?.hit && hit.pickedMesh && hit.pickedPoint) {
@@ -979,23 +996,31 @@ function firePlasma(
       : 1;
 
   const multishot = Math.random() < effectiveMultishotChance();
-  const directions = [ray.direction.clone()];
+  const aimRays = [ray];
   if (multishot) {
     const up = g.camera.upVector;
     const right = Vector3.Cross(ray.direction, up).normalize();
-    directions.push(
-      ray.direction.add(right.scale(MULTISHOT.angle)).normalize(),
-      ray.direction.add(right.scale(-MULTISHOT.angle)).normalize(),
+    aimRays.push(
+      new Ray(
+        ray.origin,
+        ray.direction.add(right.scale(MULTISHOT.angle)).normalize(),
+        ray.length,
+      ),
+      new Ray(
+        ray.origin,
+        ray.direction.add(right.scale(-MULTISHOT.angle)).normalize(),
+        ray.length,
+      ),
     );
   }
 
   const spawnPos = g.barrelTip.getAbsolutePosition();
   playPlasmaLaunchSound(spawnPos, chargeMultiplier);
 
-  for (const dir of directions) {
+  for (const aimRay of aimRays) {
     spawnPlasma(
       spawnPos,
-      dir,
+      aimProjectileFromMuzzle(aimRay, spawnPos),
       chargeMultiplier,
       heatPenalty,
       isCrit,

@@ -187,8 +187,9 @@ const RIFLE_WEAPON = {
     emissive: new Color3(0.02, 0.02, 0.03),
   },
   barrel: {
-    size: { width: 0.03, height: 0.03, depth: 0.52 } as const,
-    pos: new Vector3(0, 0.015, 0.48),
+    size: { diameter: 0.028, height: 0.78, tessellation: 14 } as const,
+    pos: new Vector3(0, 0.015, 0.68),
+    rotX: Math.PI / 2,
     diffuse: new Color3(0.18, 0.18, 0.2),
     emissive: new Color3(0.04, 0.03, 0.02),
   },
@@ -198,7 +199,7 @@ const RIFLE_WEAPON = {
     diffuse: new Color3(0.3, 0.18, 0.08),
   },
   grip: {
-    size: { width: 0.05, height: 0.16, depth: 0.05 } as const,
+    size: { width: 0.05, height: 0.16, depth: 0.03 } as const,
     pos: new Vector3(0, -0.12, 0.03),
     diffuse: new Color3(0.08, 0.08, 0.09),
   },
@@ -210,11 +211,11 @@ const RIFLE_WEAPON = {
   },
   brake: {
     size: { width: 0.05, height: 0.05, depth: 0.08 } as const,
-    pos: new Vector3(0, 0.015, 0.81),
+    pos: new Vector3(0, 0.015, 1.08),
     diffuse: new Color3(0.16, 0.16, 0.18),
     emissive: new Color3(0.04, 0.04, 0.05),
   },
-  barrelTipPos: new Vector3(0, 0.015, 0.77),
+  barrelTipPos: new Vector3(0, 0.015, 1.13),
 };
 
 // Enemy
@@ -503,7 +504,11 @@ function makeRifleBodyMesh(): Mesh {
 }
 
 function makeRifleBarrelMesh(): Mesh {
-  return MeshBuilder.CreateBox("rBarrel", RIFLE_WEAPON.barrel.size, g.scene);
+  return MeshBuilder.CreateCylinder(
+    "rBarrel",
+    RIFLE_WEAPON.barrel.size,
+    g.scene,
+  );
 }
 
 function makeRifleStockMesh(): Mesh {
@@ -631,9 +636,15 @@ export function setupRifleParts(root: Mesh): {
   barrelTip: Mesh;
   brake: Mesh;
 } {
-  function wp(mesh: Mesh, mat: StandardMaterial, localPos: Vector3): Mesh {
+  function wp(
+    mesh: Mesh,
+    mat: StandardMaterial,
+    localPos: Vector3,
+    localRotX = 0,
+  ): Mesh {
     mesh.parent = root;
     mesh.position = localPos;
+    mesh.rotation.x = localRotX;
     mesh.material = mat;
     mesh.isPickable = false;
     mesh.renderingGroupId = 1;
@@ -647,6 +658,7 @@ export function setupRifleParts(root: Mesh): {
     makeRifleBarrelMesh(),
     makeRifleBarrelMat(),
     RIFLE_WEAPON.barrel.pos.clone(),
+    RIFLE_WEAPON.barrel.rotX,
   );
   const mag = wp(
     makeRifleMagMesh(),
@@ -1748,7 +1760,9 @@ export function spawnBulletHole(
   const color = opts?.color;
   if (color) {
     mat.diffuseColor = color;
-    mat.emissiveColor = Color3.Black();
+    mat.disableLighting = true;
+    mat.emissiveColor = color;
+    mat.specularColor = Color3.Black();
   } else {
     mat.emissiveColor = new Color3(1, 0.9, 0.2);
   }

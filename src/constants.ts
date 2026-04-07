@@ -135,14 +135,14 @@ export const RIFLE = {
   maxReserveMags: 7,
   reloadTime: 2200, // ms
   bulletSpeed: 400, // m/s
-  gravity: 18, // m/s²
+  gravity: 10, // m/s²
   tracerLifeMs: 1800,
   tracerLength: 0.42, // m
   tracerWidth: 0.026, // m
   SPREAD: {
     base: 0.012, // first shot is never perfectly accurate
     perShot: 0.0035,
-    max: 0,
+    max: 0.1,
     decay: 0.16,
     moveRate: 0.11,
   },
@@ -155,11 +155,11 @@ export const RIFLE = {
   },
   MUZZLE_BRAKE: {
     recoilScale: 0.5,
-    flashScale: 0.55,
+    flashScale: 0.25,
   },
   MUZZLE_FLASH: {
-    baseScale: 1.25,
-    expandScale: 1.8,
+    baseScale: 1.5,
+    expandScale: 2.5,
   },
   MELEE: {
     damage: 28,
