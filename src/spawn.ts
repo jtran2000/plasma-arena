@@ -13,6 +13,10 @@ import {
   VertexData,
 } from "@babylonjs/core";
 import {
+  BallAndSocketConstraint,
+  type PhysicsConstraint,
+} from "@babylonjs/core/Physics/v2/physicsConstraint.js";
+import {
   AdvancedDynamicTexture,
   Rectangle,
   TextBlock,
@@ -1979,6 +1983,7 @@ export function killEnemy(
   killMesh: Mesh,
   hitPoint?: Vector3,
   orbKill = false,
+  intactKill = false,
 ): void {
   const bodyWorldPos = enemy.bodyMesh.getAbsolutePosition().clone();
   playEnemyDeathSound(bodyWorldPos);
@@ -2005,6 +2010,253 @@ export function killEnemy(
     mat.emissiveColor = new Color3(0.08, 0.03, 0.0);
     mat.specularColor = new Color3(0.02, 0.02, 0.02);
   };
+
+  const awayDir = hitPoint
+    ? new Vector3(
+        bodyWorldPos.x - hitPoint.x,
+        0,
+        bodyWorldPos.z - hitPoint.z,
+      ).normalizeToNew()
+    : new Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalizeToNew();
+
+  if (awayDir.lengthSquared() < 0.01) {
+    awayDir.copyFrom(new Vector3(Math.random() - 0.5, 0, Math.random() - 0.5));
+    awayDir.normalize();
+  }
+
+  const finishKill = () => {
+    g.state.kills++;
+    incrementScore(
+      isHeadshot ? Math.round(SCORING.kill * 1.5) : SCORING.kill,
+      hitPoint,
+    );
+  };
+
+  if (intactKill) {
+    const enemyIndex = g.enemies.indexOf(enemy);
+    const visualRootWorldPos = enemy.visualRoot.getAbsolutePosition().clone();
+    const visualRootWorldRot = enemy.visualRoot.rotation.clone();
+
+    const fallbackIntactCorpse = () => {
+      if (wasBurning) {
+        for (const mesh of [
+          enemy.bodyMesh,
+          enemy.headMesh,
+          ...enemy.visualRoot.getChildMeshes(),
+        ]) {
+          const mat = mesh.material;
+          if (mat instanceof StandardMaterial) blacken(mat);
+        }
+      }
+
+      enemy.leftLeg.rotation.z = 0.18;
+      enemy.rightLeg.rotation.z = -0.18;
+      enemy.leftArm.rotation.z = 0.28;
+      enemy.rightArm.rotation.z = -0.28;
+
+      const corpseRoot = MeshBuilder.CreateBox(
+        "enemyCorpse",
+        { width: 1.1, height: 1.9, depth: 0.5 },
+        g.scene,
+      );
+      corpseRoot.position = bodyWorldPos.clone();
+      corpseRoot.isVisible = false;
+      corpseRoot.isPickable = false;
+
+      enemy.visualRoot.parent = corpseRoot;
+      enemy.visualRoot.position = visualRootWorldPos.subtract(
+        corpseRoot.position,
+      );
+      enemy.visualRoot.rotation = visualRootWorldRot;
+
+      const corpseAgg = new PhysicsAggregate(
+        corpseRoot,
+        PhysicsShapeType.BOX,
+        { mass: ENEMY.mass * 0.35, friction: 0.8, restitution: 0.05 },
+        g.scene,
+      );
+      corpseAgg.body.applyImpulse(
+        awayDir.scale(24).addInPlaceFromFloats(0, 1.5, 0),
+        headWorldPos,
+      );
+      corpseAgg.body.setAngularVelocity(
+        new Vector3(awayDir.z * 1.5, 0, -awayDir.x * 1.5),
+      );
+
+      setTimeout(() => {
+        corpseAgg.dispose();
+        corpseRoot.dispose(false, true);
+      }, 3500);
+    };
+
+    enemy.visualRoot.setParent(null);
+    enemy.visualRoot.position = visualRootWorldPos;
+    enemy.visualRoot.rotation = visualRootWorldRot;
+    enemy.aggregate.dispose();
+    enemy.physMesh.dispose();
+    if (enemyIndex >= 0) g.enemies.splice(enemyIndex, 1);
+
+    try {
+      const RAGDOLL_MASK = 0x2;
+      const RAGDOLL_COLLIDE_MASK = 0xfffffffd;
+      const constraints: PhysicsConstraint[] = [];
+      const aggregates: PhysicsAggregate[] = [];
+      const colliders: Mesh[] = [];
+
+      const makeColliderPart = (
+        name: string,
+        visual: Mesh,
+        size: { width: number; height: number; depth: number },
+        mass: number,
+      ): { collider: Mesh; aggregate: PhysicsAggregate; visual: Mesh } => {
+        const world = visual.getWorldMatrix().clone();
+        const scaling = new Vector3();
+        const rotation = new Quaternion();
+        const position = new Vector3();
+        world.decompose(scaling, rotation, position);
+
+        const collider = MeshBuilder.CreateBox(name, size, g.scene);
+        collider.position = position;
+        collider.rotationQuaternion = rotation;
+        collider.isVisible = false;
+        collider.isPickable = false;
+
+        visual.setParent(collider);
+        visual.isPickable = false;
+
+        const aggregate = new PhysicsAggregate(
+          collider,
+          PhysicsShapeType.BOX,
+          { mass, friction: 0.85, restitution: 0.02 },
+          g.scene,
+        );
+        aggregate.shape.filterMembershipMask = RAGDOLL_MASK;
+        aggregate.shape.filterCollideMask = RAGDOLL_COLLIDE_MASK;
+        aggregates.push(aggregate);
+        colliders.push(collider);
+        return { collider, aggregate, visual };
+      };
+
+      const localPivot = (mesh: Mesh, worldPoint: Vector3) =>
+        Vector3.TransformCoordinates(
+          worldPoint,
+          mesh.getWorldMatrix().clone().invert(),
+        );
+
+      const makeSocket = (
+        parent: { collider: Mesh; aggregate: PhysicsAggregate },
+        child: { collider: Mesh; aggregate: PhysicsAggregate },
+        worldPivot: Vector3,
+      ) => {
+        const socket = new BallAndSocketConstraint(
+          localPivot(parent.collider, worldPivot),
+          localPivot(child.collider, worldPivot),
+          Vector3.Right(),
+          Vector3.Right(),
+          g.scene,
+        );
+        parent.aggregate.body.addConstraint(child.aggregate.body, socket);
+        socket.isCollisionsEnabled = false;
+        constraints.push(socket);
+      };
+
+      const leftLegVisual = enemy.leftLeg.getChildMeshes()[0] as Mesh;
+      const rightLegVisual = enemy.rightLeg.getChildMeshes()[0] as Mesh;
+      const leftArmVisual = enemy.leftArm.getChildMeshes()[0] as Mesh;
+      const rightArmVisual = enemy.rightArm.getChildMeshes()[0] as Mesh;
+      const leftHip = enemy.leftLeg.getAbsolutePosition().clone();
+      const rightHip = enemy.rightLeg.getAbsolutePosition().clone();
+      const leftShoulder = enemy.leftArm.getAbsolutePosition().clone();
+      const rightShoulder = enemy.rightArm.getAbsolutePosition().clone();
+      const neck = new Vector3(
+        bodyWorldPos.x,
+        bodyWorldPos.y + ENEMY_MESH.body.height * 0.5,
+        bodyWorldPos.z,
+      );
+
+      if (wasBurning) {
+        for (const mesh of [
+          enemy.bodyMesh,
+          enemy.headMesh,
+          leftLegVisual,
+          rightLegVisual,
+          leftArmVisual,
+          rightArmVisual,
+        ]) {
+          const mat = mesh.material;
+          if (mat instanceof StandardMaterial) blacken(mat);
+        }
+      }
+
+      const body = makeColliderPart(
+        "enemyRagdollBody",
+        enemy.bodyMesh,
+        { width: 0.54, height: 0.9, depth: 0.24 },
+        7,
+      );
+      const head = makeColliderPart(
+        "enemyRagdollHead",
+        enemy.headMesh,
+        { width: 0.24, height: 0.32, depth: 0.24 },
+        1.4,
+      );
+      const leftLeg = makeColliderPart(
+        "enemyRagdollLeg",
+        leftLegVisual,
+        { width: 0.14, height: 0.74, depth: 0.14 },
+        1.7,
+      );
+      const rightLeg = makeColliderPart(
+        "enemyRagdollLeg",
+        rightLegVisual,
+        { width: 0.14, height: 0.74, depth: 0.14 },
+        1.7,
+      );
+      const leftArm = makeColliderPart(
+        "enemyRagdollArm",
+        leftArmVisual,
+        { width: 0.1, height: 0.56, depth: 0.1 },
+        0.8,
+      );
+      const rightArm = makeColliderPart(
+        "enemyRagdollArm",
+        rightArmVisual,
+        { width: 0.1, height: 0.56, depth: 0.1 },
+        0.8,
+      );
+
+      enemy.leftLeg.dispose();
+      enemy.rightLeg.dispose();
+      enemy.leftArm.dispose();
+      enemy.rightArm.dispose();
+      enemy.visualRoot.dispose();
+
+      makeSocket(body, head, neck);
+      makeSocket(body, leftLeg, leftHip);
+      makeSocket(body, rightLeg, rightHip);
+      makeSocket(body, leftArm, leftShoulder);
+      makeSocket(body, rightArm, rightShoulder);
+
+      body.aggregate.body.applyImpulse(
+        awayDir.scale(14).addInPlaceFromFloats(0, 0.8, 0),
+        bodyWorldPos,
+      );
+      body.aggregate.body.setAngularVelocity(
+        new Vector3(awayDir.z * 0.7, 0, -awayDir.x * 0.7),
+      );
+
+      setTimeout(() => {
+        for (const constraint of constraints) constraint.dispose();
+        for (const aggregate of aggregates) aggregate.dispose();
+        for (const collider of colliders) collider.dispose(false, true);
+      }, 3500);
+    } catch {
+      fallbackIntactCorpse();
+    }
+
+    finishKill();
+    return;
+  }
 
   const limbs: {
     mesh: Mesh;
@@ -2061,14 +2313,6 @@ export function killEnemy(
   enemy.aggregate.dispose();
   enemy.physMesh.dispose();
   g.enemies.splice(g.enemies.indexOf(enemy), 1);
-
-  const awayDir = hitPoint
-    ? new Vector3(
-        bodyWorldPos.x - hitPoint.x,
-        0,
-        bodyWorldPos.z - hitPoint.z,
-      ).normalizeToNew()
-    : new Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalizeToNew();
 
   const splitPart = (
     mesh: Mesh,
@@ -2191,11 +2435,7 @@ export function killEnemy(
       );
   }
 
-  g.state.kills++;
-  incrementScore(
-    isHeadshot ? Math.round(SCORING.kill * 1.5) : SCORING.kill,
-    hitPoint,
-  );
+  finishKill();
 }
 
 export function splitRagdoll(

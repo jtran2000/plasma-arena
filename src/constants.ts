@@ -164,7 +164,7 @@ export const RIFLE = {
     expandScale: 2.5,
   },
   MELEE: {
-    damage: 1,
+    damage: 24,
     range: 2.4,
     cooldownMs: 600,
     animDurationMs: 320,
@@ -208,7 +208,7 @@ export const WAVE = {
   baseEnemies: 5,
   growth: 3, // extra enemies per wave
   spawnIntervalMs: 1500, // ms between enemy spawns
-  pauseMs: 10000, // ms pause between waves
+  pauseMs: 5000, // ms pause between waves
   maxAlive: 10,
 } as const;
 

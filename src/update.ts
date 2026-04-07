@@ -516,6 +516,7 @@ function updateBayonetCharge(dt: number): void {
     result.enemy.flashTime = 200;
     damageEnemy(result.enemy, dmg, result.hitMesh, hitPoint, false, {
       canIgnite: true,
+      intactKill: true,
     });
     spawnBayonetBloodBurst(hitPoint);
     spawnHitParticle(

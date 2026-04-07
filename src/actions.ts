@@ -78,6 +78,7 @@ export function damageEnemy(
   isCrit: boolean,
   opts?: {
     plasmaKill?: boolean;
+    intactKill?: boolean;
     canLightning?: boolean;
     canIgnite?: boolean;
     showNumber?: boolean;
@@ -87,7 +88,7 @@ export function damageEnemy(
   if (opts?.showNumber !== false) spawnDamageNumber(hitPoint, amount, isCrit);
   updateEnemyHealthBar(enemy);
   if (enemy.hp <= 0) {
-    killEnemy(enemy, killMesh, hitPoint, opts?.plasmaKill);
+    killEnemy(enemy, killMesh, hitPoint, opts?.plasmaKill, opts?.intactKill);
     return true;
   }
   const critMult = isCrit ? effectiveCritDamage() : 1;
@@ -301,6 +302,7 @@ export function meleeAttack(): void {
 
       damageEnemy(result.enemy, dmg, result.hitMesh, hitPoint, false, {
         canIgnite: true,
+        intactKill: true,
       });
       if (g.state.activeWeapon === "rifle" && g.upgrades.bayonet) {
         spawnBayonetBloodDrip(hitPoint);
@@ -553,6 +555,7 @@ export function updateRifleBullets(dt: number): void {
             result.hitMesh,
             point,
             bullet.isCrit,
+            { intactKill: true },
           );
           spawnHitParticle(
             point,
