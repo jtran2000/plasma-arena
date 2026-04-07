@@ -29,6 +29,7 @@ import {
   disableBayonetEmbedPlayerEnemyCollision,
   disableSprintLook,
   restoreSprintLook,
+  setScopeBlurActive,
   type Enemy,
 } from "./game.js";
 import {
@@ -128,6 +129,7 @@ function updateRifleScope(dt: number): void {
   }
   g.scopeOverlay.isVisible = scopeViewActive;
   g.scopeOverlay.markAsDirty();
+  setScopeBlurActive(scopeViewActive);
   dom.hud.classList.toggle("scoped", scopeViewActive);
 
   const targetFov = scopeViewActive
@@ -906,6 +908,7 @@ function embedBayonetInEnemy(
   g.rifleScoped = false;
   g.rifleScopeAimT = 0;
   if (g.scopeOverlay) g.scopeOverlay.isVisible = false;
+  setScopeBlurActive(false);
   dom.hud.classList.remove("scoped");
   disableBayonetEmbedLook();
   enemy.state = "patrol";
@@ -1430,16 +1433,26 @@ function updateRifleWeapon(): void {
   }
 
   if (!g.state.reloading) {
-    const aimT = smoothstep(g.rifleScopeAimT);
+    const centerT = smoothstep(
+      Math.min(1, g.rifleScopeAimT / RIFLE.SCOPE.inwardPullStart),
+    );
+    const inwardT = smoothstep(
+      Math.max(
+        0,
+        (g.rifleScopeAimT - RIFLE.SCOPE.inwardPullStart) /
+          (1 - RIFLE.SCOPE.inwardPullStart),
+      ),
+    );
     const aimPos = new Vector3(
       RIFLE.SCOPE.aimRootX,
       RIFLE.SCOPE.aimRootY,
-      RIFLE.SCOPE.aimRootZ,
+      RIFLE.SCOPE.aimRootZ +
+        (RIFLE.SCOPE.inwardRootZ - RIFLE.SCOPE.aimRootZ) * inwardT,
     );
     g.weaponRoot.position.copyFrom(
-      Vector3.Lerp(g.weaponRestPosition, aimPos, aimT),
+      Vector3.Lerp(g.weaponRestPosition, aimPos, centerT),
     );
-    g.weaponRoot.rotation.x = -0.08 * (1 - aimT) - g.recoilPitch;
+    g.weaponRoot.rotation.x = -0.08 * (1 - centerT) - g.recoilPitch;
     g.weaponRoot.rotation.y = 0;
     g.weaponRoot.rotation.z = g.recoilRoll;
     mag.position.copyFrom(new Vector3(0, -0.11, 0.13));

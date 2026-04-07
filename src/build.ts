@@ -10,11 +10,13 @@ import {
   DynamicTexture,
   HavokPlugin,
 } from "@babylonjs/core";
+import { Effect } from "@babylonjs/core/Materials/effect.js";
+import { PostProcess } from "@babylonjs/core/PostProcesses/postProcess.js";
 import type { ICanvasRenderingContext } from "@babylonjs/core/Engines/ICanvas.js";
 import { AdvancedDynamicTexture, Control } from "@babylonjs/gui";
 import HavokPhysics from "@babylonjs/havok";
 import { g } from "./game.js";
-import { CAMERA, LIGHTING } from "./constants.js";
+import { CAMERA, LIGHTING, RIFLE } from "./constants.js";
 import {
   makePlayerMesh,
   setupArenaFloor,
@@ -30,6 +32,35 @@ import {
   setupLamppost,
 } from "./spawn.js";
 
+Effect.ShadersStore.scopeBackgroundBlurFragmentShader = `
+precision highp float;
+
+varying vec2 vUV;
+uniform sampler2D textureSampler;
+uniform vec2 screenSize;
+uniform float scopeRadiusScale;
+uniform float blurKernel;
+
+void main(void) {
+  vec4 baseColor = texture2D(textureSampler, vUV);
+  vec2 centeredPx = (vUV - vec2(0.5)) * screenSize;
+  float scopeRadius = min(screenSize.x, screenSize.y) * scopeRadiusScale;
+  float blurT = step(scopeRadius + 2.0, length(centeredPx));
+
+  vec2 stepUv = vec2(blurKernel) / screenSize;
+  vec4 sum = baseColor * 0.2;
+  sum += texture2D(textureSampler, vUV + vec2(stepUv.x, 0.0)) * 0.1;
+  sum += texture2D(textureSampler, vUV - vec2(stepUv.x, 0.0)) * 0.1;
+  sum += texture2D(textureSampler, vUV + vec2(0.0, stepUv.y)) * 0.1;
+  sum += texture2D(textureSampler, vUV - vec2(0.0, stepUv.y)) * 0.1;
+  sum += texture2D(textureSampler, vUV + stepUv) * 0.1;
+  sum += texture2D(textureSampler, vUV - stepUv) * 0.1;
+  sum += texture2D(textureSampler, vUV + vec2(stepUv.x, -stepUv.y)) * 0.1;
+  sum += texture2D(textureSampler, vUV + vec2(-stepUv.x, stepUv.y)) * 0.1;
+  gl_FragColor = mix(baseColor, sum, blurT);
+}
+`;
+
 class ScopeOverlayControl extends Control {
   public constructor() {
     super("scopeOverlay");
@@ -43,28 +74,26 @@ class ScopeOverlayControl extends Control {
     const measure = this._currentMeasure;
     const cx = measure.left + measure.width / 2;
     const cy = measure.top + measure.height / 2;
-    const radius = Math.min(measure.width, measure.height) * 0.36;
+    const radius =
+      Math.min(measure.width, measure.height) * RIFLE.SCOPE.pictureRadiusScale;
 
     context.save();
-    context.fillStyle = "#000000";
+    context.fillStyle = RIFLE.SCOPE.overlayFill;
     context.fillRect(measure.left, measure.top, measure.width, measure.height);
 
+    (context as unknown as CanvasRenderingContext2D).globalCompositeOperation =
+      "destination-out";
     context.beginPath();
     context.arc(cx, cy, radius, 0, Math.PI * 2);
-    context.clip();
-    context.clearRect(measure.left, measure.top, measure.width, measure.height);
+    context.fill();
     context.restore();
 
     context.save();
-    context.strokeStyle = "rgba(0,0,0,0.95)";
-    context.lineWidth = 2;
-    context.beginPath();
-    context.arc(cx, cy, radius, 0, Math.PI * 2);
-    context.stroke();
-
     context.beginPath();
     context.arc(cx, cy, radius, 0, Math.PI * 2);
     context.clip();
+    context.strokeStyle = "rgba(0,0,0,0.95)";
+    context.lineWidth = 2;
     context.beginPath();
     context.moveTo(cx, cy - radius);
     context.lineTo(cx, cy + radius);
@@ -221,6 +250,26 @@ function buildWeapon(): void {
 }
 
 function setupScopeOverlay(): void {
+  g.scopeBackgroundBlur = new PostProcess(
+    "scopeBackgroundBlur",
+    "scopeBackgroundBlur",
+    ["screenSize", "scopeRadiusScale", "blurKernel"],
+    null,
+    1,
+    g.camera,
+  );
+  g.scopeBackgroundBlur.onApply = (effect) => {
+    effect.setFloat2(
+      "screenSize",
+      g.engine.getRenderWidth(),
+      g.engine.getRenderHeight(),
+    );
+    effect.setFloat("scopeRadiusScale", RIFLE.SCOPE.pictureRadiusScale + 1);
+    effect.setFloat("blurKernel", RIFLE.SCOPE.overlayBlurKernel);
+  };
+  g.camera.detachPostProcess(g.scopeBackgroundBlur);
+  g.scopeBlurActive = false;
+
   g.scopeOverlayGui = AdvancedDynamicTexture.CreateFullscreenUI(
     "scopeOverlayGui",
     true,
