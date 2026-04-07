@@ -4,6 +4,8 @@ import {
   makeState,
   makeUpgradeState,
   makeWeaponAmmoState,
+  releaseBayonetEmbed,
+  restoreSprintLook,
 } from "./game.js";
 import { stopPlasmaChargeSound } from "./audio.js";
 import { buildScene } from "./build.js";
@@ -18,7 +20,12 @@ export function endGame(): void {
   g.bayonetCharging = false;
   g.bayonetChargeLockedUntilSprintEnd = false;
   g.bayonetChargeCooldownPending = false;
+  releaseBayonetEmbed();
+  g.appliedBayonetEmbedCameraPitch = 0;
+  g.isSprinting = false;
+  restoreSprintLook();
   g.sprintRamp = 0;
+  g.sprintRampDirection.set(0, 0, 0);
   g.sprintBlockedUntilShiftRelease = false;
   g.pressedKeys.clear();
   g.blasterRoot?.setEnabled(false);
@@ -54,7 +61,12 @@ export async function startGame(sensitivity: number): Promise<void> {
   g.bayonetCharging = false;
   g.bayonetChargeLockedUntilSprintEnd = false;
   g.bayonetChargeCooldownPending = false;
+  releaseBayonetEmbed();
+  g.appliedBayonetEmbedCameraPitch = 0;
+  g.isSprinting = false;
+  restoreSprintLook();
   g.sprintRamp = 0;
+  g.sprintRampDirection.set(0, 0, 0);
   g.sprintBlockedUntilShiftRelease = false;
   g.queuedSupplyDrops = [];
   for (const p of g.plasmas) p.mesh.dispose();
@@ -80,7 +92,12 @@ export function pause(): void {
   g.bayonetCharging = false;
   g.bayonetChargeLockedUntilSprintEnd = false;
   g.bayonetChargeCooldownPending = false;
+  releaseBayonetEmbed();
+  g.appliedBayonetEmbedCameraPitch = 0;
+  g.isSprinting = false;
+  restoreSprintLook();
   g.sprintRamp = 0;
+  g.sprintRampDirection.set(0, 0, 0);
   g.sprintBlockedUntilShiftRelease = false;
   g.pressedKeys.clear();
   g.scene.physicsEnabled = false;

@@ -57,7 +57,9 @@ export const PLAYER = {
   spawnY: 0.9,
   speed: 5, // m/s
   sprintMultiplier: 2,
-  sprintRampDistance: 11.25, // m traveled to accelerate from walk speed to full sprint
+  sprintRampDistance: 1.25, // m traveled to accelerate from walk speed to full sprint
+  sprintTurnSpeed: Math.PI / 2, // radians per second while steering a sprint
+  sprintRampResetTurnAngle: Math.PI / 4, // radians; 45° turn fully clears sprint ramp
   sprintImpactMinRamp: 0.25, // ignore small bumps before sprint meaningfully starts
   sprintImpactSpeedRatio: 0.45, // actual/expected speed ratio that counts as blocked
   acceleration: 0.15, // lerp factor per frame (0 = sluggish, 1 = instant)
@@ -167,22 +169,30 @@ export const RIFLE = {
     expandScale: 2.5,
   },
   MELEE: {
-    damage: 24,
-    range: 2.4,
+    damage: 2,
+    range: 2.2,
     cooldownMs: 600,
     animDurationMs: 320,
     thrustDistance: 0.34,
   },
   BAYONET: {
     damageMultiplier: 4,
-    range: 3.1,
+    range: 3.0,
     chargeDamageMultiplier: 2.5,
     chargeCooldownMultiplier: 4,
     chargeAnimInMs: 140,
     chargeAnimOutMs: 180,
     chargeCenteredY: -0.2,
     chargeForwardZ: 0.72,
-    chargePitch: -0.4,
+    chargePitch: -0.3,
+    embedWallSearchDistance: 1,
+    embedGroundKnockbackDistance: 1.6,
+    embedEnemyWallOffset: 0.55,
+    embedPlayerStandoff: 0.45,
+    embedCameraMinPitch: -0.9,
+    embedCameraMaxPitch: 1.05,
+    embedAnimMs: 420,
+    embedMoveRate: 14,
   },
   RELOAD_ANIM: {
     tilt: -0.5,

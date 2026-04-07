@@ -9,7 +9,7 @@ The game starts with a basic semi-auto laser blaster and unfolds through randomi
 ## Features
 
 - First-person camera with pointer lock and mouse look
-- WASD movement with jump, sprint, acceleration smoothing, and physics-backed collision
+- WASD movement with jump, sprint, acceleration smoothing, physics-backed collision, and distance-based sprint ramp-up
 - Middle-click melee attack with knockback and headshot bonus damage
 - Semi-auto laser by default, with `Pulse Laser` unlock enabling hold-to-fire continuous shooting
 - Shared ammo magazine, reserve ammo, auto-reload on empty, and manual reload on `R`
@@ -22,6 +22,8 @@ The game starts with a basic semi-auto laser blaster and unfolds through randomi
 - Plasma shots are physics-simulated projectiles with splash damage, crit support, ricochet support, and optional gravity on grenade-style shots
 - Upgrade-gated rifle with a separate ammo pool, no overheat, gravity-affected tracer bullets, distinct reload/melee animations, and mouse-wheel weapon switching
 - Rifle `Muzzle Brake` upgrade that adds a visible barrel attachment, reduces the rifle's aggressive recoil, and shrinks its muzzle flash
+- Rifle `Bayonet` upgrade that extends melee range, enables bayonet charge at full sprint, and can embed enemies on non-lethal charge impacts
+- Sprint ramp is affected by movement: straight-line travel builds speed, collisions/impacts break sprint, and sharp turns reduce or reset the ramp
 - Critical hit system for laser, plasma, and rifle shots, including laser-on-plasma interactions
 - Unlockable proc systems for multishot, ricochet, lightning, and ignite, each with follow-up chance upgrades
 - Ignite applies DOT, particle/fire audio, and fire spread to nearby enemies
@@ -58,8 +60,9 @@ Then open [http://localhost:5173](http://localhost:5173) in your browser.
 | Left Click while charging              | Dump-fire plasma grenade after `Plasma Grenadier`                        |
 | Mouse Wheel                            | Switch between blaster and rifle after unlocking the rifle               |
 | Middle Click                           | Melee attack                                                             |
+| Middle Click while fully sprinting     | Bayonet charge after `Bayonet`; release to abort the charge              |
 | `R`                                    | Reload                                                                   |
-| `Shift`                                | Sprint                                                                   |
+| `Shift`                                | Sprint; full speed requires ramping up through forward travel            |
 | `1` `2` `3`                            | Pick one of the current upgrade options                                  |
 | `Esc` / pointer lock loss              | Pause                                                                    |
 
@@ -92,7 +95,7 @@ Then open [http://localhost:5173](http://localhost:5173) in your browser.
 | `src/audio.ts`       | Procedural audio generation and spatial playback helpers                                                                                                                                                  |
 | `src/progression.ts` | Effective stat calculations, score progression, queued score-reward supply drops, weighted upgrade definitions/unlocks, HUD updates, and upgrade menu selection flow                                      |
 | `src/actions.ts`     | Player actions and combat logic: jump, melee, laser hitscan, plasma charge/fire, reload, damage resolution, scoring, crit/proc interactions                                                               |
-| `src/update.ts`      | Main per-frame update loop, timers, player movement, enemy AI, wave progression, heat/spread decay, supply pickup handling, and HUD/crosshair updates                                                     |
+| `src/update.ts`      | Main per-frame update loop, timers, player movement, sprint ramp, bayonet charge/embed behavior, enemy AI, wave progression, heat/spread decay, supply pickup handling, and HUD/crosshair updates         |
 | `src/flow.ts`        | Run lifecycle orchestration: start/reset, end, pause, resume, scene rebuild, run-state reset, and registering the update loop                                                                             |
 | `src/input.ts`       | Global keyboard/mouse bindings plus per-scene Babylon pointer/action bindings                                                                                                                             |
 | `src/ui.ts`          | Babylon GUI overlay screens for start, pause, options, and game-over flow                                                                                                                                 |
@@ -107,5 +110,7 @@ Then open [http://localhost:5173](http://localhost:5173) in your browser.
 - Run startup/reset/end/pause/resume orchestration lives in `src/flow.ts`; global and per-scene input binding lives in `src/input.ts`.
 - Death is observed in `src/main.ts` from shared state and then routed to `endGame()` in `src/flow.ts`, keeping player action code independent from lifecycle orchestration.
 - Score-threshold supply rewards are queued by `incrementScore()` in `src/progression.ts` and spawned by the update loop, which avoids callback wiring between scoring and spawning.
+- Sprint acceleration is distance-based and turn-sensitive; `src/update.ts` owns the current ramp, turn reduction, sprint interruption, and bayonet charge eligibility.
+- Bayonet embed behavior is also update-owned: non-lethal charge impacts tether the player/enemy, disable mouse look, pitch the camera down, and release on backward movement, reload, weapon switch, enemy death, pause, or lifecycle reset.
 - Overlay screens use Babylon GUI so pointer lock can be reacquired directly from canvas-driven button events.
 - The HUD and upgrade picker remain DOM-based, which keeps text updates simple and independent from the Babylon GUI overlay stack.

@@ -10,6 +10,7 @@ import {
   Color3,
   ParticleSystem,
   PointLight,
+  Quaternion,
 } from "@babylonjs/core";
 import { AdvancedDynamicTexture, Rectangle } from "@babylonjs/gui";
 import { PLAYER, BLASTER, RIFLE, SUPPLY, WAVE } from "./constants.js";
@@ -69,6 +70,24 @@ export interface RifleBullet {
   age: number;
   damage: number;
   isCrit: boolean;
+}
+
+export interface BayonetEmbed {
+  enemy: Enemy;
+  direction: Vector3;
+  startPosition: Vector3;
+  pinPosition: Vector3;
+  targetHitPoint: Vector3;
+  startPlayerPosition: Vector3;
+  playerPosition: Vector3;
+  startVisualRotation: Quaternion;
+  targetVisualRotation: Quaternion;
+  startCameraRotation: Vector3;
+  targetCameraRotation: Vector3;
+  playerCollideMask: number;
+  enemyMembershipMask: number;
+  progress: number;
+  wallPinned: boolean;
 }
 
 export interface UpgradeState {
@@ -203,8 +222,8 @@ export function makeUpgradeState(): UpgradeState {
     plasmaCharger: false,
     plasmaGrenadier: false,
     rifleUnlock: true,
-    muzzleBrake: false,
-    bayonet: false,
+    muzzleBrake: true,
+    bayonet: true,
   };
 }
 
@@ -310,6 +329,10 @@ export const g = {
   bayonetCharging: false,
   bayonetChargeLockedUntilSprintEnd: false,
   bayonetChargeCooldownPending: false,
+  bayonetEmbed: null as BayonetEmbed | null,
+  bayonetEmbedLookDisabled: false,
+  bayonetEmbedCameraPitch: 0,
+  appliedBayonetEmbedCameraPitch: 0,
   bayonetChargeAnim: 0,
   plasmaCharging: false,
   plasmaChargeTime: 0,
@@ -322,7 +345,9 @@ export const g = {
   shootSpread: 0,
   moveSpread: 0,
   isSprinting: false,
+  sprintLookDisabled: false,
   sprintRamp: 0,
+  sprintRampDirection: Vector3.Zero(),
   sprintBlockedUntilShiftRelease: false,
   guiTexture: null as unknown as AdvancedDynamicTexture,
   audioCtx: null as AudioContext | null,
@@ -337,3 +362,74 @@ export const g = {
   upgrades: makeUpgradeState(),
   pendingUpgrades: [] as string[],
 };
+
+const BAYONET_PINNED_ENEMY_MASK = 1 << 30;
+
+export function disableBayonetEmbedPlayerEnemyCollision(enemy: Enemy): {
+  playerCollideMask: number;
+  enemyMembershipMask: number;
+} {
+  const playerCollideMask = g.playerAggregate.shape.filterCollideMask;
+  const enemyMembershipMask = enemy.aggregate.shape.filterMembershipMask;
+  enemy.aggregate.shape.filterMembershipMask = BAYONET_PINNED_ENEMY_MASK;
+  g.playerAggregate.shape.filterCollideMask =
+    playerCollideMask & ~BAYONET_PINNED_ENEMY_MASK;
+  return { playerCollideMask, enemyMembershipMask };
+}
+
+export function releaseBayonetEmbed(): void {
+  const embed = g.bayonetEmbed;
+  if (embed) {
+    g.playerAggregate.shape.filterCollideMask = embed.playerCollideMask;
+    if (g.enemies.includes(embed.enemy)) {
+      embed.enemy.aggregate.shape.filterMembershipMask =
+        embed.enemyMembershipMask;
+    }
+  }
+  if (embed && g.enemies.includes(embed.enemy)) {
+    embed.enemy.visualRoot.rotationQuaternion = null;
+    embed.enemy.visualRoot.rotation.x = 0;
+    embed.enemy.visualRoot.rotation.y = embed.enemy.facingYaw;
+    embed.enemy.leftLeg.rotation.x = 0;
+    embed.enemy.leftLeg.rotation.z = 0;
+    embed.enemy.rightLeg.rotation.x = 0;
+    embed.enemy.rightLeg.rotation.z = 0;
+    embed.enemy.leftArm.rotation.x = 0;
+    embed.enemy.leftArm.rotation.z = 0;
+    embed.enemy.rightArm.rotation.x = 0;
+    embed.enemy.rightArm.rotation.z = 0;
+    embed.enemy.aggregate.body.setLinearVelocity(Vector3.Zero());
+  }
+  g.bayonetEmbed = null;
+  g.bayonetEmbedCameraPitch = 0;
+  g.appliedBayonetEmbedCameraPitch = 0;
+  restoreBayonetEmbedLook();
+}
+
+export function disableBayonetEmbedLook(): void {
+  if (g.bayonetEmbedLookDisabled) return;
+  g.camera.detachControl();
+  g.bayonetEmbedLookDisabled = true;
+}
+
+export function disableSprintLook(): void {
+  if (g.sprintLookDisabled) return;
+  g.camera.detachControl();
+  g.sprintLookDisabled = true;
+}
+
+export function restoreSprintLook(): void {
+  if (!g.sprintLookDisabled) return;
+  g.sprintLookDisabled = false;
+  if (g.state.running && !g.state.paused && !g.bayonetEmbedLookDisabled) {
+    g.camera.attachControl(dom.canvas, true);
+  }
+}
+
+function restoreBayonetEmbedLook(): void {
+  if (!g.bayonetEmbedLookDisabled) return;
+  g.bayonetEmbedLookDisabled = false;
+  if (g.state.running && !g.state.paused && !g.sprintLookDisabled) {
+    g.camera.attachControl(dom.canvas, true);
+  }
+}

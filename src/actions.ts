@@ -9,7 +9,13 @@ import {
 } from "@babylonjs/core";
 import { ARENA, PLAYER, BLASTER, RIFLE } from "./constants.js";
 const { HEAT, PLASMA, SPREAD, MULTISHOT, RICOCHET, LIGHTNING, MELEE } = BLASTER;
-import { g, dom, type Enemy, type Plasma } from "./game.js";
+import {
+  g,
+  dom,
+  releaseBayonetEmbed,
+  type Enemy,
+  type Plasma,
+} from "./game.js";
 import {
   makeRifleTracerMesh,
   makePlasmaChargeMesh,
@@ -18,6 +24,7 @@ import {
   spawnLightningBolt,
   spawnExplosionParticle,
   spawnHitParticle,
+  spawnBayonetGash,
   spawnBayonetBloodDrip,
   spawnSmokeParticles,
   spawnLaserBeam,
@@ -204,6 +211,7 @@ export function switchWeapon(): void {
   )
     return;
   cacheActiveWeaponAmmo();
+  releaseBayonetEmbed();
   cancelReloadAndCharge();
   if (g.bayonetCharging || g.bayonetChargeCooldownPending) {
     g.state.meleeCooldown = Math.max(
@@ -315,13 +323,14 @@ export function meleeAttack(): void {
         );
       }
 
+      if (g.state.activeWeapon === "rifle" && g.upgrades.bayonet) {
+        spawnBayonetGash(hitPoint, hit.getNormal(true), result.hitMesh);
+        spawnBayonetBloodDrip(hitPoint);
+      }
       damageEnemy(result.enemy, dmg, result.hitMesh, hitPoint, false, {
         canIgnite: true,
         intactKill: true,
       });
-      if (g.state.activeWeapon === "rifle" && g.upgrades.bayonet) {
-        spawnBayonetBloodDrip(hitPoint);
-      }
       spawnHitParticle(
         hitPoint,
         new Color4(0.8, 0.0, 0.0, 1),
@@ -559,12 +568,18 @@ export function updateRifleBullets(dt: number): void {
         const result = findEnemyByMesh(hit.pickedMesh);
         if (result) {
           const headshot = result.hitMesh.name === "enemyHead";
-          const damage = Math.round(bullet.damage * (headshot ? 2 : 1));
+          const bayonetDamageScale =
+            g.bayonetEmbed?.enemy === result.enemy
+              ? RIFLE.BAYONET.damageMultiplier
+              : 1;
+          const damage = Math.round(
+            bullet.damage * (headshot ? 2 : 1) * bayonetDamageScale,
+          );
           (result.hitMesh.material as StandardMaterial).emissiveColor =
             new Color3(1, 0, 0);
           result.enemy.flashMesh = result.hitMesh;
           result.enemy.flashTime = 120;
-          damageEnemy(
+          const killed = damageEnemy(
             result.enemy,
             damage,
             result.hitMesh,
@@ -572,6 +587,9 @@ export function updateRifleBullets(dt: number): void {
             bullet.isCrit,
             { intactKill: true },
           );
+          if (killed && g.bayonetEmbed?.enemy === result.enemy) {
+            releaseBayonetEmbed();
+          }
           spawnHitParticle(
             point,
             new Color4(0.8, 0.0, 0.0, 1),
@@ -614,7 +632,11 @@ export function updateRifleBullets(dt: number): void {
           g.plasmas.splice(plasmaIdx, 1);
         }
       } else {
-        spawnRifleBulletHole(point, hit.getNormal(true));
+        spawnRifleBulletHole(
+          point,
+          hit.getNormal(true),
+          hit.pickedMesh as Mesh,
+        );
       }
       bullet.mesh.dispose();
       g.rifleBullets.splice(i, 1);
@@ -710,7 +732,7 @@ function fireLaserRay(ray: Ray, isCrit: boolean, depth = 0): void {
       } else {
         // Wall/floor — laser stops here
         laserEnd = h.pickedPoint;
-        spawnBulletHole(h.pickedPoint, h.getNormal(true));
+        spawnBulletHole(h.pickedPoint, h.getNormal(true), h.pickedMesh as Mesh);
         // Ricochet off geometry
         if (canRicochet && Math.random() < effectiveRicochetChance()) {
           const hitNormal = h.getNormal(true) ?? ray.direction.negate();
@@ -799,7 +821,11 @@ function fireLaserRay(ray: Ray, isCrit: boolean, depth = 0): void {
           g.plasmas.splice(plasmaIdx, 1);
         }
       } else if (hit.pickedPoint) {
-        spawnBulletHole(hit.pickedPoint, hit.getNormal(true));
+        spawnBulletHole(
+          hit.pickedPoint,
+          hit.getNormal(true),
+          hit.pickedMesh as Mesh,
+        );
         // Ricochet off geometry
         if (canRicochet && Math.random() < effectiveRicochetChance()) {
           const hitNormal = hit.getNormal(true) ?? ray.direction.negate();
@@ -1512,6 +1538,7 @@ export function startReload(): void {
     (g.state.activeWeapon === "blaster" && g.state.overheated)
   )
     return;
+  releaseBayonetEmbed();
   g.state.reloading = true;
   const reloadTime = effectiveReloadTime();
   g.state.reloadTimeLeft = reloadTime;

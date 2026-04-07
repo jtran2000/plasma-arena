@@ -11,6 +11,7 @@ import {
   ParticleSystem,
   PointLight,
   VertexData,
+  DynamicTexture,
 } from "@babylonjs/core";
 import {
   BallAndSocketConstraint,
@@ -1207,12 +1208,42 @@ export function makeRagdollHalfAggregate(
 
 // ─── Bullet hole (exported) ───────────────────────────────────────────────────
 const BULLET_HOLE_SURFACE_OFFSET = BULLET_HOLE_STYLE.surfaceOffset;
+const SURFACE_MARK_Z_OFFSET = -2;
+const SURFACE_MARK_Z_OFFSET_UNITS = -2;
+
+function makeMaskedMarkMaterial(
+  name: string,
+  color: Color3,
+  width: number,
+  height: number,
+): StandardMaterial {
+  const tex = new DynamicTexture(`${name}Mask`, { width, height }, g.scene);
+  const ctx = tex.getContext();
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "#ffffff";
+  ctx.save();
+  ctx.translate(width / 2, height / 2);
+  ctx.scale(width * 0.45, height * 0.45);
+  ctx.beginPath();
+  ctx.arc(0, 0, 1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  tex.hasAlpha = true;
+  tex.update(false);
+
+  const mat = new StandardMaterial(name, g.scene);
+  mat.diffuseColor = color;
+  mat.emissiveColor = color;
+  mat.specularColor = Color3.Black();
+  mat.opacityTexture = tex;
+  mat.disableLighting = true;
+  mat.backFaceCulling = false;
+  mat.zOffset = SURFACE_MARK_Z_OFFSET;
+  mat.zOffsetUnits = SURFACE_MARK_Z_OFFSET_UNITS;
+  return mat;
+}
 
 export function makeBulletHoleDisc(): Mesh {
-  const mat = new StandardMaterial("bholeMat", g.scene);
-  mat.diffuseColor = BULLET_HOLE_STYLE.diffuse;
-  mat.emissiveColor = BULLET_HOLE_STYLE.emissive;
-  mat.backFaceCulling = false;
   const disc = MeshBuilder.CreateDisc(
     "bhole",
     {
@@ -1221,7 +1252,12 @@ export function makeBulletHoleDisc(): Mesh {
     },
     g.scene,
   );
-  disc.material = mat;
+  disc.material = makeMaskedMarkMaterial(
+    "bholeMat",
+    BULLET_HOLE_STYLE.emissive,
+    64,
+    64,
+  );
   disc.isPickable = false;
   return disc;
 }
@@ -1674,6 +1710,28 @@ export function spawnBayonetBloodBurst(position: Vector3): void {
   setTimeout(() => ps.dispose(false), 1200);
 }
 
+export function spawnBayonetGash(
+  position: Vector3,
+  normal: Vector3 | null,
+  parentMesh: Mesh,
+): void {
+  const n = normal?.normalizeToNew() ?? Vector3.Up();
+  const gash = MeshBuilder.CreateDecal("bayonetGash", parentMesh, {
+    position: position.add(n.scale(BULLET_HOLE_SURFACE_OFFSET * 1.4)),
+    normal: n,
+    size: new Vector3(0.09, 0.42, 0.08),
+    localMode: true,
+  });
+  const mat = makeMaskedMarkMaterial(
+    "bayonetGashMat",
+    new Color3(0.24, 0, 0),
+    32,
+    128,
+  );
+  gash.material = mat;
+  gash.isPickable = false;
+}
+
 export function spawnSmokeParticles(): void {
   const emitPos = g.barrelTip.getAbsolutePosition().clone();
   const ps = new ParticleSystem("smoke", 50, g.scene);
@@ -1961,10 +2019,23 @@ export function spawnBulletHole(
   const worldPos = position.add(n.scale(BULLET_HOLE_SURFACE_OFFSET));
 
   if (parentMesh) {
-    const invWorld = parentMesh.getWorldMatrix().clone().invert();
-    disc.parent = parentMesh;
-    disc.position = Vector3.TransformCoordinates(worldPos, invWorld);
-    disc.lookAt(Vector3.TransformCoordinates(position.add(n), invWorld));
+    const decal = MeshBuilder.CreateDecal("bhole", parentMesh, {
+      position: worldPos,
+      normal: n.normalizeToNew(),
+      size: new Vector3(
+        BULLET_HOLE_STYLE.radius * 2,
+        BULLET_HOLE_STYLE.radius * 2,
+        0.05,
+      ),
+      localMode: true,
+    });
+    decal.material = mat;
+    decal.isPickable = false;
+    disc.dispose();
+    if (opts?.glow !== false) {
+      g.glowingHoles.push({ mesh: decal, time: BULLET_HOLE.glowMs });
+    }
+    return;
   } else {
     disc.position = worldPos;
     disc.lookAt(position.add(n));

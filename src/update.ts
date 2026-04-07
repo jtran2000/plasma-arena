@@ -5,6 +5,9 @@ import {
   Color4,
   AbstractMesh,
   Mesh,
+  Matrix,
+  Quaternion,
+  Ray,
 } from "@babylonjs/core";
 import {
   ENEMY,
@@ -17,11 +20,21 @@ import {
   BULLET_HOLE,
 } from "./constants.js";
 const { LASER, SPREAD, HEAT, IGNITE, MELEE } = BLASTER;
-import { g, dom } from "./game.js";
+import {
+  g,
+  dom,
+  releaseBayonetEmbed,
+  disableBayonetEmbedLook,
+  disableBayonetEmbedPlayerEnemyCollision,
+  disableSprintLook,
+  restoreSprintLook,
+  type Enemy,
+} from "./game.js";
 import {
   spawnEnemy,
   spawnSupply,
   spawnFireEffect,
+  spawnBayonetGash,
   spawnBayonetBloodBurst,
   spawnHitParticle,
   hitDebris,
@@ -63,6 +76,8 @@ import {
 } from "./actions.js";
 export { selectUpgrade };
 
+type BayonetTorsoSide = "front" | "back" | "left" | "right";
+
 // ─── Game loop ────────────────────────────────────────────────────────────────
 export function update(): void {
   if (g.state.paused) {
@@ -75,6 +90,7 @@ export function update(): void {
   updatePlayer(dt);
   updateEnemies();
   updateBayonetCharge(dt);
+  updateEmbeddedBayonet(dt);
   updateWeapon(dt);
 }
 
@@ -404,6 +420,23 @@ function updatePlayer(dt: number): void {
     g.camera.rotation.x -= recoilDelta;
     g.appliedCameraRecoilPitch = cameraRecoilPitch;
   }
+  const sprintKey =
+    g.pressedKeys.has("ShiftLeft") || g.pressedKeys.has("ShiftRight");
+  if (!sprintKey) g.sprintBlockedUntilShiftRelease = false;
+  const canSprint =
+    sprintKey &&
+    !g.sprintBlockedUntilShiftRelease &&
+    g.state.meleeCooldown <= 0 &&
+    !g.bayonetEmbed;
+  const sprintControls =
+    canSprint && (g.isSprinting || g.pressedKeys.has("KeyW"));
+  if (sprintControls) {
+    const turnInput =
+      (g.pressedKeys.has("KeyD") ? 1 : 0) - (g.pressedKeys.has("KeyA") ? 1 : 0);
+    if (turnInput !== 0) {
+      g.camera.rotation.y += turnInput * PLAYER.sprintTurnSpeed * (dt / 1000);
+    }
+  }
 
   const fwd = g.camera.getForwardRay().direction;
   const forwardXZ = new Vector3(fwd.x, 0, fwd.z);
@@ -412,19 +445,16 @@ function updatePlayer(dt: number): void {
 
   const wish = Vector3.Zero();
   if (g.pressedKeys.has("KeyW")) wish.addInPlace(forwardXZ);
-  if (g.pressedKeys.has("KeyS")) wish.subtractInPlace(forwardXZ);
-  if (g.pressedKeys.has("KeyA")) wish.subtractInPlace(right);
-  if (g.pressedKeys.has("KeyD")) wish.addInPlace(right);
+  if (g.pressedKeys.has("KeyS") && !sprintControls) {
+    releaseBayonetEmbed();
+    wish.subtractInPlace(forwardXZ);
+  }
+  if (g.pressedKeys.has("KeyA") && !sprintControls) wish.subtractInPlace(right);
+  if (g.pressedKeys.has("KeyD") && !sprintControls) wish.addInPlace(right);
 
-  const sprintKey =
-    g.pressedKeys.has("ShiftLeft") || g.pressedKeys.has("ShiftRight");
-  if (!sprintKey) g.sprintBlockedUntilShiftRelease = false;
   const wasSprinting = g.isSprinting;
   const nowSprinting =
-    sprintKey &&
-    !g.sprintBlockedUntilShiftRelease &&
-    g.state.meleeCooldown <= 0 &&
-    wish.lengthSquared() > 0;
+    canSprint && g.pressedKeys.has("KeyW") && wish.lengthSquared() > 0;
 
   if (nowSprinting && !g.isSprinting && g.state.reloading) {
     g.state.reloading = false;
@@ -433,20 +463,26 @@ function updatePlayer(dt: number): void {
   }
   g.isSprinting = nowSprinting;
   if (wasSprinting && !g.isSprinting) endSprintSession();
+  if (g.isSprinting) lockSprintView();
 
   const vel = g.playerAggregate.body.getLinearVelocity();
   const currentXZ = new Vector3(vel.x, 0, vel.z);
 
   if (nowSprinting) {
     const wishDir = wish.clone().normalize();
+    const turnedTooHard = lowerSprintRampForTurn(wishDir);
     const forwardDistance =
       Math.max(0, Vector3.Dot(currentXZ, wishDir)) * (dt / 1000);
-    g.sprintRamp = Math.min(
-      1,
-      g.sprintRamp + forwardDistance / PLAYER.sprintRampDistance,
-    );
+    if (!turnedTooHard) {
+      g.sprintRamp = Math.min(
+        1,
+        g.sprintRamp + forwardDistance / PLAYER.sprintRampDistance,
+      );
+    }
+    g.sprintRampDirection.copyFrom(wishDir);
   } else {
     g.sprintRamp = 0;
+    g.sprintRampDirection.set(0, 0, 0);
   }
 
   const sprintScale = 1 + (PLAYER.sprintMultiplier - 1) * g.sprintRamp;
@@ -486,15 +522,40 @@ function sprintWasBlocked(currentXZ: Vector3, targetXZ: Vector3): boolean {
 
 function breakSprintUntilShiftRelease(): void {
   g.sprintRamp = 0;
+  g.sprintRampDirection.set(0, 0, 0);
   g.isSprinting = false;
   g.sprintBlockedUntilShiftRelease = true;
   endSprintSession();
 }
 
+function lowerSprintRampForTurn(wishDir: Vector3): boolean {
+  if (g.sprintRampDirection.lengthSquared() <= 0 || g.sprintRamp <= 0) {
+    return false;
+  }
+
+  const dot = Math.max(
+    -1,
+    Math.min(1, Vector3.Dot(g.sprintRampDirection, wishDir)),
+  );
+  const angle = Math.acos(dot);
+  const turnScale = Math.max(0, 1 - angle / PLAYER.sprintRampResetTurnAngle);
+  g.sprintRamp *= turnScale;
+  return turnScale <= 0;
+}
+
 function endSprintSession(): void {
+  restoreSprintLook();
   if (g.bayonetChargeCooldownPending) applyBayonetChargeCooldown();
   g.bayonetChargeCooldownPending = false;
   g.bayonetChargeLockedUntilSprintEnd = false;
+}
+
+function lockSprintView(): void {
+  disableSprintLook();
+  g.camera.rotation.x = 0;
+  g.recoilPitch = 0;
+  g.cameraRecoilPitch = 0;
+  g.appliedCameraRecoilPitch = 0;
 }
 
 function wantsBayonetCharge(): boolean {
@@ -556,12 +617,11 @@ function updateBayonetCharge(dt: number): void {
   if (isEnemyPart(hit.pickedMesh.name)) {
     const result = findEnemyByMesh(hit.pickedMesh);
     if (!result) return;
-    const headshot = result.hitMesh.name === "enemyHead";
+    const torsoAnchor = getBayonetTorsoAnchor(result.enemy, hitPoint);
     const dmg = Math.round(
       RIFLE.MELEE.damage *
         RIFLE.BAYONET.damageMultiplier *
-        RIFLE.BAYONET.chargeDamageMultiplier *
-        (headshot ? 2 : 1),
+        RIFLE.BAYONET.chargeDamageMultiplier,
     );
     (result.hitMesh.material as StandardMaterial).emissiveColor = new Color3(
       1,
@@ -570,15 +630,35 @@ function updateBayonetCharge(dt: number): void {
     );
     result.enemy.flashMesh = result.hitMesh;
     result.enemy.flashTime = 200;
-    damageEnemy(result.enemy, dmg, result.hitMesh, hitPoint, false, {
-      canIgnite: true,
-      intactKill: true,
-    });
-    spawnBayonetBloodBurst(hitPoint);
+    spawnBayonetGash(
+      torsoAnchor.position,
+      torsoAnchor.normal,
+      result.enemy.bodyMesh,
+    );
+    const killed = damageEnemy(
+      result.enemy,
+      dmg,
+      result.enemy.bodyMesh,
+      torsoAnchor.position,
+      false,
+      {
+        canIgnite: true,
+        intactKill: true,
+      },
+    );
+    if (!killed) {
+      embedBayonetInEnemy(
+        result.enemy,
+        torsoAnchor.position,
+        ray.direction,
+        torsoAnchor.side,
+      );
+    }
+    spawnBayonetBloodBurst(torsoAnchor.position);
     spawnHitParticle(
-      hitPoint,
+      torsoAnchor.position,
       new Color4(0.9, 0.0, 0.0, 1),
-      hit.getNormal(true) ?? ray.direction.negate(),
+      torsoAnchor.normal,
     );
   } else if (
     hit.pickedMesh.name === "bodyHalf" ||
@@ -619,6 +699,442 @@ function applyBayonetChargeCooldown(): void {
     g.state.meleeCooldown,
     RIFLE.MELEE.cooldownMs * RIFLE.BAYONET.chargeCooldownMultiplier,
   );
+}
+
+function getBayonetTorsoAnchor(
+  enemy: Enemy,
+  hitPoint: Vector3,
+): { position: Vector3; normal: Vector3; side: BayonetTorsoSide } {
+  const bodyWorld = enemy.bodyMesh.computeWorldMatrix(true);
+  const bodyLocalHit = Vector3.TransformCoordinates(
+    hitPoint,
+    bodyWorld.clone().invert(),
+  );
+  const { minimum, maximum } = enemy.bodyMesh.getBoundingInfo().boundingBox;
+  const center = minimum.add(maximum).scale(0.5);
+  const anchors = [
+    {
+      side: "front" as const,
+      position: new Vector3(center.x, center.y, maximum.z),
+      normal: new Vector3(0, 0, 1),
+    },
+    {
+      side: "back" as const,
+      position: new Vector3(center.x, center.y, minimum.z),
+      normal: new Vector3(0, 0, -1),
+    },
+    {
+      side: "left" as const,
+      position: new Vector3(minimum.x, center.y, center.z),
+      normal: new Vector3(-1, 0, 0),
+    },
+    {
+      side: "right" as const,
+      position: new Vector3(maximum.x, center.y, center.z),
+      normal: new Vector3(1, 0, 0),
+    },
+  ];
+  const closest = anchors.reduce((best, anchor) =>
+    Vector3.DistanceSquared(anchor.position, bodyLocalHit) <
+    Vector3.DistanceSquared(best.position, bodyLocalHit)
+      ? anchor
+      : best,
+  );
+  return {
+    position: Vector3.TransformCoordinates(closest.position, bodyWorld),
+    normal: Vector3.TransformNormal(closest.normal, bodyWorld).normalize(),
+    side: closest.side,
+  };
+}
+
+function embedBayonetInEnemy(
+  enemy: Enemy,
+  hitPoint: Vector3,
+  chargeDirection: Vector3,
+  torsoSide: BayonetTorsoSide,
+): void {
+  const direction = new Vector3(chargeDirection.x, 0, chargeDirection.z);
+  if (direction.lengthSquared() < 0.0001) direction.copyFrom(Vector3.Forward());
+  direction.normalize();
+
+  const pin = findBayonetPinPosition(enemy, hitPoint, direction);
+  const hitLocalPosition = Vector3.TransformCoordinates(
+    hitPoint,
+    enemy.visualRoot.getWorldMatrix().clone().invert(),
+  );
+  const targetVisualRotation = getBayonetEmbedVisualQuaternion(
+    pin.normal,
+    direction,
+    pin.wallPinned,
+    torsoSide,
+  );
+  let targetHitPoint = pin.hitPoint.clone();
+  const pinPosition = pin.position.clone();
+  if (!pin.wallPinned) {
+    const groundOffset = calculateBayonetGroundOffset(
+      enemy,
+      pinPosition,
+      targetVisualRotation,
+      pin.hitPoint.y,
+    );
+    pinPosition.y += groundOffset;
+    targetHitPoint = transformBayonetEmbedLocalPoint(
+      pinPosition,
+      hitLocalPosition,
+      targetVisualRotation,
+    );
+  }
+  const startCameraRotation = g.camera.rotation.clone();
+  const {
+    playerPosition: targetPlayerPosition,
+    cameraRotation: targetCameraRotation,
+  } = solveBayonetEmbedPlayerPose(
+    targetHitPoint,
+    startCameraRotation,
+    direction,
+  );
+  const { playerCollideMask, enemyMembershipMask } =
+    disableBayonetEmbedPlayerEnemyCollision(enemy);
+
+  g.bayonetEmbed = {
+    enemy,
+    direction,
+    startPosition: enemy.physMesh.position.clone(),
+    pinPosition,
+    targetHitPoint,
+    startPlayerPosition: g.playerMesh.position.clone(),
+    playerPosition: targetPlayerPosition,
+    startVisualRotation:
+      enemy.visualRoot.rotationQuaternion?.clone() ??
+      Quaternion.FromEulerAngles(
+        enemy.visualRoot.rotation.x,
+        enemy.visualRoot.rotation.y,
+        enemy.visualRoot.rotation.z,
+      ),
+    targetVisualRotation,
+    startCameraRotation,
+    targetCameraRotation,
+    playerCollideMask,
+    enemyMembershipMask,
+    progress: 0,
+    wallPinned: pin.wallPinned,
+  };
+  g.bayonetEmbedCameraPitch = 0;
+  g.appliedBayonetEmbedCameraPitch = 0;
+  disableBayonetEmbedLook();
+  enemy.state = "patrol";
+  enemy.attackCooldown = enemy.meleeIntervalMs;
+  enemy.aggregate.body.setLinearVelocity(Vector3.Zero());
+}
+
+function solveBayonetEmbedPlayerPose(
+  targetHitPoint: Vector3,
+  startCameraRotation: Vector3,
+  direction: Vector3,
+): { playerPosition: Vector3; cameraRotation: Vector3 } {
+  const playerPosition = targetHitPoint.subtract(
+    direction.scale(RIFLE.BAYONET.embedPlayerStandoff),
+  );
+  playerPosition.y = PLAYER.spawnY;
+  const toTarget = targetHitPoint.subtract(
+    playerPosition.add(new Vector3(0, 0.7, 0)),
+  );
+  const horizontalDistance = Math.hypot(toTarget.x, toTarget.z);
+  const cameraRotation = startCameraRotation.clone();
+  const targetPitch =
+    Math.atan2(-toTarget.y, Math.max(0.001, horizontalDistance)) -
+    getBayonetWeaponPitch(1, 1);
+  cameraRotation.x = clamp(
+    targetPitch,
+    RIFLE.BAYONET.embedCameraMinPitch,
+    RIFLE.BAYONET.embedCameraMaxPitch,
+  );
+
+  return { playerPosition, cameraRotation };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function findBayonetPinPosition(
+  enemy: Enemy,
+  hitPoint: Vector3,
+  direction: Vector3,
+): {
+  position: Vector3;
+  hitPoint: Vector3;
+  normal: Vector3;
+  wallPinned: boolean;
+} {
+  const wallHit = g.scene.pickWithRay(
+    new Ray(
+      hitPoint.add(direction.scale(0.08)),
+      direction,
+      RIFLE.BAYONET.embedWallSearchDistance,
+    ),
+    bayonetPinRayFilter,
+  );
+  if (wallHit?.hit && wallHit.pickedPoint) {
+    const wallPin = wallHit.pickedPoint.subtract(
+      direction.scale(RIFLE.BAYONET.embedEnemyWallOffset),
+    );
+    wallPin.y = enemy.physMesh.position.y;
+    return {
+      position: wallPin,
+      hitPoint: wallHit.pickedPoint,
+      normal: wallHit.getNormal(true)?.normalizeToNew() ?? direction.negate(),
+      wallPinned: true,
+    };
+  }
+
+  const groundProbe = hitPoint.add(
+    direction.scale(RIFLE.BAYONET.embedGroundKnockbackDistance),
+  );
+  const groundHit = g.scene.pickWithRay(
+    new Ray(groundProbe.add(new Vector3(0, 2, 0)), new Vector3(0, -1, 0), 6),
+    bayonetPinRayFilter,
+  );
+  const groundHitPoint = groundProbe.clone();
+  groundHitPoint.y = (groundHit?.pickedPoint?.y ?? 0) + 0.02;
+  return {
+    position: groundHitPoint.clone(),
+    hitPoint: groundHitPoint,
+    normal: groundHit?.getNormal(true)?.normalizeToNew() ?? Vector3.Up(),
+    wallPinned: false,
+  };
+}
+
+function transformBayonetEmbedLocalPoint(
+  rootPosition: Vector3,
+  hitLocalPosition: Vector3,
+  targetVisualRotation: Quaternion,
+): Vector3 {
+  return rootPosition.add(
+    getBayonetEmbedLocalOffset(hitLocalPosition, targetVisualRotation),
+  );
+}
+
+function getBayonetEmbedLocalOffset(
+  hitLocalPosition: Vector3,
+  targetVisualRotation: Quaternion,
+): Vector3 {
+  const matrix = Matrix.Compose(
+    Vector3.One(),
+    targetVisualRotation,
+    Vector3.Zero(),
+  );
+  return Vector3.TransformCoordinates(hitLocalPosition, matrix);
+}
+
+function getBayonetEmbedVisualQuaternion(
+  surfaceNormal: Vector3,
+  direction: Vector3,
+  wallPinned: boolean,
+  torsoSide: BayonetTorsoSide,
+): Quaternion {
+  if (!wallPinned) {
+    return getGroundPinnedRotation(direction, torsoSide);
+  }
+
+  const forward = surfaceNormal.normalizeToNew();
+  let up = Vector3.Up().subtract(
+    forward.scale(Vector3.Dot(Vector3.Up(), forward)),
+  );
+  if (up.lengthSquared() < 0.0001) {
+    up = Vector3.Cross(forward, Vector3.Right());
+  }
+  return Quaternion.FromLookDirectionLH(forward, up.normalize());
+}
+
+function getGroundPinnedRotation(
+  direction: Vector3,
+  torsoSide: BayonetTorsoSide,
+): Quaternion {
+  let yAxis = direction.clone();
+  yAxis.y = 0;
+  if (yAxis.lengthSquared() < 0.0001) yAxis = Vector3.Forward();
+  yAxis.normalize();
+  const up = Vector3.Up();
+  const sideAxes = getGroundPinnedSideAxes(torsoSide, yAxis, up);
+
+  const rotationMatrix = new Matrix();
+  Matrix.FromXYZAxesToRef(
+    sideAxes.xAxis,
+    sideAxes.yAxis,
+    sideAxes.zAxis,
+    rotationMatrix,
+  );
+  return Quaternion.FromRotationMatrix(rotationMatrix);
+}
+
+function getGroundPinnedSideAxes(
+  torsoSide: BayonetTorsoSide,
+  headAxis: Vector3,
+  upAxis: Vector3,
+): { xAxis: Vector3; yAxis: Vector3; zAxis: Vector3 } {
+  switch (torsoSide) {
+    case "front": {
+      const zAxis = upAxis;
+      return {
+        xAxis: Vector3.Cross(headAxis, zAxis).normalize(),
+        yAxis: headAxis,
+        zAxis,
+      };
+    }
+    case "back": {
+      const zAxis = upAxis.scale(-1);
+      return {
+        xAxis: Vector3.Cross(headAxis, zAxis).normalize(),
+        yAxis: headAxis,
+        zAxis,
+      };
+    }
+    case "left": {
+      const xAxis = upAxis.scale(-1);
+      return {
+        xAxis,
+        yAxis: headAxis,
+        zAxis: Vector3.Cross(xAxis, headAxis).normalize(),
+      };
+    }
+    case "right": {
+      const xAxis = upAxis;
+      return {
+        xAxis,
+        yAxis: headAxis,
+        zAxis: Vector3.Cross(xAxis, headAxis).normalize(),
+      };
+    }
+  }
+}
+
+function calculateBayonetGroundOffset(
+  enemy: Enemy,
+  rootPosition: Vector3,
+  targetVisualRotation: Quaternion,
+  groundY: number,
+): number {
+  const visualWorld = enemy.visualRoot.getWorldMatrix().clone();
+  const invVisualWorld = visualWorld.invert();
+  const targetRotation = Matrix.Compose(
+    Vector3.One(),
+    targetVisualRotation,
+    Vector3.Zero(),
+  );
+  let minY = Number.POSITIVE_INFINITY;
+
+  for (const child of enemy.visualRoot.getChildMeshes(false)) {
+    if (!(child instanceof Mesh) || child.getTotalVertices() <= 0) continue;
+    const childToVisual = child.getWorldMatrix().multiply(invVisualWorld);
+    for (const corner of child.getBoundingInfo().boundingBox.vectors) {
+      const visualLocal = Vector3.TransformCoordinates(corner, childToVisual);
+      const targetLocal = Vector3.TransformCoordinates(
+        visualLocal,
+        targetRotation,
+      );
+      minY = Math.min(minY, rootPosition.y + targetLocal.y);
+    }
+  }
+
+  if (!Number.isFinite(minY)) return 0;
+  return groundY + 0.02 - minY;
+}
+
+function bayonetPinRayFilter(m: AbstractMesh): boolean {
+  return (
+    m.renderingGroupId !== 1 &&
+    m.name !== "player" &&
+    !isEnemyPart(m.name) &&
+    m.name !== "enemyPhys" &&
+    m.name !== "laserBeam" &&
+    m.name !== "bhole" &&
+    m.name !== "supply" &&
+    m.name !== "plasma" &&
+    m.name !== "plasmaCharge"
+  );
+}
+
+function updateEmbeddedBayonet(dt: number): void {
+  const embed = g.bayonetEmbed;
+  if (embed) {
+    embed.progress = Math.min(
+      1,
+      embed.progress + dt / RIFLE.BAYONET.embedAnimMs,
+    );
+  }
+
+  if (!embed) return;
+  if (!g.enemies.includes(embed.enemy)) {
+    releaseBayonetEmbed();
+    return;
+  }
+  g.bayonetChargeAnim = 1;
+
+  const enemy = embed.enemy;
+  const t = smoothstep(embed.progress);
+  const enemyPos = Vector3.Lerp(embed.startPosition, embed.pinPosition, t);
+  const playerPos = Vector3.Lerp(
+    embed.startPlayerPosition,
+    embed.playerPosition,
+    t,
+  );
+
+  enemy.physMesh.position.copyFrom(enemyPos);
+  enemy.aggregate.body.setTargetTransform(enemyPos, Quaternion.Identity());
+  enemy.aggregate.body.setLinearVelocity(Vector3.Zero());
+  enemy.aggregate.body.setAngularVelocity(Vector3.Zero());
+
+  g.playerMesh.position.copyFrom(playerPos);
+  g.playerAggregate.body.setTargetTransform(playerPos, Quaternion.Identity());
+  g.playerAggregate.body.setLinearVelocity(Vector3.Zero());
+  g.playerVelocityXZ = Vector3.Zero();
+  g.camera.position.set(playerPos.x, playerPos.y + 0.7, playerPos.z);
+  g.camera.rotation.x =
+    embed.startCameraRotation.x +
+    angleDelta(embed.startCameraRotation.x, embed.targetCameraRotation.x) * t;
+  g.camera.rotation.y =
+    embed.startCameraRotation.y +
+    angleDelta(embed.startCameraRotation.y, embed.targetCameraRotation.y) * t;
+  g.camera.rotation.z =
+    embed.startCameraRotation.z +
+    angleDelta(embed.startCameraRotation.z, embed.targetCameraRotation.z) * t;
+
+  enemy.visualRoot.rotationQuaternion = Quaternion.Slerp(
+    embed.startVisualRotation,
+    embed.targetVisualRotation,
+    t,
+  );
+  poseEmbeddedEnemy(enemy, embed.wallPinned, t);
+}
+
+function smoothstep(t: number): number {
+  return t * t * (3 - 2 * t);
+}
+
+function angleDelta(from: number, to: number): number {
+  let diff = to - from;
+  while (diff > Math.PI) diff -= Math.PI * 2;
+  while (diff < -Math.PI) diff += Math.PI * 2;
+  return diff;
+}
+
+function getBayonetWeaponPitch(chargeT: number, embedT: number): number {
+  return (
+    RIFLE.BAYONET.chargePitch * chargeT - 0.03 * (1 - chargeT) - 0.28 * embedT
+  );
+}
+
+function poseEmbeddedEnemy(enemy: Enemy, wallPinned: boolean, t: number): void {
+  if (wallPinned) return;
+  enemy.leftLeg.rotation.x = 0.18 * t;
+  enemy.rightLeg.rotation.x = -0.14 * t;
+  enemy.leftLeg.rotation.z = 0.22 * t;
+  enemy.rightLeg.rotation.z = -0.22 * t;
+  enemy.leftArm.rotation.x = -0.25 * t;
+  enemy.rightArm.rotation.x = 0.2 * t;
+  enemy.leftArm.rotation.z = 0.34 * t;
+  enemy.rightArm.rotation.z = -0.34 * t;
 }
 
 // ─── Weapon animation ─────────────────────────────────────────────────────────
@@ -705,17 +1221,18 @@ function updateWeapon(dt: number): void {
 function updateRifleBayonetChargeWeapon(): void {
   const t =
     g.bayonetChargeAnim * g.bayonetChargeAnim * (3 - 2 * g.bayonetChargeAnim);
+  const embedT = g.bayonetEmbed ? smoothstep(g.bayonetEmbed.progress) : 0;
   const chargePos = new Vector3(
     0,
-    RIFLE.BAYONET.chargeCenteredY,
-    RIFLE.BAYONET.chargeForwardZ,
+    RIFLE.BAYONET.chargeCenteredY - 0.14 * embedT,
+    RIFLE.BAYONET.chargeForwardZ + 0.22 * embedT,
   );
   g.weaponRoot.position.copyFrom(
     Vector3.Lerp(g.weaponRestPosition, chargePos, t),
   );
-  g.weaponRoot.rotation.x = RIFLE.BAYONET.chargePitch * t - 0.03 * (1 - t);
+  g.weaponRoot.rotation.x = getBayonetWeaponPitch(t, embedT);
   g.weaponRoot.rotation.y = 0;
-  g.weaponRoot.rotation.z = 0;
+  g.weaponRoot.rotation.z = -0.04 * Math.sin(embedT * Math.PI);
   g.weaponCell.position.copyFrom(new Vector3(0, -0.11, 0.13));
 }
 
@@ -813,6 +1330,11 @@ function updateEnemies(): void {
 
   for (let i = g.enemies.length - 1; i >= 0; i--) {
     const e = g.enemies[i];
+    if (g.bayonetEmbed?.enemy === e) {
+      e.aggregate.body.setLinearVelocity(Vector3.Zero());
+      e.aggregate.body.setAngularVelocity(Vector3.Zero());
+      continue;
+    }
     const pos = e.physMesh.position;
     const toPlayer = camPos.subtract(pos);
     const dist = toPlayer.length();
