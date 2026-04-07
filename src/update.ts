@@ -617,7 +617,7 @@ function updateBayonetCharge(dt: number): void {
   if (isEnemyPart(hit.pickedMesh.name)) {
     const result = findEnemyByMesh(hit.pickedMesh);
     if (!result) return;
-    const torsoAnchor = getBayonetTorsoAnchor(result.enemy, hitPoint);
+    const torsoAnchor = getBayonetTorsoAnchor(result.enemy, ray.direction);
     const dmg = Math.round(
       RIFLE.MELEE.damage *
         RIFLE.BAYONET.damageMultiplier *
@@ -703,12 +703,13 @@ function applyBayonetChargeCooldown(): void {
 
 function getBayonetTorsoAnchor(
   enemy: Enemy,
-  hitPoint: Vector3,
+  chargeDirection: Vector3,
 ): { position: Vector3; normal: Vector3; side: BayonetTorsoSide } {
   const bodyWorld = enemy.bodyMesh.computeWorldMatrix(true);
-  const bodyLocalHit = Vector3.TransformCoordinates(
-    hitPoint,
-    bodyWorld.clone().invert(),
+  const bodyWorldInv = bodyWorld.clone().invert();
+  const bodyLocalCharge = Vector3.TransformNormal(
+    chargeDirection,
+    bodyWorldInv,
   );
   const { minimum, maximum } = enemy.bodyMesh.getBoundingInfo().boundingBox;
   const center = minimum.add(maximum).scale(0.5);
@@ -734,12 +735,17 @@ function getBayonetTorsoAnchor(
       normal: new Vector3(1, 0, 0),
     },
   ];
-  const closest = anchors.reduce((best, anchor) =>
-    Vector3.DistanceSquared(anchor.position, bodyLocalHit) <
-    Vector3.DistanceSquared(best.position, bodyLocalHit)
-      ? anchor
-      : best,
-  );
+  const localChargeXZ = new Vector3(bodyLocalCharge.x, 0, bodyLocalCharge.z);
+  const side =
+    localChargeXZ.lengthSquared() > 0 &&
+    Math.abs(localChargeXZ.z) <= RIFLE.BAYONET.embedSideHitDotThreshold
+      ? localChargeXZ.x < 0
+        ? "right"
+        : "left"
+      : localChargeXZ.z < 0
+        ? "front"
+        : "back";
+  const closest = anchors.find((anchor) => anchor.side === side) ?? anchors[0];
   return {
     position: Vector3.TransformCoordinates(closest.position, bodyWorld),
     normal: Vector3.TransformNormal(closest.normal, bodyWorld).normalize(),
@@ -792,6 +798,7 @@ function embedBayonetInEnemy(
     targetHitPoint,
     startCameraRotation,
     direction,
+    torsoSide,
   );
   const { playerCollideMask, enemyMembershipMask } =
     disableBayonetEmbedPlayerEnemyCollision(enemy);
@@ -831,9 +838,14 @@ function solveBayonetEmbedPlayerPose(
   targetHitPoint: Vector3,
   startCameraRotation: Vector3,
   direction: Vector3,
+  torsoSide: BayonetTorsoSide,
 ): { playerPosition: Vector3; cameraRotation: Vector3 } {
+  const playerStandoff =
+    torsoSide === "front"
+      ? RIFLE.BAYONET.embedPlayerFrontStandoff
+      : RIFLE.BAYONET.embedPlayerStandoff;
   const playerPosition = targetHitPoint.subtract(
-    direction.scale(RIFLE.BAYONET.embedPlayerStandoff),
+    direction.scale(playerStandoff),
   );
   playerPosition.y = PLAYER.spawnY;
   const toTarget = targetHitPoint.subtract(
