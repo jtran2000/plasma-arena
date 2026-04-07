@@ -257,7 +257,7 @@ const RIFLE_WEAPON = {
       rotX: Math.PI / 2,
     },
     frontRim: {
-      size: { diameter: 0.076, thickness: 0.017, tessellation: 24 } as const,
+      size: { diameter: 0.08, thickness: 0.017, tessellation: 24 } as const,
       pos: new Vector3(0, 0.1375, 0.12),
       rotX: Math.PI / 2,
     },
