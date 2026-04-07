@@ -6,6 +6,7 @@ import {
   Mesh,
   AbstractMesh,
   Ray,
+  PickingInfo,
 } from "@babylonjs/core";
 import { ARENA, PLAYER, BLASTER, RIFLE } from "./constants.js";
 const { HEAT, PLASMA, SPREAD, MULTISHOT, RICOCHET, LIGHTNING, MELEE } = BLASTER;
@@ -26,6 +27,7 @@ import {
   spawnHitParticle,
   spawnBayonetGash,
   spawnBayonetBloodDrip,
+  spawnBayonetBloodBurst,
   spawnSmokeParticles,
   spawnLaserBeam,
   spawnBulletHole,
@@ -192,12 +194,13 @@ function currentMeleeStats() {
 
 function currentRifleRecoilStats() {
   const scale = g.upgrades.muzzleBrake ? RIFLE.MUZZLE_BRAKE.recoilScale : 1;
+  const cameraRatio = g.rifleScoped ? 1 : RIFLE.RECOIL.cameraRatio;
   return {
     pitch: RIFLE.RECOIL.pitch * scale,
     recover: RIFLE.RECOIL.recover,
     maxPitch: RIFLE.RECOIL.maxPitch * scale,
-    cameraRatio: RIFLE.RECOIL.cameraRatio,
-    weaponRoll: RIFLE.RECOIL.weaponRoll * scale,
+    cameraRatio,
+    weaponRoll: g.rifleScoped ? 0 : RIFLE.RECOIL.weaponRoll * scale,
   };
 }
 
@@ -221,6 +224,8 @@ export function switchWeapon(): void {
   }
   g.mouseHeld = false;
   g.mouse2Held = false;
+  g.rifleScoped = false;
+  g.rifleScopeAimT = 0;
   g.meleeHeld = false;
   g.bayonetCharging = false;
   g.bayonetChargeLockedUntilSprintEnd = false;
@@ -231,6 +236,7 @@ export function switchWeapon(): void {
   g.recoilRoll = 0;
   g.cameraRecoilPitch = 0;
   g.appliedCameraRecoilPitch = 0;
+  g.rifleBloomRecoilHoldTimer = 0;
   g.crosshairRecoil = 0;
   g.state.shootCooldown = 0;
   g.state.plasmaCooldown = 0;
@@ -477,6 +483,7 @@ function shootRifle(): void {
     g.pendingUpgrades.length > 0
   )
     return;
+  if (g.state.shootCooldown > 0) return;
   if (g.state.ammo <= 0) {
     startReload();
     return;
@@ -485,31 +492,49 @@ function shootRifle(): void {
   g.state.ammo--;
   g.state.shootCooldown = effectiveCooldown();
 
-  const spread =
-    RIFLE.SPREAD.base +
-    Math.min(g.shootSpread, RIFLE.SPREAD.max) +
-    g.moveSpread;
+  const scoped = g.rifleScoped && g.upgrades.rifleScope;
+  const spread = scoped
+    ? 0
+    : RIFLE.SPREAD.base +
+      Math.min(g.shootSpread, RIFLE.SPREAD.max) +
+      g.moveSpread;
   const aimRay = g.camera.getForwardRay(100);
-  aimRay.direction.copyFrom(aimAtRifleCrosshair(aimRay.direction));
+  if (!scoped) aimRay.direction.copyFrom(aimAtRifleCrosshair(aimRay.direction));
   if (spread > 0)
     aimRay.direction.copyFrom(addRandomSpread(aimRay.direction, spread));
-  g.shootSpread = Math.min(g.shootSpread + effectiveBloom(), RIFLE.SPREAD.max);
+  if (scoped) {
+    g.shootSpread = 0;
+    g.moveSpread = 0;
+  } else {
+    g.shootSpread = Math.min(
+      g.shootSpread + effectiveBloom(),
+      RIFLE.SPREAD.max,
+    );
+  }
 
   const isCrit = Math.random() < effectiveCritChance();
   const critMult = isCrit ? effectiveCritDamage() : 1;
   const damage = Math.round(
     RIFLE.damage * (0.9 + Math.random() * 0.2) * critMult,
   );
-  const spawnPos = g.barrelTip.getAbsolutePosition();
-  const bulletDir = aimProjectileFromMuzzle(aimRay, spawnPos);
-  const tracer = makeRifleTracerMesh(spawnPos, bulletDir, isCrit);
-  g.rifleBullets.push({
-    mesh: tracer,
-    velocity: bulletDir.scale(RIFLE.bulletSpeed),
-    age: 0,
-    damage,
-    isCrit,
-  });
+  if (g.bayonetEmbed) {
+    shootPinnedEnemy(damage, isCrit, aimRay.direction);
+  } else if (scoped) {
+    const bulletDir = aimRay.direction.normalizeToNew();
+    const hit = g.scene.pickWithRay(aimRay, projectileRayFilter);
+    handleRifleHit(hit, bulletDir, damage, isCrit);
+  } else {
+    const spawnPos = g.barrelTip.getAbsolutePosition();
+    const bulletDir = aimProjectileFromMuzzle(aimRay, spawnPos);
+    const tracer = makeRifleTracerMesh(spawnPos, bulletDir, isCrit);
+    g.rifleBullets.push({
+      mesh: tracer,
+      velocity: bulletDir.scale(RIFLE.bulletSpeed),
+      age: 0,
+      damage,
+      isCrit,
+    });
+  }
   playRifleShotSound();
   spawnRifleMuzzleFlash(isCrit);
   applyRifleRecoil();
@@ -528,7 +553,53 @@ function applyRifleRecoil(): void {
     g.cameraRecoilPitch + recoil.pitch,
     recoil.maxPitch,
   );
+  g.rifleBloomRecoilHoldTimer = RIFLE.RECOIL.decayHoldMs;
+  const cameraRecoilPitch = g.cameraRecoilPitch * recoil.cameraRatio;
+  if (g.rifleScoped) {
+    const recoilDelta = cameraRecoilPitch - g.appliedCameraRecoilPitch;
+    if (recoilDelta !== 0) {
+      g.camera.rotation.x -= recoilDelta;
+      g.appliedCameraRecoilPitch = cameraRecoilPitch;
+    }
+  }
   g.recoilPitch = g.cameraRecoilPitch * (1 - recoil.cameraRatio);
+}
+
+function shootPinnedEnemy(
+  damage: number,
+  isCrit: boolean,
+  shotDirection: Vector3,
+): void {
+  const embed = g.bayonetEmbed;
+  if (!embed || !g.enemies.includes(embed.enemy)) return;
+
+  const enemy = embed.enemy;
+  const point = embed.targetHitPoint.clone();
+  const normal =
+    shotDirection.lengthSquared() > 0.0001
+      ? shotDirection.normalizeToNew().negate()
+      : embed.direction.negate();
+
+  (enemy.bodyMesh.material as StandardMaterial).emissiveColor = new Color3(
+    1,
+    0,
+    0,
+  );
+  enemy.flashMesh = enemy.bodyMesh;
+  enemy.flashTime = 120;
+  spawnRifleBulletHole(point, normal, enemy.bodyMesh, true);
+  spawnHitParticle(point, new Color4(0.9, 0.0, 0.0, 1), normal);
+  spawnBayonetBloodBurst(point);
+  spawnBayonetBloodBurst(point.add(new Vector3(0.05, 0.03, 0)));
+  spawnBayonetBloodBurst(point.add(new Vector3(-0.05, -0.02, 0.02)));
+  damageEnemy(
+    enemy,
+    Math.round(damage * RIFLE.BAYONET.damageMultiplier),
+    enemy.bodyMesh,
+    point,
+    isCrit,
+    { intactKill: true },
+  );
 }
 
 const RIFLE_GEOMETRY_BULLET_HOLE = new Color3(0.35, 0.35, 0.35);
@@ -544,6 +615,90 @@ function spawnRifleBulletHole(
     color: flesh ? RIFLE_FLESH_BULLET_HOLE : RIFLE_GEOMETRY_BULLET_HOLE,
     glow: false,
   });
+}
+
+function handleRifleHit(
+  hit: PickingInfo | null,
+  dir: Vector3,
+  damage: number,
+  isCrit: boolean,
+): boolean {
+  if (!hit?.hit || !hit.pickedMesh || !hit.pickedPoint) return false;
+
+  const point = hit.pickedPoint;
+  if (isEnemyPart(hit.pickedMesh.name)) {
+    const result = findEnemyByMesh(hit.pickedMesh);
+    if (result) {
+      const headshot = result.hitMesh.name === "enemyHead";
+      const bayonetDamageScale =
+        g.bayonetEmbed?.enemy === result.enemy
+          ? RIFLE.BAYONET.damageMultiplier
+          : 1;
+      const hitDamage = Math.round(
+        damage * (headshot ? 2 : 1) * bayonetDamageScale,
+      );
+      (result.hitMesh.material as StandardMaterial).emissiveColor = new Color3(
+        1,
+        0,
+        0,
+      );
+      result.enemy.flashMesh = result.hitMesh;
+      result.enemy.flashTime = 120;
+      spawnRifleBulletHole(
+        point,
+        hit.getNormal(true),
+        hit.pickedMesh as Mesh,
+        true,
+      );
+      const killed = damageEnemy(
+        result.enemy,
+        hitDamage,
+        result.hitMesh,
+        point,
+        isCrit,
+        { intactKill: true },
+      );
+      if (killed && g.bayonetEmbed?.enemy === result.enemy) {
+        releaseBayonetEmbed();
+      }
+      spawnHitParticle(
+        point,
+        new Color4(0.8, 0.0, 0.0, 1),
+        hit.getNormal(true) ?? dir.negate(),
+      );
+    } else {
+      splitRagdoll(hit.pickedMesh as Mesh, dir, point);
+    }
+  } else if (
+    hit.pickedMesh.name === "bodyHalf" ||
+    hit.pickedMesh.name === "headHalf" ||
+    hit.pickedMesh.name === "armHalf" ||
+    hit.pickedMesh.name === "legHalf"
+  ) {
+    hitDebris(hit.pickedMesh as Mesh, dir, point);
+    spawnRifleBulletHole(
+      point,
+      hit.getNormal(true),
+      hit.pickedMesh as Mesh,
+      true,
+    );
+    spawnHitParticle(
+      point,
+      new Color4(0.8, 0.0, 0.0, 1),
+      hit.getNormal(true) ?? dir.negate(),
+    );
+  } else if (hit.pickedMesh.name === "plasma") {
+    const plasmaIdx = g.plasmas.findIndex((o) => o.mesh === hit.pickedMesh);
+    if (plasmaIdx !== -1) {
+      const plasma = g.plasmas[plasmaIdx];
+      detonatePlasma(plasma, point, isCrit);
+      g.plasmas.splice(plasmaIdx, 1);
+    }
+  } else {
+    spawnRifleBulletHole(point, hit.getNormal(true), hit.pickedMesh as Mesh);
+  }
+
+  return true;
 }
 
 export function updateRifleBullets(dt: number): void {
@@ -562,82 +717,7 @@ export function updateRifleBullets(dt: number): void {
       projectileRayFilter,
     );
 
-    if (hit?.hit && hit.pickedMesh && hit.pickedPoint) {
-      const point = hit.pickedPoint;
-      if (isEnemyPart(hit.pickedMesh.name)) {
-        const result = findEnemyByMesh(hit.pickedMesh);
-        if (result) {
-          const headshot = result.hitMesh.name === "enemyHead";
-          const bayonetDamageScale =
-            g.bayonetEmbed?.enemy === result.enemy
-              ? RIFLE.BAYONET.damageMultiplier
-              : 1;
-          const damage = Math.round(
-            bullet.damage * (headshot ? 2 : 1) * bayonetDamageScale,
-          );
-          (result.hitMesh.material as StandardMaterial).emissiveColor =
-            new Color3(1, 0, 0);
-          result.enemy.flashMesh = result.hitMesh;
-          result.enemy.flashTime = 120;
-          const killed = damageEnemy(
-            result.enemy,
-            damage,
-            result.hitMesh,
-            point,
-            bullet.isCrit,
-            { intactKill: true },
-          );
-          if (killed && g.bayonetEmbed?.enemy === result.enemy) {
-            releaseBayonetEmbed();
-          }
-          spawnHitParticle(
-            point,
-            new Color4(0.8, 0.0, 0.0, 1),
-            hit.getNormal(true) ?? dir.negate(),
-          );
-          if (g.enemies.includes(result.enemy)) {
-            spawnRifleBulletHole(
-              point,
-              hit.getNormal(true),
-              hit.pickedMesh as Mesh,
-              true,
-            );
-          }
-        } else {
-          splitRagdoll(hit.pickedMesh as Mesh, dir, point);
-        }
-      } else if (
-        hit.pickedMesh.name === "bodyHalf" ||
-        hit.pickedMesh.name === "headHalf" ||
-        hit.pickedMesh.name === "armHalf" ||
-        hit.pickedMesh.name === "legHalf"
-      ) {
-        hitDebris(hit.pickedMesh as Mesh, dir, point);
-        spawnRifleBulletHole(
-          point,
-          hit.getNormal(true),
-          hit.pickedMesh as Mesh,
-          true,
-        );
-        spawnHitParticle(
-          point,
-          new Color4(0.8, 0.0, 0.0, 1),
-          hit.getNormal(true) ?? dir.negate(),
-        );
-      } else if (hit.pickedMesh.name === "plasma") {
-        const plasmaIdx = g.plasmas.findIndex((o) => o.mesh === hit.pickedMesh);
-        if (plasmaIdx !== -1) {
-          const plasma = g.plasmas[plasmaIdx];
-          detonatePlasma(plasma, point, bullet.isCrit);
-          g.plasmas.splice(plasmaIdx, 1);
-        }
-      } else {
-        spawnRifleBulletHole(
-          point,
-          hit.getNormal(true),
-          hit.pickedMesh as Mesh,
-        );
-      }
+    if (handleRifleHit(hit, dir, bullet.damage, bullet.isCrit)) {
       bullet.mesh.dispose();
       g.rifleBullets.splice(i, 1);
       continue;
@@ -1539,6 +1619,7 @@ export function startReload(): void {
   )
     return;
   releaseBayonetEmbed();
+  g.rifleScoped = false;
   g.state.reloading = true;
   const reloadTime = effectiveReloadTime();
   g.state.reloadTimeLeft = reloadTime;

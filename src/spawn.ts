@@ -221,6 +221,65 @@ const RIFLE_WEAPON = {
     diffuse: new Color3(0.16, 0.16, 0.18),
     emissive: new Color3(0.04, 0.04, 0.05),
   },
+  scope: {
+    tube: {
+      size: {
+        diameter: 0.055,
+        height: 0.28,
+        tessellation: 18,
+        cap: Mesh.NO_CAP,
+      } as const,
+      pos: new Vector3(0, 0.14, -0.02),
+      rotX: Math.PI / 2,
+    },
+    rearLens: {
+      radius: 0.025,
+      tessellation: 32,
+      pos: new Vector3(0, 0.14, -0.148),
+      diffuse: new Color3(0.42, 0.42, 0.44),
+      emissive: new Color3(0.03, 0.03, 0.035),
+      specular: new Color3(0.35, 0.35, 0.38),
+    },
+    rearSleeve: {
+      size: {
+        diameter: 0.054,
+        height: 0.022,
+        tessellation: 18,
+        cap: Mesh.NO_CAP,
+        sideOrientation: Mesh.DOUBLESIDE,
+      } as const,
+      pos: new Vector3(0, 0.14, -0.156),
+      rotX: Math.PI / 2,
+    },
+    rearLensSeal: {
+      size: {
+        diameter: 0.057,
+        height: 0.036,
+        tessellation: 24,
+        cap: Mesh.NO_CAP,
+        sideOrientation: Mesh.DOUBLESIDE,
+      } as const,
+      pos: new Vector3(0, 0.14, -0.157),
+      rotX: Math.PI / 2,
+    },
+    rearRim: {
+      size: { diameter: 0.059, thickness: 0.007, tessellation: 24 } as const,
+      pos: new Vector3(0, 0.14, -0.164),
+      rotX: Math.PI / 2,
+    },
+    mount: {
+      size: { width: 0.075, height: 0.02, depth: 0.2 } as const,
+      pos: new Vector3(0, 0.06, -0.02),
+    },
+    bracket: {
+      postSize: { width: 0.04, height: 0.045, depth: 0.025 } as const,
+      collarSize: { diameter: 0.067, height: 0.028, tessellation: 18 } as const,
+      rearPos: new Vector3(0, 0.092, -0.075),
+      frontPos: new Vector3(0, 0.092, 0.035),
+    },
+    diffuse: new Color3(0.005, 0.005, 0.006),
+    emissive: new Color3(0.0, 0.0, 0.0),
+  },
   bayonet: {
     blade: {
       length: 0.42,
@@ -586,6 +645,108 @@ function makeRifleBrakeMesh(): Mesh {
   return MeshBuilder.CreateBox("rBrake", RIFLE_WEAPON.brake.size, g.scene);
 }
 
+function makeRifleScopeMesh(): Mesh {
+  const root = new Mesh("rScope", g.scene);
+  root.isPickable = false;
+
+  const tube = MeshBuilder.CreateCylinder(
+    "rScopeTube",
+    RIFLE_WEAPON.scope.tube.size,
+    g.scene,
+  );
+  tube.parent = root;
+  tube.position = RIFLE_WEAPON.scope.tube.pos.clone();
+  tube.rotation.x = RIFLE_WEAPON.scope.tube.rotX;
+  tube.isPickable = false;
+  tube.renderingGroupId = 1;
+
+  const rearLens = MeshBuilder.CreateDisc(
+    "rScopeLens",
+    {
+      radius: RIFLE_WEAPON.scope.rearLens.radius,
+      tessellation: RIFLE_WEAPON.scope.rearLens.tessellation,
+      sideOrientation: Mesh.DOUBLESIDE,
+    },
+    g.scene,
+  );
+  rearLens.parent = root;
+  rearLens.position = RIFLE_WEAPON.scope.rearLens.pos.clone();
+  rearLens.material = makeRifleScopeLensMat();
+  rearLens.isPickable = false;
+  rearLens.renderingGroupId = 1;
+
+  const rearSleeve = MeshBuilder.CreateCylinder(
+    "rScopeRearSleeve",
+    RIFLE_WEAPON.scope.rearSleeve.size,
+    g.scene,
+  );
+  rearSleeve.parent = root;
+  rearSleeve.position = RIFLE_WEAPON.scope.rearSleeve.pos.clone();
+  rearSleeve.rotation.x = RIFLE_WEAPON.scope.rearSleeve.rotX;
+  rearSleeve.isPickable = false;
+  rearSleeve.renderingGroupId = 1;
+
+  const rearLensSeal = MeshBuilder.CreateCylinder(
+    "rScopeRearLensSeal",
+    RIFLE_WEAPON.scope.rearLensSeal.size,
+    g.scene,
+  );
+  rearLensSeal.parent = root;
+  rearLensSeal.position = RIFLE_WEAPON.scope.rearLensSeal.pos.clone();
+  rearLensSeal.rotation.x = RIFLE_WEAPON.scope.rearLensSeal.rotX;
+  rearLensSeal.isPickable = false;
+  rearLensSeal.renderingGroupId = 1;
+
+  const rearRim = MeshBuilder.CreateTorus(
+    "rScopeRearRim",
+    RIFLE_WEAPON.scope.rearRim.size,
+    g.scene,
+  );
+  rearRim.parent = root;
+  rearRim.position = RIFLE_WEAPON.scope.rearRim.pos.clone();
+  rearRim.rotation.x = RIFLE_WEAPON.scope.rearRim.rotX;
+  rearRim.isPickable = false;
+  rearRim.renderingGroupId = 1;
+
+  const mount = MeshBuilder.CreateBox(
+    "rScopeMount",
+    RIFLE_WEAPON.scope.mount.size,
+    g.scene,
+  );
+  mount.parent = root;
+  mount.position = RIFLE_WEAPON.scope.mount.pos.clone();
+  mount.isPickable = false;
+  mount.renderingGroupId = 1;
+
+  for (const pos of [
+    RIFLE_WEAPON.scope.bracket.rearPos,
+    RIFLE_WEAPON.scope.bracket.frontPos,
+  ]) {
+    const post = MeshBuilder.CreateBox(
+      "rScopeBracket",
+      RIFLE_WEAPON.scope.bracket.postSize,
+      g.scene,
+    );
+    post.parent = root;
+    post.position = pos.clone();
+    post.isPickable = false;
+    post.renderingGroupId = 1;
+
+    const collar = MeshBuilder.CreateCylinder(
+      "rScopeBracketCollar",
+      RIFLE_WEAPON.scope.bracket.collarSize,
+      g.scene,
+    );
+    collar.parent = root;
+    collar.position = new Vector3(pos.x, RIFLE_WEAPON.scope.tube.pos.y, pos.z);
+    collar.rotation.x = RIFLE_WEAPON.scope.tube.rotX;
+    collar.isPickable = false;
+    collar.renderingGroupId = 1;
+  }
+
+  return root;
+}
+
 function makeRifleBayonetMesh(): Mesh {
   const root = new Mesh("rBayonet", g.scene);
   root.isPickable = false;
@@ -693,6 +854,46 @@ function makeRifleBrakeMat(): StandardMaterial {
   return mat;
 }
 
+function makeRifleScopeMat(): StandardMaterial {
+  const mat = new StandardMaterial("rifleScope", g.scene);
+  mat.diffuseColor = RIFLE_WEAPON.scope.diffuse;
+  mat.emissiveColor = RIFLE_WEAPON.scope.emissive;
+  mat.specularColor = new Color3(0.08, 0.08, 0.09);
+  mat.backFaceCulling = false;
+  return mat;
+}
+
+function makeRifleScopeLensMat(): StandardMaterial {
+  const texSize = 128;
+  const tex = new DynamicTexture(
+    "rifleScopeLensTexture",
+    { width: texSize, height: texSize },
+    g.scene,
+  );
+  const ctx = tex.getContext();
+  ctx.fillStyle = "#6b6b70";
+  ctx.fillRect(0, 0, texSize, texSize);
+  ctx.strokeStyle = "#000000";
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.moveTo(texSize / 2, 0);
+  ctx.lineTo(texSize / 2, texSize);
+  ctx.moveTo(0, texSize / 2);
+  ctx.lineTo(texSize, texSize / 2);
+  ctx.stroke();
+  tex.update(false);
+
+  const mat = new StandardMaterial("rifleScopeLens", g.scene);
+  mat.diffuseColor = RIFLE_WEAPON.scope.rearLens.diffuse;
+  mat.emissiveColor = RIFLE_WEAPON.scope.rearLens.emissive;
+  mat.specularColor = RIFLE_WEAPON.scope.rearLens.specular;
+  mat.diffuseTexture = tex;
+  mat.emissiveTexture = tex;
+  mat.disableLighting = true;
+  mat.backFaceCulling = false;
+  return mat;
+}
+
 function makeRifleBayonetMat(): StandardMaterial {
   const mat = new StandardMaterial("rifleBayonet", g.scene);
   mat.diffuseColor = RIFLE_WEAPON.bayonet.diffuse;
@@ -768,6 +969,7 @@ export function setupRifleParts(root: Mesh): {
   barrel: Mesh;
   barrelTip: Mesh;
   brake: Mesh;
+  scope: Mesh;
   bayonet: Mesh;
 } {
   function wp(
@@ -805,6 +1007,11 @@ export function setupRifleParts(root: Mesh): {
     RIFLE_WEAPON.brake.pos.clone(),
   );
   brake.isVisible = false;
+  const scope = wp(makeRifleScopeMesh(), makeRifleScopeMat(), Vector3.Zero());
+  for (const child of scope.getChildMeshes(false)) {
+    if (child.name !== "rScopeLens") child.material = scope.material;
+  }
+  scope.setEnabled(false);
   const bayonet = wp(
     makeRifleBayonetMesh(),
     makeRifleBayonetMat(),
@@ -818,7 +1025,7 @@ export function setupRifleParts(root: Mesh): {
   barrelTip.isVisible = false;
   barrelTip.isPickable = false;
 
-  return { mag, barrel, barrelTip, brake, bayonet };
+  return { mag, barrel, barrelTip, brake, scope, bayonet };
 }
 
 // ─── Player mesh (exported) ───────────────────────────────────────────────────

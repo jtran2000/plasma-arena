@@ -278,7 +278,10 @@ function buildOptionsScreen(): void {
   sensitivitySlider.onValueChangedObservable.add((val) => {
     const v = Math.round(val);
     sensitivityValueText.text = String(v);
-    if (g.camera) g.camera.angularSensibility = 2200 - v * 20;
+    g.baseCameraAngularSensibility = 2200 - v * 20;
+    if (g.camera && !g.rifleScoped) {
+      g.camera.angularSensibility = g.baseCameraAngularSensibility;
+    }
     localStorage.setItem("fps_sensitivity", String(v));
   });
 

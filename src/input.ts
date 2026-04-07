@@ -83,9 +83,20 @@ export function bindSceneInput(): void {
     } else if (info.event.button === 2) {
       if (info.type === PointerEventTypes.POINTERDOWN) {
         g.mouse2Held = true;
+        if (
+          g.state.activeWeapon === "rifle" &&
+          g.upgrades.rifleScope &&
+          g.state.running &&
+          !g.state.paused &&
+          !g.bayonetEmbed
+        ) {
+          g.rifleScoped = true;
+          return;
+        }
         startPlasmaCharge();
       } else if (info.type === PointerEventTypes.POINTERUP) {
         g.mouse2Held = false;
+        g.rifleScoped = false;
         if (g.plasmaCharging) releasePlasmaCharge();
       }
     }

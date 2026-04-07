@@ -135,8 +135,8 @@ export const BLASTER = {
 
 // ─── Rifle ──────────────────────────────────────────────────────────────────
 export const RIFLE = {
-  damage: 18,
-  rateOfFire: 60, // rounds per minute
+  damage: 75,
+  rateOfFire: 800, // rounds per minute
   magSize: 50,
   reserveMags: 5,
   maxReserveMags: 7,
@@ -154,15 +154,26 @@ export const RIFLE = {
     moveRate: 0.11,
   },
   RECOIL: {
-    pitch: 0.025,
-    recover: 7,
+    pitch: 0.05,
+    recover: 5,
     maxPitch: 0.8,
     cameraRatio: 0.53,
     weaponRoll: 0.06,
+    decayHoldMs: 100,
   },
   MUZZLE_BRAKE: {
     recoilScale: 0.5,
     flashScale: 0.25,
+  },
+  SCOPE: {
+    rateOfFire: 180,
+    fov: 0.35,
+    sensitivityScale: 0.45,
+    zoomRate: 14,
+    weaponAimRate: 12,
+    aimRootX: 0,
+    aimRootY: -0.14,
+    aimRootZ: 0.5,
   },
   MUZZLE_FLASH: {
     baseScale: 1.5,

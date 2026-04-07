@@ -16,12 +16,17 @@ import { bindSceneInput } from "./input.js";
 export function endGame(): void {
   g.state.running = false;
   g.mouseHeld = false;
+  g.mouse2Held = false;
+  g.rifleScoped = false;
+  g.rifleScopeAimT = 0;
   g.meleeHeld = false;
   g.bayonetCharging = false;
   g.bayonetChargeLockedUntilSprintEnd = false;
   g.bayonetChargeCooldownPending = false;
   releaseBayonetEmbed();
   g.appliedBayonetEmbedCameraPitch = 0;
+  if (g.camera) g.camera.fov = 1.2;
+  if (g.camera) g.camera.angularSensibility = g.baseCameraAngularSensibility;
   g.isSprinting = false;
   restoreSprintLook();
   g.sprintRamp = 0;
@@ -31,6 +36,8 @@ export function endGame(): void {
   g.blasterRoot?.setEnabled(false);
   g.rifleRoot?.setEnabled(false);
   dom.speedLines.classList.remove("active");
+  if (g.scopeOverlay) g.scopeOverlay.isVisible = false;
+  dom.hud.classList.remove("scoped");
   dom.hud.style.display = "none";
   document.exitPointerLock();
 }
@@ -38,6 +45,8 @@ export function endGame(): void {
 export async function startGame(sensitivity: number): Promise<void> {
   dom.upgradeMenu.classList.remove("visible");
   dom.speedLines.classList.remove("active");
+  if (g.scopeOverlay) g.scopeOverlay.isVisible = false;
+  dom.hud.classList.remove("scoped");
   dom.hud.style.display = "block";
   g.upgrades = makeUpgradeState();
   g.weaponAmmo = makeWeaponAmmoState();
@@ -45,6 +54,7 @@ export async function startGame(sensitivity: number): Promise<void> {
   g.recoilRoll = 0;
   g.cameraRecoilPitch = 0;
   g.appliedCameraRecoilPitch = 0;
+  g.rifleBloomRecoilHoldTimer = 0;
   g.crosshairRecoil = 0;
   g.pendingUpgrades = [];
   if (g.plasmaCharging) {
@@ -57,12 +67,16 @@ export async function startGame(sensitivity: number): Promise<void> {
   }
   g.plasmaChargeCrit = false;
   g.mouse2Held = false;
+  g.rifleScoped = false;
+  g.rifleScopeAimT = 0;
   g.meleeHeld = false;
   g.bayonetCharging = false;
   g.bayonetChargeLockedUntilSprintEnd = false;
   g.bayonetChargeCooldownPending = false;
   releaseBayonetEmbed();
   g.appliedBayonetEmbedCameraPitch = 0;
+  if (g.camera) g.camera.fov = 1.2;
+  if (g.camera) g.camera.angularSensibility = g.baseCameraAngularSensibility;
   g.isSprinting = false;
   restoreSprintLook();
   g.sprintRamp = 0;
@@ -74,7 +88,8 @@ export async function startGame(sensitivity: number): Promise<void> {
 
   g.state = makeState();
   await buildScene();
-  g.camera.angularSensibility = 2200 - sensitivity * 20;
+  g.baseCameraAngularSensibility = 2200 - sensitivity * 20;
+  g.camera.angularSensibility = g.baseCameraAngularSensibility;
   bindSceneInput();
   g.scene.registerBeforeRender(update);
   g.state.running = true;
@@ -88,12 +103,17 @@ export async function startGame(sensitivity: number): Promise<void> {
 export function pause(): void {
   g.state.paused = true;
   g.mouseHeld = false;
+  g.mouse2Held = false;
+  g.rifleScoped = false;
+  g.rifleScopeAimT = 0;
   g.meleeHeld = false;
   g.bayonetCharging = false;
   g.bayonetChargeLockedUntilSprintEnd = false;
   g.bayonetChargeCooldownPending = false;
   releaseBayonetEmbed();
   g.appliedBayonetEmbedCameraPitch = 0;
+  if (g.camera) g.camera.fov = 1.2;
+  if (g.camera) g.camera.angularSensibility = g.baseCameraAngularSensibility;
   g.isSprinting = false;
   restoreSprintLook();
   g.sprintRamp = 0;
@@ -103,6 +123,8 @@ export function pause(): void {
   g.scene.physicsEnabled = false;
   g.camera.detachControl();
   dom.speedLines.classList.remove("active");
+  if (g.scopeOverlay) g.scopeOverlay.isVisible = false;
+  dom.hud.classList.remove("scoped");
   dom.hud.classList.add("paused");
   if (g.audioCtx) g.audioCtx.suspend();
 }

@@ -12,7 +12,7 @@ import {
   PointLight,
   Quaternion,
 } from "@babylonjs/core";
-import { AdvancedDynamicTexture, Rectangle } from "@babylonjs/gui";
+import { AdvancedDynamicTexture, Control, Rectangle } from "@babylonjs/gui";
 import { PLAYER, BLASTER, RIFLE, SUPPLY, WAVE } from "./constants.js";
 const { LASER } = BLASTER;
 
@@ -119,6 +119,7 @@ export interface UpgradeState {
   plasmaGrenadier: boolean;
   rifleUnlock: boolean;
   muzzleBrake: boolean;
+  rifleScope: boolean;
   bayonet: boolean;
 }
 
@@ -221,8 +222,9 @@ export function makeUpgradeState(): UpgradeState {
     plasmaCharger: false,
     plasmaGrenadier: false,
     rifleUnlock: true,
-    muzzleBrake: true,
-    bayonet: true,
+    muzzleBrake: false,
+    rifleScope: true,
+    bayonet: false,
   };
 }
 
@@ -293,6 +295,7 @@ export const g = {
   state: makeState(),
   scene: null as unknown as Scene,
   camera: null as unknown as UniversalCamera,
+  baseCameraAngularSensibility: 800,
   shadowGenerator: null as unknown as ShadowGenerator,
   playerMesh: null as unknown as Mesh,
   playerAggregate: null as unknown as PhysicsAggregate,
@@ -314,7 +317,10 @@ export const g = {
   rifleBarrel: null as unknown as Mesh,
   rifleBarrelTip: null as unknown as Mesh,
   rifleBrake: null as unknown as Mesh,
+  rifleScope: null as unknown as Mesh,
   rifleBayonet: null as unknown as Mesh,
+  scopeOverlayGui: null as unknown as AdvancedDynamicTexture,
+  scopeOverlay: null as unknown as Control,
   rifleMag: null as unknown as Mesh,
   weaponRoot: null as unknown as Mesh,
   weaponBarrel: null as unknown as Mesh,
@@ -324,6 +330,8 @@ export const g = {
   weaponAmmo: makeWeaponAmmoState(),
   mouseHeld: false,
   mouse2Held: false,
+  rifleScoped: false,
+  rifleScopeAimT: 0,
   meleeHeld: false,
   bayonetCharging: false,
   bayonetChargeLockedUntilSprintEnd: false,
@@ -356,6 +364,7 @@ export const g = {
   recoilRoll: 0,
   cameraRecoilPitch: 0,
   appliedCameraRecoilPitch: 0,
+  rifleBloomRecoilHoldTimer: 0,
   crosshairRecoil: 0,
   pressedKeys: new Set<string>(),
   upgrades: makeUpgradeState(),

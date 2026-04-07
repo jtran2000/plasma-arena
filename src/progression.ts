@@ -23,7 +23,11 @@ export function effectiveMagSize(): number {
 }
 export function effectiveCooldown(): number {
   if (g.state.activeWeapon === "rifle") {
-    return 60000 / RIFLE.rateOfFire;
+    const rateOfFire =
+      g.rifleScoped && g.upgrades.rifleScope
+        ? RIFLE.SCOPE.rateOfFire
+        : RIFLE.rateOfFire;
+    return 60000 / rateOfFire;
   }
   const pulseMult = g.upgrades.pulseLaser ? 2 : 1;
   return (
@@ -103,6 +107,7 @@ export function incrementScore(amount: number, hitPoint?: Vector3): void {
 
 function syncWeaponUpgradeVisuals(): void {
   if (g.rifleBrake) g.rifleBrake.isVisible = g.upgrades.muzzleBrake;
+  if (g.rifleScope) g.rifleScope.setEnabled(g.upgrades.rifleScope);
   if (g.rifleBayonet) g.rifleBayonet.setEnabled(g.upgrades.bayonet);
 }
 
@@ -286,6 +291,16 @@ const UPGRADE_DEFS: UpgradeDef[] = [
     label: "Muzzle Brake",
     weight: 400,
     instruction: "Rifle recoil and flash are reduced",
+    oneTime: true,
+    requires: "rifleUnlock",
+    onApply: syncWeaponUpgradeVisuals,
+  },
+  {
+    key: "rifleScope",
+    label: "Rifle Scope",
+    weight: 400,
+    instruction:
+      "Hold RMB with the rifle to zoom and fire precise semi-automatic shots",
     oneTime: true,
     requires: "rifleUnlock",
     onApply: syncWeaponUpgradeVisuals,

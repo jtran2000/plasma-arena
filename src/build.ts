@@ -10,6 +10,8 @@ import {
   DynamicTexture,
   HavokPlugin,
 } from "@babylonjs/core";
+import type { ICanvasRenderingContext } from "@babylonjs/core/Engines/ICanvas.js";
+import { AdvancedDynamicTexture, Control } from "@babylonjs/gui";
 import HavokPhysics from "@babylonjs/havok";
 import { g } from "./game.js";
 import { LIGHTING } from "./constants.js";
@@ -27,6 +29,51 @@ import {
   setupRifleRoot,
   setupLamppost,
 } from "./spawn.js";
+
+class ScopeOverlayControl extends Control {
+  public constructor() {
+    super("scopeOverlay");
+    this.width = "100%";
+    this.height = "100%";
+    this.isHitTestVisible = false;
+    this.isVisible = false;
+  }
+
+  public _draw(context: ICanvasRenderingContext): void {
+    const measure = this._currentMeasure;
+    const cx = measure.left + measure.width / 2;
+    const cy = measure.top + measure.height / 2;
+    const radius = Math.min(measure.width, measure.height) * 0.36;
+
+    context.save();
+    context.fillStyle = "#000000";
+    context.fillRect(measure.left, measure.top, measure.width, measure.height);
+
+    context.beginPath();
+    context.arc(cx, cy, radius, 0, Math.PI * 2);
+    context.clip();
+    context.clearRect(measure.left, measure.top, measure.width, measure.height);
+    context.restore();
+
+    context.save();
+    context.strokeStyle = "rgba(0,0,0,0.95)";
+    context.lineWidth = 2;
+    context.beginPath();
+    context.arc(cx, cy, radius, 0, Math.PI * 2);
+    context.stroke();
+
+    context.beginPath();
+    context.arc(cx, cy, radius, 0, Math.PI * 2);
+    context.clip();
+    context.beginPath();
+    context.moveTo(cx, cy - radius);
+    context.lineTo(cx, cy + radius);
+    context.moveTo(cx - radius, cy);
+    context.lineTo(cx + radius, cy);
+    context.stroke();
+    context.restore();
+  }
+}
 
 // ─── Scene builder ────────────────────────────────────────────────────────────
 export async function buildScene(): Promise<void> {
@@ -57,7 +104,8 @@ export async function buildScene(): Promise<void> {
   g.camera.setTarget(new Vector3(1, 1.6, 0));
   g.camera.minZ = 0.1;
   g.camera.fov = 1.2;
-  g.camera.angularSensibility = 800;
+  g.baseCameraAngularSensibility = 800;
+  g.camera.angularSensibility = g.baseCameraAngularSensibility;
   g.camera.keysUp =
     g.camera.keysDown =
     g.camera.keysLeft =
@@ -112,6 +160,7 @@ export async function buildScene(): Promise<void> {
 
   buildArena();
   buildWeapon();
+  setupScopeOverlay();
 }
 
 // ─── Arena ────────────────────────────────────────────────────────────────────
@@ -145,8 +194,10 @@ function buildWeapon(): void {
   g.rifleBarrel = rifle.barrel;
   g.rifleBarrelTip = rifle.barrelTip;
   g.rifleBrake = rifle.brake;
+  g.rifleScope = rifle.scope;
   g.rifleBayonet = rifle.bayonet;
   g.rifleBrake.isVisible = g.upgrades.muzzleBrake;
+  g.rifleScope.setEnabled(g.upgrades.rifleScope);
   g.rifleBayonet.setEnabled(g.upgrades.bayonet);
 
   if (g.state.activeWeapon === "rifle" && g.upgrades.rifleUnlock) {
@@ -167,4 +218,14 @@ function buildWeapon(): void {
     g.blasterRoot.setEnabled(true);
     g.rifleRoot.setEnabled(false);
   }
+}
+
+function setupScopeOverlay(): void {
+  g.scopeOverlayGui = AdvancedDynamicTexture.CreateFullscreenUI(
+    "scopeOverlayGui",
+    true,
+    g.scene,
+  );
+  g.scopeOverlay = new ScopeOverlayControl();
+  g.scopeOverlayGui.addControl(g.scopeOverlay);
 }

@@ -89,11 +89,46 @@ export function update(): void {
   const dt = g.engine.getDeltaTime();
   updateAudioListener();
   updateTimers(dt);
+  updateRifleScope(dt);
   updatePlayer(dt);
   updateEnemies();
   updateBayonetCharge(dt);
   updateEmbeddedBayonet(dt);
   updateWeapon(dt);
+}
+
+function updateRifleScope(dt: number): void {
+  const scoped =
+    g.rifleScoped &&
+    g.upgrades.rifleScope &&
+    g.state.activeWeapon === "rifle" &&
+    g.state.running &&
+    !g.state.reloading &&
+    !g.isSprinting &&
+    !g.bayonetEmbed &&
+    g.pendingUpgrades.length === 0;
+  g.rifleScoped = scoped;
+  const aimTarget = scoped ? 1 : 0;
+  const aimStep = Math.min(1, (RIFLE.SCOPE.weaponAimRate * dt) / 1000);
+  g.rifleScopeAimT += (aimTarget - g.rifleScopeAimT) * aimStep;
+  const scopeViewActive = scoped && g.rifleScopeAimT >= 0.995;
+  if (scoped) {
+    g.shootSpread = 0;
+    g.moveSpread = 0;
+  }
+  if (g.state.activeWeapon === "rifle") {
+    g.rifleRoot.setEnabled(!scopeViewActive);
+  }
+  g.scopeOverlay.isVisible = scopeViewActive;
+  g.scopeOverlay.markAsDirty();
+  dom.hud.classList.toggle("scoped", scopeViewActive);
+
+  const targetFov = scopeViewActive ? RIFLE.SCOPE.fov : 1.2;
+  const lerpT = Math.min(1, (RIFLE.SCOPE.zoomRate * dt) / 1000);
+  g.camera.fov += (targetFov - g.camera.fov) * lerpT;
+  g.camera.angularSensibility = scopeViewActive
+    ? g.baseCameraAngularSensibility / RIFLE.SCOPE.sensitivityScale
+    : g.baseCameraAngularSensibility;
 }
 
 function updateTimers(dt: number): void {
@@ -215,6 +250,8 @@ function updateTimers(dt: number): void {
     }
   }
 
+  const rifleBloomRecoilHoldActive = g.rifleBloomRecoilHoldTimer > 0;
+
   if (
     g.mouseHeld &&
     g.state.activeWeapon === "blaster" &&
@@ -222,20 +259,28 @@ function updateTimers(dt: number): void {
   ) {
     g.state.shootCooldown -= dt;
     if (g.state.shootCooldown <= 0) shoot();
-  } else if (g.mouseHeld && g.state.activeWeapon === "rifle") {
+  } else if (
+    g.mouseHeld &&
+    g.state.activeWeapon === "rifle" &&
+    !g.rifleScoped
+  ) {
     g.state.shootCooldown -= dt;
     if (g.state.shootCooldown <= 0) shoot();
   } else if (
     g.shootSpread > 0 &&
     g.state.shootCooldown <= 0 &&
-    !g.plasmaCharging
+    !g.plasmaCharging &&
+    !(g.state.activeWeapon === "rifle" && rifleBloomRecoilHoldActive)
   ) {
     const spreadDecay =
       g.state.activeWeapon === "rifle" ? RIFLE.SPREAD.decay : SPREAD.decay;
     g.shootSpread = Math.max(0, g.shootSpread - (spreadDecay * dt) / 1000);
   }
-  if (!g.mouseHeld && g.state.shootCooldown > 0) {
+  if ((!g.mouseHeld || g.rifleScoped) && g.state.shootCooldown > 0) {
     g.state.shootCooldown -= dt;
+  }
+  if (g.rifleBloomRecoilHoldTimer > 0) {
+    g.rifleBloomRecoilHoldTimer = Math.max(0, g.rifleBloomRecoilHoldTimer - dt);
   }
 
   if (g.state.plasmaCooldown > 0) g.state.plasmaCooldown -= dt;
@@ -248,11 +293,12 @@ function updateTimers(dt: number): void {
     : 1;
   const rifleRecoil = {
     recover: RIFLE.RECOIL.recover,
-    cameraRatio: RIFLE.RECOIL.cameraRatio,
+    cameraRatio: g.rifleScoped ? 1 : RIFLE.RECOIL.cameraRatio,
     maxPitch: RIFLE.RECOIL.maxPitch * recoilScale,
   };
-  const rifleShooting = g.state.activeWeapon === "rifle" && g.mouseHeld;
-  if (!rifleShooting) {
+  const rifleShooting =
+    g.state.activeWeapon === "rifle" && g.mouseHeld && !g.rifleScoped;
+  if (!rifleShooting && !rifleBloomRecoilHoldActive) {
     if (g.recoilRoll > 0) {
       g.recoilRoll = Math.max(
         0,
@@ -277,7 +323,10 @@ function updateTimers(dt: number): void {
     g.pressedKeys.has("KeyS") ||
     g.pressedKeys.has("KeyA") ||
     g.pressedKeys.has("KeyD");
-  if (isMoving) {
+  if (g.rifleScoped) {
+    g.shootSpread = 0;
+    g.moveSpread = 0;
+  } else if (isMoving) {
     const moveSpreadRate = effectiveMoveSpreadRate();
     const spreadMax =
       g.state.activeWeapon === "rifle" ? RIFLE.SPREAD.max : SPREAD.max;
@@ -416,7 +465,8 @@ function updatePlayer(dt: number): void {
 
   const p = g.playerMesh.position;
   g.camera.position.set(p.x, p.y + 0.7, p.z);
-  const cameraRecoilPitch = g.cameraRecoilPitch * RIFLE.RECOIL.cameraRatio;
+  const recoilCameraRatio = g.rifleScoped ? 1 : RIFLE.RECOIL.cameraRatio;
+  const cameraRecoilPitch = g.cameraRecoilPitch * recoilCameraRatio;
   const recoilDelta = cameraRecoilPitch - g.appliedCameraRecoilPitch;
   if (recoilDelta !== 0) {
     g.camera.rotation.x -= recoilDelta;
@@ -844,6 +894,10 @@ function embedBayonetInEnemy(
   };
   g.bayonetEmbedCameraPitch = 0;
   g.appliedBayonetEmbedCameraPitch = 0;
+  g.rifleScoped = false;
+  g.rifleScopeAimT = 0;
+  if (g.scopeOverlay) g.scopeOverlay.isVisible = false;
+  dom.hud.classList.remove("scoped");
   disableBayonetEmbedLook();
   enemy.state = "patrol";
   enemy.attackCooldown = enemy.meleeIntervalMs;
@@ -1263,7 +1317,7 @@ function updateWeapon(dt: number): void {
     return;
   }
 
-  dom.crosshair.style.display = "";
+  dom.crosshair.style.display = g.rifleScoped ? "none" : "";
   g.sprintBobTime = 0;
 
   if (g.state.activeWeapon === "rifle") {
@@ -1367,6 +1421,15 @@ function updateRifleWeapon(): void {
   }
 
   if (!g.state.reloading) {
+    const aimT = smoothstep(g.rifleScopeAimT);
+    const aimPos = new Vector3(
+      RIFLE.SCOPE.aimRootX,
+      RIFLE.SCOPE.aimRootY,
+      RIFLE.SCOPE.aimRootZ,
+    );
+    g.weaponRoot.position.copyFrom(
+      Vector3.Lerp(g.weaponRestPosition, aimPos, aimT),
+    );
     g.weaponRoot.rotation.x = -0.08 - g.recoilPitch;
     g.weaponRoot.rotation.y = 0;
     g.weaponRoot.rotation.z = g.recoilRoll;

@@ -276,6 +276,18 @@ canvas {
   display: none;
 }
 
+#hud.scoped #crosshair,
+#hud.scoped #bottom-hud,
+#hud.scoped #top-right-hud,
+#hud.scoped #wave-banner,
+#hud.scoped #heat-bar,
+#hud.scoped #overheat-msg,
+#hud.scoped #reload-msg,
+#hud.scoped #speed-lines,
+#hud.scoped #instruction-msg {
+  display: none;
+}
+
 #upgrade-menu {
   display: none;
   position: absolute;
