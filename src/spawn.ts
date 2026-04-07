@@ -240,18 +240,7 @@ const RIFLE_WEAPON = {
       emissive: new Color3(0.03, 0.03, 0.035),
       specular: new Color3(0.35, 0.35, 0.38),
     },
-    rearSleeve: {
-      size: {
-        diameter: 0.054,
-        height: 0.022,
-        tessellation: 18,
-        cap: Mesh.NO_CAP,
-        sideOrientation: Mesh.DOUBLESIDE,
-      } as const,
-      pos: new Vector3(0, 0.14, -0.156),
-      rotX: Math.PI / 2,
-    },
-    rearLensSeal: {
+    rearShroud: {
       size: {
         diameter: 0.057,
         height: 0.036,
@@ -272,10 +261,19 @@ const RIFLE_WEAPON = {
       pos: new Vector3(0, 0.06, -0.02),
     },
     bracket: {
-      postSize: { width: 0.04, height: 0.045, depth: 0.025 } as const,
-      collarSize: { diameter: 0.067, height: 0.028, tessellation: 18 } as const,
-      rearPos: new Vector3(0, 0.092, -0.075),
-      frontPos: new Vector3(0, 0.092, 0.035),
+      postSize: { width: 0.04, height: 0.038, depth: 0.025 } as const,
+      postCapSize: { width: 0.04, height: 0.006, depth: 0.025 } as const,
+      postCapInnerGap: 0.014,
+      collarInnerRadius: 0.029,
+      collarOuterRadius: 0.035,
+      collarDepth: 0.028,
+      collarArcSegments: 24,
+      rearPos: new Vector3(0, 0.0885, -0.075),
+      frontPos: new Vector3(0, 0.0885, 0.035),
+      capYOffset: 0.022,
+      diffuse: new Color3(0.68, 0.43, 0.16),
+      emissive: new Color3(0.12, 0.07, 0.02),
+      specular: new Color3(0.75, 0.55, 0.28),
     },
     diffuse: new Color3(0.005, 0.005, 0.006),
     emissive: new Color3(0.0, 0.0, 0.0),
@@ -645,6 +643,86 @@ function makeRifleBrakeMesh(): Mesh {
   return MeshBuilder.CreateBox("rBrake", RIFLE_WEAPON.brake.size, g.scene);
 }
 
+function makeRifleScopeBracketCollarMesh(): Mesh {
+  const mesh = new Mesh("rScopeBracketCollar", g.scene);
+  const vertexData = new VertexData();
+  const positions: number[] = [];
+  const indices: number[] = [];
+  const {
+    collarArcSegments,
+    collarDepth,
+    collarInnerRadius,
+    collarOuterRadius,
+  } = RIFLE_WEAPON.scope.bracket;
+  const halfDepth = collarDepth / 2;
+
+  for (let i = 0; i <= collarArcSegments; i++) {
+    const t = i / collarArcSegments;
+    const angle = t * Math.PI * 2;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    positions.push(
+      cos * collarInnerRadius,
+      sin * collarInnerRadius,
+      -halfDepth,
+      cos * collarInnerRadius,
+      sin * collarInnerRadius,
+      halfDepth,
+      cos * collarOuterRadius,
+      sin * collarOuterRadius,
+      -halfDepth,
+      cos * collarOuterRadius,
+      sin * collarOuterRadius,
+      halfDepth,
+    );
+  }
+
+  for (let i = 0; i < collarArcSegments; i++) {
+    const a = i * 4;
+    const b = a + 1;
+    const c = a + 2;
+    const d = a + 3;
+    const e = a + 4;
+    const f = a + 5;
+    const h = a + 7;
+    const g2 = a + 6;
+    indices.push(
+      a,
+      e,
+      b,
+      e,
+      f,
+      b,
+      c,
+      d,
+      g2,
+      g2,
+      d,
+      h,
+      b,
+      f,
+      d,
+      d,
+      f,
+      h,
+      a,
+      c,
+      e,
+      e,
+      c,
+      g2,
+    );
+  }
+
+  const normals: number[] = [];
+  VertexData.ComputeNormals(positions, indices, normals);
+  vertexData.positions = positions;
+  vertexData.indices = indices;
+  vertexData.normals = normals;
+  vertexData.applyToMesh(mesh);
+  return mesh;
+}
+
 function makeRifleScopeMesh(): Mesh {
   const root = new Mesh("rScope", g.scene);
   root.isPickable = false;
@@ -675,27 +753,16 @@ function makeRifleScopeMesh(): Mesh {
   rearLens.isPickable = false;
   rearLens.renderingGroupId = 1;
 
-  const rearSleeve = MeshBuilder.CreateCylinder(
-    "rScopeRearSleeve",
-    RIFLE_WEAPON.scope.rearSleeve.size,
+  const rearShroud = MeshBuilder.CreateCylinder(
+    "rScopeRearShroud",
+    RIFLE_WEAPON.scope.rearShroud.size,
     g.scene,
   );
-  rearSleeve.parent = root;
-  rearSleeve.position = RIFLE_WEAPON.scope.rearSleeve.pos.clone();
-  rearSleeve.rotation.x = RIFLE_WEAPON.scope.rearSleeve.rotX;
-  rearSleeve.isPickable = false;
-  rearSleeve.renderingGroupId = 1;
-
-  const rearLensSeal = MeshBuilder.CreateCylinder(
-    "rScopeRearLensSeal",
-    RIFLE_WEAPON.scope.rearLensSeal.size,
-    g.scene,
-  );
-  rearLensSeal.parent = root;
-  rearLensSeal.position = RIFLE_WEAPON.scope.rearLensSeal.pos.clone();
-  rearLensSeal.rotation.x = RIFLE_WEAPON.scope.rearLensSeal.rotX;
-  rearLensSeal.isPickable = false;
-  rearLensSeal.renderingGroupId = 1;
+  rearShroud.parent = root;
+  rearShroud.position = RIFLE_WEAPON.scope.rearShroud.pos.clone();
+  rearShroud.rotation.x = RIFLE_WEAPON.scope.rearShroud.rotX;
+  rearShroud.isPickable = false;
+  rearShroud.renderingGroupId = 1;
 
   const rearRim = MeshBuilder.CreateTorus(
     "rScopeRearRim",
@@ -732,14 +799,34 @@ function makeRifleScopeMesh(): Mesh {
     post.isPickable = false;
     post.renderingGroupId = 1;
 
-    const collar = MeshBuilder.CreateCylinder(
-      "rScopeBracketCollar",
-      RIFLE_WEAPON.scope.bracket.collarSize,
-      g.scene,
-    );
+    const capHalfWidth =
+      (RIFLE_WEAPON.scope.bracket.postCapSize.width -
+        RIFLE_WEAPON.scope.bracket.postCapInnerGap) /
+      2;
+    const capOffsetX =
+      RIFLE_WEAPON.scope.bracket.postCapInnerGap / 2 + capHalfWidth / 2;
+    for (const capX of [-capOffsetX, capOffsetX]) {
+      const postCap = MeshBuilder.CreateBox(
+        "rScopeBracket",
+        {
+          ...RIFLE_WEAPON.scope.bracket.postCapSize,
+          width: capHalfWidth,
+        },
+        g.scene,
+      );
+      postCap.parent = root;
+      postCap.position = new Vector3(
+        pos.x + capX,
+        pos.y + RIFLE_WEAPON.scope.bracket.capYOffset,
+        pos.z,
+      );
+      postCap.isPickable = false;
+      postCap.renderingGroupId = 1;
+    }
+
+    const collar = makeRifleScopeBracketCollarMesh();
     collar.parent = root;
     collar.position = new Vector3(pos.x, RIFLE_WEAPON.scope.tube.pos.y, pos.z);
-    collar.rotation.x = RIFLE_WEAPON.scope.tube.rotX;
     collar.isPickable = false;
     collar.renderingGroupId = 1;
   }
@@ -871,9 +958,10 @@ function makeRifleScopeLensMat(): StandardMaterial {
     g.scene,
   );
   const ctx = tex.getContext();
-  ctx.fillStyle = "#6b6b70";
+  ctx.clearRect(0, 0, texSize, texSize);
+  ctx.fillStyle = "rgba(115, 125, 135, 0.48)";
   ctx.fillRect(0, 0, texSize, texSize);
-  ctx.strokeStyle = "#000000";
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.96)";
   ctx.lineWidth = 6;
   ctx.beginPath();
   ctx.moveTo(texSize / 2, 0);
@@ -881,6 +969,7 @@ function makeRifleScopeLensMat(): StandardMaterial {
   ctx.moveTo(0, texSize / 2);
   ctx.lineTo(texSize, texSize / 2);
   ctx.stroke();
+  tex.hasAlpha = true;
   tex.update(false);
 
   const mat = new StandardMaterial("rifleScopeLens", g.scene);
@@ -888,9 +977,18 @@ function makeRifleScopeLensMat(): StandardMaterial {
   mat.emissiveColor = RIFLE_WEAPON.scope.rearLens.emissive;
   mat.specularColor = RIFLE_WEAPON.scope.rearLens.specular;
   mat.diffuseTexture = tex;
-  mat.emissiveTexture = tex;
-  mat.disableLighting = true;
+  mat.useAlphaFromDiffuseTexture = true;
+  mat.alpha = 0.82;
+  mat.disableLighting = false;
   mat.backFaceCulling = false;
+  return mat;
+}
+
+function makeRifleScopeBracketMat(): StandardMaterial {
+  const mat = new StandardMaterial("rifleScopeBracket", g.scene);
+  mat.diffuseColor = RIFLE_WEAPON.scope.bracket.diffuse;
+  mat.emissiveColor = RIFLE_WEAPON.scope.bracket.emissive;
+  mat.specularColor = RIFLE_WEAPON.scope.bracket.specular;
   return mat;
 }
 
@@ -1008,8 +1106,13 @@ export function setupRifleParts(root: Mesh): {
   );
   brake.isVisible = false;
   const scope = wp(makeRifleScopeMesh(), makeRifleScopeMat(), Vector3.Zero());
+  const scopeBracketMat = makeRifleScopeBracketMat();
   for (const child of scope.getChildMeshes(false)) {
-    if (child.name !== "rScopeLens") child.material = scope.material;
+    if (child.name === "rScopeLens") continue;
+    child.material =
+      child.name === "rScopeBracket" || child.name === "rScopeBracketCollar"
+        ? scopeBracketMat
+        : scope.material;
   }
   scope.setEnabled(false);
   const bayonet = wp(
