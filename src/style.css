@@ -211,6 +211,52 @@ canvas {
   background: rgba(255, 50, 50, 0.35);
 }
 
+#speed-lines {
+  position: absolute;
+  inset: -8%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s ease-out;
+}
+#speed-lines::before,
+#speed-lines::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      ellipse at center,
+      transparent 0 28%,
+      rgba(0, 0, 0, 0.3) 72%,
+      rgba(0, 0, 0, 0.62) 100%
+    ),
+    repeating-conic-gradient(
+      from 0.03turn,
+      transparent 0deg 7deg,
+      rgba(210, 245, 255, 0.28) 8deg 9deg,
+      transparent 10deg 24deg
+    );
+  mask-image: radial-gradient(ellipse at center, transparent 0 36%, black 62%);
+  animation: speed-lines-rush 0.22s linear infinite;
+}
+#speed-lines::after {
+  transform: rotate(8deg) scale(1.08);
+  opacity: 0.5;
+  animation-duration: 0.34s;
+}
+#speed-lines.active {
+  opacity: 1;
+}
+
+@keyframes speed-lines-rush {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.18);
+  }
+}
+
 #reload-msg {
   position: absolute;
   top: 58%;

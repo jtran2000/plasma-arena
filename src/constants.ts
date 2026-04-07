@@ -57,6 +57,9 @@ export const PLAYER = {
   spawnY: 0.9,
   speed: 5, // m/s
   sprintMultiplier: 2,
+  sprintRampDistance: 11.25, // m traveled to accelerate from walk speed to full sprint
+  sprintImpactMinRamp: 0.25, // ignore small bumps before sprint meaningfully starts
+  sprintImpactSpeedRatio: 0.45, // actual/expected speed ratio that counts as blocked
   acceleration: 0.15, // lerp factor per frame (0 = sluggish, 1 = instant)
   jumpSpeed: 13, // m/s upward — with gravity -20 this reaches ~4.2 m
 } as const;

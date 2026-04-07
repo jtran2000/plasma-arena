@@ -16,15 +16,21 @@ export function endGame(): void {
   g.mouseHeld = false;
   g.meleeHeld = false;
   g.bayonetCharging = false;
+  g.bayonetChargeLockedUntilSprintEnd = false;
+  g.bayonetChargeCooldownPending = false;
+  g.sprintRamp = 0;
+  g.sprintBlockedUntilShiftRelease = false;
   g.pressedKeys.clear();
   g.blasterRoot?.setEnabled(false);
   g.rifleRoot?.setEnabled(false);
+  dom.speedLines.classList.remove("active");
   dom.hud.style.display = "none";
   document.exitPointerLock();
 }
 
 export async function startGame(sensitivity: number): Promise<void> {
   dom.upgradeMenu.classList.remove("visible");
+  dom.speedLines.classList.remove("active");
   dom.hud.style.display = "block";
   g.upgrades = makeUpgradeState();
   g.weaponAmmo = makeWeaponAmmoState();
@@ -46,6 +52,10 @@ export async function startGame(sensitivity: number): Promise<void> {
   g.mouse2Held = false;
   g.meleeHeld = false;
   g.bayonetCharging = false;
+  g.bayonetChargeLockedUntilSprintEnd = false;
+  g.bayonetChargeCooldownPending = false;
+  g.sprintRamp = 0;
+  g.sprintBlockedUntilShiftRelease = false;
   g.queuedSupplyDrops = [];
   for (const p of g.plasmas) p.mesh.dispose();
   g.plasmas = [];
@@ -68,9 +78,14 @@ export function pause(): void {
   g.mouseHeld = false;
   g.meleeHeld = false;
   g.bayonetCharging = false;
+  g.bayonetChargeLockedUntilSprintEnd = false;
+  g.bayonetChargeCooldownPending = false;
+  g.sprintRamp = 0;
+  g.sprintBlockedUntilShiftRelease = false;
   g.pressedKeys.clear();
   g.scene.physicsEnabled = false;
   g.camera.detachControl();
+  dom.speedLines.classList.remove("active");
   dom.hud.classList.add("paused");
   if (g.audioCtx) g.audioCtx.suspend();
 }

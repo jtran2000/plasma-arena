@@ -72,7 +72,7 @@ export function update(): void {
   const dt = g.engine.getDeltaTime();
   updateAudioListener();
   updateTimers(dt);
-  updatePlayer();
+  updatePlayer(dt);
   updateEnemies();
   updateBayonetCharge(dt);
   updateWeapon(dt);
@@ -393,7 +393,7 @@ function updateTimers(dt: number): void {
 }
 
 // ─── Player ───────────────────────────────────────────────────────────────────
-function updatePlayer(): void {
+function updatePlayer(dt: number): void {
   if (!g.state.running) return;
 
   const p = g.playerMesh.position;
@@ -418,7 +418,13 @@ function updatePlayer(): void {
 
   const sprintKey =
     g.pressedKeys.has("ShiftLeft") || g.pressedKeys.has("ShiftRight");
-  const nowSprinting = sprintKey && wish.lengthSquared() > 0;
+  if (!sprintKey) g.sprintBlockedUntilShiftRelease = false;
+  const wasSprinting = g.isSprinting;
+  const nowSprinting =
+    sprintKey &&
+    !g.sprintBlockedUntilShiftRelease &&
+    g.state.meleeCooldown <= 0 &&
+    wish.lengthSquared() > 0;
 
   if (nowSprinting && !g.isSprinting && g.state.reloading) {
     g.state.reloading = false;
@@ -426,21 +432,69 @@ function updatePlayer(): void {
     dom.reloadMsg.classList.remove("visible");
   }
   g.isSprinting = nowSprinting;
+  if (wasSprinting && !g.isSprinting) endSprintSession();
 
-  const maxSpeed = nowSprinting
-    ? effectiveSpeed() * PLAYER.sprintMultiplier
-    : effectiveSpeed();
-  const targetXZ =
+  const vel = g.playerAggregate.body.getLinearVelocity();
+  const currentXZ = new Vector3(vel.x, 0, vel.z);
+
+  if (nowSprinting) {
+    const wishDir = wish.clone().normalize();
+    const forwardDistance =
+      Math.max(0, Vector3.Dot(currentXZ, wishDir)) * (dt / 1000);
+    g.sprintRamp = Math.min(
+      1,
+      g.sprintRamp + forwardDistance / PLAYER.sprintRampDistance,
+    );
+  } else {
+    g.sprintRamp = 0;
+  }
+
+  const sprintScale = 1 + (PLAYER.sprintMultiplier - 1) * g.sprintRamp;
+  const maxSpeed = effectiveSpeed() * sprintScale;
+  let targetXZ =
     wish.lengthSquared() > 0
       ? wish.normalize().scale(maxSpeed)
       : Vector3.Zero();
 
-  const vel = g.playerAggregate.body.getLinearVelocity();
-  const currentXZ = new Vector3(vel.x, 0, vel.z);
+  if (nowSprinting && sprintWasBlocked(currentXZ, targetXZ)) {
+    breakSprintUntilShiftRelease();
+    targetXZ =
+      wish.lengthSquared() > 0
+        ? wish.normalize().scale(effectiveSpeed())
+        : Vector3.Zero();
+  }
+  dom.speedLines.classList.toggle("active", g.isSprinting && g.sprintRamp >= 1);
   g.playerVelocityXZ = Vector3.Lerp(currentXZ, targetXZ, PLAYER.acceleration);
   g.playerAggregate.body.setLinearVelocity(
     new Vector3(g.playerVelocityXZ.x, vel.y, g.playerVelocityXZ.z),
   );
+}
+
+function sprintWasBlocked(currentXZ: Vector3, targetXZ: Vector3): boolean {
+  if (g.sprintRamp < PLAYER.sprintImpactMinRamp) return false;
+  if (targetXZ.lengthSquared() <= 0) return false;
+
+  const wishDir = targetXZ.clone().normalize();
+  const expectedSpeed = Math.max(0, Vector3.Dot(g.playerVelocityXZ, wishDir));
+  const actualSpeed = Math.max(0, Vector3.Dot(currentXZ, wishDir));
+
+  return (
+    expectedSpeed > effectiveSpeed() &&
+    actualSpeed < expectedSpeed * PLAYER.sprintImpactSpeedRatio
+  );
+}
+
+function breakSprintUntilShiftRelease(): void {
+  g.sprintRamp = 0;
+  g.isSprinting = false;
+  g.sprintBlockedUntilShiftRelease = true;
+  endSprintSession();
+}
+
+function endSprintSession(): void {
+  if (g.bayonetChargeCooldownPending) applyBayonetChargeCooldown();
+  g.bayonetChargeCooldownPending = false;
+  g.bayonetChargeLockedUntilSprintEnd = false;
 }
 
 function wantsBayonetCharge(): boolean {
@@ -451,6 +505,8 @@ function wantsBayonetCharge(): boolean {
     g.upgrades.bayonet &&
     g.meleeHeld &&
     g.isSprinting &&
+    g.sprintRamp >= 1 &&
+    !g.bayonetChargeLockedUntilSprintEnd &&
     g.pendingUpgrades.length === 0
   );
 }
@@ -462,7 +518,7 @@ function updateBayonetCharge(dt: number): void {
   }
 
   if (g.bayonetCharging && !wantsCharge) {
-    g.bayonetCharging = false;
+    abortBayonetCharge(!g.meleeHeld && g.isSprinting);
   }
 
   if (!g.bayonetCharging) {
@@ -539,10 +595,30 @@ function endBayonetChargeOnImpact(): void {
   const vel = g.playerAggregate.body.getLinearVelocity();
   g.bayonetCharging = false;
   g.meleeHeld = false;
+  g.bayonetChargeCooldownPending = false;
+  breakSprintUntilShiftRelease();
   g.playerVelocityXZ = Vector3.Zero();
-  g.state.meleeCooldown =
-    RIFLE.MELEE.cooldownMs * RIFLE.BAYONET.chargeCooldownMultiplier;
+  applyBayonetChargeCooldown();
   g.playerAggregate.body.setLinearVelocity(new Vector3(0, vel.y, 0));
+}
+
+function abortBayonetCharge(deferCooldownUntilSprintEnd: boolean): void {
+  g.bayonetCharging = false;
+  g.bayonetChargeCooldownPending = false;
+  g.bayonetChargeLockedUntilSprintEnd = g.isSprinting;
+  if (deferCooldownUntilSprintEnd) {
+    g.bayonetChargeLockedUntilSprintEnd = true;
+    g.bayonetChargeCooldownPending = true;
+    return;
+  }
+  applyBayonetChargeCooldown();
+}
+
+function applyBayonetChargeCooldown(): void {
+  g.state.meleeCooldown = Math.max(
+    g.state.meleeCooldown,
+    RIFLE.MELEE.cooldownMs * RIFLE.BAYONET.chargeCooldownMultiplier,
+  );
 }
 
 // ─── Weapon animation ─────────────────────────────────────────────────────────

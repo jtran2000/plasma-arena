@@ -23,7 +23,16 @@ export function initializeInput(): void {
   initialized = true;
 
   window.addEventListener("keydown", (e) => g.pressedKeys.add(e.code));
-  window.addEventListener("keyup", (e) => g.pressedKeys.delete(e.code));
+  window.addEventListener("keyup", (e) => {
+    g.pressedKeys.delete(e.code);
+    if (
+      (e.code === "ShiftLeft" || e.code === "ShiftRight") &&
+      !g.pressedKeys.has("ShiftLeft") &&
+      !g.pressedKeys.has("ShiftRight")
+    ) {
+      g.sprintBlockedUntilShiftRelease = false;
+    }
+  });
 
   window.addEventListener("keydown", (e) => {
     if (e.code === "Space") {

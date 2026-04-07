@@ -195,13 +195,28 @@ function currentRifleRecoilStats() {
 }
 
 export function switchWeapon(): void {
-  if (!g.upgrades.rifleUnlock || !g.state.running || g.state.paused) return;
+  if (
+    !g.upgrades.rifleUnlock ||
+    !g.state.running ||
+    g.state.paused ||
+    g.isSprinting ||
+    g.state.meleeCooldown > 0
+  )
+    return;
   cacheActiveWeaponAmmo();
   cancelReloadAndCharge();
+  if (g.bayonetCharging || g.bayonetChargeCooldownPending) {
+    g.state.meleeCooldown = Math.max(
+      g.state.meleeCooldown,
+      RIFLE.MELEE.cooldownMs * RIFLE.BAYONET.chargeCooldownMultiplier,
+    );
+  }
   g.mouseHeld = false;
   g.mouse2Held = false;
   g.meleeHeld = false;
   g.bayonetCharging = false;
+  g.bayonetChargeLockedUntilSprintEnd = false;
+  g.bayonetChargeCooldownPending = false;
   g.shootSpread = 0;
   g.moveSpread = 0;
   g.recoilPitch = 0;
@@ -1493,6 +1508,7 @@ export function startReload(): void {
     g.state.reserve <= 0 ||
     g.state.ammo >= maxMag ||
     g.isSprinting ||
+    g.state.meleeCooldown > 0 ||
     (g.state.activeWeapon === "blaster" && g.state.overheated)
   )
     return;
