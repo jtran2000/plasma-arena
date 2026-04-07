@@ -553,6 +553,15 @@ function applyRifleRecoil(): void {
     g.cameraRecoilPitch + recoil.pitch,
     recoil.maxPitch,
   );
+  const settleMagnitude =
+    Math.random() *
+    Math.min(
+      RIFLE.RECOIL.settleMax,
+      g.cameraRecoilPitch * RIFLE.RECOIL.settleScale,
+    );
+  const settleDirection = Math.random() * Math.PI * 2;
+  g.camera.rotation.x -= Math.sin(settleDirection) * settleMagnitude;
+  g.camera.rotation.y += Math.cos(settleDirection) * settleMagnitude;
   g.rifleBloomRecoilHoldTimer = RIFLE.RECOIL.decayHoldMs;
   const cameraRecoilPitch = g.cameraRecoilPitch * recoil.cameraRatio;
   if (g.rifleScoped) {

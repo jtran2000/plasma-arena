@@ -18,6 +18,11 @@ export const LIGHTING = {
   fogDensity: 0.03,
 } as const;
 
+// ─── Camera ─────────────────────────────────────────────────────────────────
+export const CAMERA = {
+  defaultFov: 1.2,
+} as const;
+
 // ─── Enemy — Base Stats ─────────────────────────────────────────────────────
 export const ENEMY = {
   hp: 50,
@@ -160,27 +165,31 @@ export const RIFLE = {
     cameraRatio: 0.53,
     weaponRoll: 0.06,
     decayHoldMs: 100,
+    settleScale: 0.1,
+    settleMax: 0.03,
   },
   MUZZLE_BRAKE: {
-    recoilScale: 0.5,
+    recoilScale: 0.25,
     flashScale: 0.25,
   },
   SCOPE: {
     rateOfFire: 180,
-    fov: 0.35,
+    zoom: 4,
     sensitivityScale: 0.45,
-    zoomRate: 14,
+    zoomRate: 8,
     weaponAimRate: 12,
     aimRootX: 0,
-    aimRootY: -0.14,
+    aimRootY: -0.1375,
     aimRootZ: 0.5,
   },
   MUZZLE_FLASH: {
     baseScale: 1.5,
     expandScale: 2.5,
+    scopedCameraOffsetY: -0.18,
+    scopedCameraOffsetZ: 0.8,
   },
   MELEE: {
-    damage: 2,
+    damage: 24,
     range: 2.2,
     cooldownMs: 600,
     animDurationMs: 320,

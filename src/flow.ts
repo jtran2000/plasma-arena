@@ -12,6 +12,7 @@ import { buildScene } from "./build.js";
 import { updateHUD } from "./progression.js";
 import { update, showWaveBanner } from "./update.js";
 import { bindSceneInput } from "./input.js";
+import { CAMERA } from "./constants.js";
 
 export function endGame(): void {
   g.state.running = false;
@@ -25,7 +26,7 @@ export function endGame(): void {
   g.bayonetChargeCooldownPending = false;
   releaseBayonetEmbed();
   g.appliedBayonetEmbedCameraPitch = 0;
-  if (g.camera) g.camera.fov = 1.2;
+  if (g.camera) g.camera.fov = CAMERA.defaultFov;
   if (g.camera) g.camera.angularSensibility = g.baseCameraAngularSensibility;
   g.isSprinting = false;
   restoreSprintLook();
@@ -75,7 +76,7 @@ export async function startGame(sensitivity: number): Promise<void> {
   g.bayonetChargeCooldownPending = false;
   releaseBayonetEmbed();
   g.appliedBayonetEmbedCameraPitch = 0;
-  if (g.camera) g.camera.fov = 1.2;
+  if (g.camera) g.camera.fov = CAMERA.defaultFov;
   if (g.camera) g.camera.angularSensibility = g.baseCameraAngularSensibility;
   g.isSprinting = false;
   restoreSprintLook();
@@ -112,7 +113,7 @@ export function pause(): void {
   g.bayonetChargeCooldownPending = false;
   releaseBayonetEmbed();
   g.appliedBayonetEmbedCameraPitch = 0;
-  if (g.camera) g.camera.fov = 1.2;
+  if (g.camera) g.camera.fov = CAMERA.defaultFov;
   if (g.camera) g.camera.angularSensibility = g.baseCameraAngularSensibility;
   g.isSprinting = false;
   restoreSprintLook();

@@ -224,36 +224,41 @@ const RIFLE_WEAPON = {
   scope: {
     tube: {
       size: {
-        diameter: 0.055,
+        diameter: 0.066,
         height: 0.28,
         tessellation: 18,
         cap: Mesh.NO_CAP,
       } as const,
-      pos: new Vector3(0, 0.14, -0.02),
+      pos: new Vector3(0, 0.1375, -0.02),
       rotX: Math.PI / 2,
     },
     rearLens: {
-      radius: 0.025,
+      radius: 0.026,
       tessellation: 32,
-      pos: new Vector3(0, 0.14, -0.148),
+      pos: new Vector3(0, 0.1375, -0.148),
       diffuse: new Color3(0.42, 0.42, 0.44),
       emissive: new Color3(0.03, 0.03, 0.035),
       specular: new Color3(0.35, 0.35, 0.38),
     },
     rearShroud: {
       size: {
-        diameter: 0.057,
+        diameter: 0.068,
         height: 0.036,
         tessellation: 24,
         cap: Mesh.NO_CAP,
         sideOrientation: Mesh.DOUBLESIDE,
       } as const,
-      pos: new Vector3(0, 0.14, -0.157),
+      pos: new Vector3(0, 0.1375, -0.157),
       rotX: Math.PI / 2,
     },
     rearRim: {
-      size: { diameter: 0.059, thickness: 0.007, tessellation: 24 } as const,
-      pos: new Vector3(0, 0.14, -0.164),
+      size: { diameter: 0.076, thickness: 0.017, tessellation: 24 } as const,
+      pos: new Vector3(0, 0.1375, -0.164),
+      rotX: Math.PI / 2,
+    },
+    frontRim: {
+      size: { diameter: 0.076, thickness: 0.017, tessellation: 24 } as const,
+      pos: new Vector3(0, 0.1375, 0.12),
       rotX: Math.PI / 2,
     },
     mount: {
@@ -261,16 +266,16 @@ const RIFLE_WEAPON = {
       pos: new Vector3(0, 0.06, -0.02),
     },
     bracket: {
-      postSize: { width: 0.04, height: 0.038, depth: 0.025 } as const,
-      postCapSize: { width: 0.04, height: 0.006, depth: 0.025 } as const,
-      postCapInnerGap: 0.014,
-      collarInnerRadius: 0.029,
-      collarOuterRadius: 0.035,
+      postSize: { width: 0.04, height: 0.026, depth: 0.025 } as const,
+      postCapSize: { width: 0.04, height: 0.01, depth: 0.025 } as const,
+      postCapInnerGap: 0.02,
+      collarInnerRadius: 0.0335,
+      collarOuterRadius: 0.043,
       collarDepth: 0.028,
       collarArcSegments: 24,
-      rearPos: new Vector3(0, 0.0885, -0.075),
-      frontPos: new Vector3(0, 0.0885, 0.035),
-      capYOffset: 0.022,
+      rearPos: new Vector3(0, 0.083, -0.075),
+      frontPos: new Vector3(0, 0.083, 0.035),
+      capYOffset: 0.018,
       diffuse: new Color3(0.68, 0.43, 0.16),
       emissive: new Color3(0.12, 0.07, 0.02),
       specular: new Color3(0.75, 0.55, 0.28),
@@ -775,6 +780,17 @@ function makeRifleScopeMesh(): Mesh {
   rearRim.isPickable = false;
   rearRim.renderingGroupId = 1;
 
+  const frontRim = MeshBuilder.CreateTorus(
+    "rScopeFrontRim",
+    RIFLE_WEAPON.scope.frontRim.size,
+    g.scene,
+  );
+  frontRim.parent = root;
+  frontRim.position = RIFLE_WEAPON.scope.frontRim.pos.clone();
+  frontRim.rotation.x = RIFLE_WEAPON.scope.frontRim.rotX;
+  frontRim.isPickable = false;
+  frontRim.renderingGroupId = 1;
+
   const mount = MeshBuilder.CreateBox(
     "rScopeMount",
     RIFLE_WEAPON.scope.mount.size,
@@ -962,7 +978,7 @@ function makeRifleScopeLensMat(): StandardMaterial {
   ctx.fillStyle = "rgba(115, 125, 135, 0.48)";
   ctx.fillRect(0, 0, texSize, texSize);
   ctx.strokeStyle = "rgba(0, 0, 0, 0.96)";
-  ctx.lineWidth = 6;
+  ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.moveTo(texSize / 2, 0);
   ctx.lineTo(texSize / 2, texSize);
@@ -1639,9 +1655,12 @@ export function makeRifleTracerMesh(
 }
 
 export function spawnRifleMuzzleFlash(isCrit: boolean): void {
+  const scopedFlash =
+    g.rifleScoped && g.upgrades.rifleScope && g.rifleScopeAimT >= 0.995;
+
   const flash = MeshBuilder.CreateSphere(
     "rifleMuzzleFlash",
-    { diameter: 0.3, segments: 6 },
+    { diameter: scopedFlash ? 0.08 : 0.3, segments: 6 },
     g.scene,
   );
   const mat = new StandardMaterial("rifleMuzzleFlashMat", g.scene);
@@ -1653,8 +1672,14 @@ export function spawnRifleMuzzleFlash(isCrit: boolean): void {
     : new Color3(1, 0.75, 0.15);
   mat.alpha = 0.95;
   flash.material = mat;
-  flash.parent = g.rifleBarrelTip;
-  flash.position = Vector3.Zero();
+  flash.parent = scopedFlash ? g.camera : g.rifleBarrelTip;
+  flash.position = scopedFlash
+    ? new Vector3(
+        0,
+        RIFLE.MUZZLE_FLASH.scopedCameraOffsetY,
+        RIFLE.MUZZLE_FLASH.scopedCameraOffsetZ,
+      )
+    : Vector3.Zero();
   flash.isPickable = false;
   flash.renderingGroupId = 1;
 

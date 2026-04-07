@@ -18,6 +18,7 @@ import {
   SCORING,
   WAVE,
   BULLET_HOLE,
+  CAMERA,
 } from "./constants.js";
 const { LASER, SPREAD, HEAT, IGNITE, MELEE } = BLASTER;
 import {
@@ -98,6 +99,11 @@ export function update(): void {
 }
 
 function updateRifleScope(dt: number): void {
+  const movementKeyPressed =
+    g.pressedKeys.has("KeyW") ||
+    g.pressedKeys.has("KeyS") ||
+    g.pressedKeys.has("KeyA") ||
+    g.pressedKeys.has("KeyD");
   const scoped =
     g.rifleScoped &&
     g.upgrades.rifleScope &&
@@ -105,6 +111,7 @@ function updateRifleScope(dt: number): void {
     g.state.running &&
     !g.state.reloading &&
     !g.isSprinting &&
+    !movementKeyPressed &&
     !g.bayonetEmbed &&
     g.pendingUpgrades.length === 0;
   g.rifleScoped = scoped;
@@ -123,7 +130,9 @@ function updateRifleScope(dt: number): void {
   g.scopeOverlay.markAsDirty();
   dom.hud.classList.toggle("scoped", scopeViewActive);
 
-  const targetFov = scopeViewActive ? RIFLE.SCOPE.fov : 1.2;
+  const targetFov = scopeViewActive
+    ? CAMERA.defaultFov / RIFLE.SCOPE.zoom
+    : CAMERA.defaultFov;
   const lerpT = Math.min(1, (RIFLE.SCOPE.zoomRate * dt) / 1000);
   g.camera.fov += (targetFov - g.camera.fov) * lerpT;
   g.camera.angularSensibility = scopeViewActive
@@ -1430,7 +1439,7 @@ function updateRifleWeapon(): void {
     g.weaponRoot.position.copyFrom(
       Vector3.Lerp(g.weaponRestPosition, aimPos, aimT),
     );
-    g.weaponRoot.rotation.x = -0.08 - g.recoilPitch;
+    g.weaponRoot.rotation.x = -0.08 * (1 - aimT) - g.recoilPitch;
     g.weaponRoot.rotation.y = 0;
     g.weaponRoot.rotation.z = g.recoilRoll;
     mag.position.copyFrom(new Vector3(0, -0.11, 0.13));

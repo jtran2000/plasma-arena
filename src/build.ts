@@ -14,7 +14,7 @@ import type { ICanvasRenderingContext } from "@babylonjs/core/Engines/ICanvas.js
 import { AdvancedDynamicTexture, Control } from "@babylonjs/gui";
 import HavokPhysics from "@babylonjs/havok";
 import { g } from "./game.js";
-import { LIGHTING } from "./constants.js";
+import { CAMERA, LIGHTING } from "./constants.js";
 import {
   makePlayerMesh,
   setupArenaFloor,
@@ -103,7 +103,7 @@ export async function buildScene(): Promise<void> {
   g.camera = new UniversalCamera("fps", new Vector3(0, 1.6, 0), g.scene);
   g.camera.setTarget(new Vector3(1, 1.6, 0));
   g.camera.minZ = 0.1;
-  g.camera.fov = 1.2;
+  g.camera.fov = CAMERA.defaultFov;
   g.baseCameraAngularSensibility = 800;
   g.camera.angularSensibility = g.baseCameraAngularSensibility;
   g.camera.keysUp =

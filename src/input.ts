@@ -83,14 +83,17 @@ export function bindSceneInput(): void {
     } else if (info.event.button === 2) {
       if (info.type === PointerEventTypes.POINTERDOWN) {
         g.mouse2Held = true;
-        if (
-          g.state.activeWeapon === "rifle" &&
-          g.upgrades.rifleScope &&
-          g.state.running &&
-          !g.state.paused &&
-          !g.bayonetEmbed
-        ) {
-          g.rifleScoped = true;
+        const movementKeyPressed =
+          g.pressedKeys.has("KeyW") ||
+          g.pressedKeys.has("KeyS") ||
+          g.pressedKeys.has("KeyA") ||
+          g.pressedKeys.has("KeyD");
+        if (g.state.activeWeapon === "rifle" && g.upgrades.rifleScope) {
+          g.rifleScoped =
+            g.state.running &&
+            !g.state.paused &&
+            !g.bayonetEmbed &&
+            !movementKeyPressed;
           return;
         }
         startPlasmaCharge();
