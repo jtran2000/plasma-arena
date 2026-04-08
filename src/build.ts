@@ -201,6 +201,8 @@ function buildWeapon(): void {
   g.rifleBrake = rifle.brake;
   g.rifleScope = rifle.scope;
   g.rifleLaserSight = rifle.laserSight;
+  g.rifleLaserLight = rifle.laserLight;
+  g.rifleLaserGlow = rifle.laserGlow;
   g.rifleLaserDot = rifle.laserDot;
   g.rifleBayonet = rifle.bayonet;
   g.rifleBrake.isVisible = g.upgrades.muzzleBrake;

@@ -308,7 +308,9 @@ export function meleeAttack(): void {
       m.name !== "enemyPhys" &&
       m.name !== "laserBeam" &&
       m.name !== "bhole" &&
-      m.name !== "supply",
+      m.name !== "supply" &&
+      m.name !== "rifleLaserDot" &&
+      !m.name.startsWith("rLaserSight"),
   );
 
   if (!hit?.hit || !hit.pickedMesh) return;

@@ -494,20 +494,82 @@ function updateTimers(dt: number): void {
 
 function updateRifleLaserSight(): void {
   if (!g.rifleLaserDot) return;
+  const scoped = g.rifleScoped && g.upgrades.rifleScope;
+  const embed = g.bayonetEmbed;
   const visible =
     g.state.running &&
     !g.state.paused &&
     g.upgrades.rifleLaserSight &&
     g.state.activeWeapon === "rifle" &&
-    !g.rifleScoped &&
     !g.state.reloading &&
-    !g.bayonetEmbed &&
     g.pendingUpgrades.length === 0;
   g.rifleLaserDot.setEnabled(visible);
+  g.rifleLaserLight?.setEnabled(visible);
+  g.rifleLaserGlow?.setEnabled(visible);
   if (!visible) return;
 
+  if (embed) {
+    const toCamera = g.camera.position
+      .subtract(embed.targetHitPoint)
+      .normalize();
+    const cameraUp = g.camera.getDirection(Vector3.Up()).normalize();
+    const cameraRight = g.camera.getDirection(Vector3.Right()).normalize();
+    const dotPosition = embed.targetHitPoint.add(
+      embed.hitNormal
+        .scale(RIFLE.LASER_SIGHT.surfaceOffset)
+        .add(toCamera.scale(RIFLE.LASER_SIGHT.surfaceOffset * 3))
+        .add(cameraUp.scale(RIFLE.LASER_SIGHT.embedOffsetUp))
+        .add(cameraRight.scale(-RIFLE.LASER_SIGHT.embedOffsetLeft)),
+    );
+    g.rifleLaserDot.position.copyFrom(dotPosition);
+    const embedDistance = Vector3.Distance(
+      g.camera.position,
+      g.rifleLaserDot.position,
+    );
+    const embedWorldDiameter =
+      (RIFLE.LASER_SIGHT.screenDiameterPx *
+        2 *
+        embedDistance *
+        Math.tan(g.camera.fov / 2)) /
+      g.engine.getRenderHeight();
+    const laserDir = dotPosition.subtract(
+      g.rifleBarrelTip.getAbsolutePosition(),
+    );
+    if (laserDir.lengthSquared() > 0.0001) {
+      laserDir.normalize();
+      const normal = embed.hitNormal.normalizeToNew();
+      const incidence = Math.max(0.2, Math.abs(Vector3.Dot(laserDir, normal)));
+      const majorScale =
+        embedWorldDiameter / incidence / RIFLE.LASER_SIGHT.dotSize;
+      const minorScale = embedWorldDiameter / RIFLE.LASER_SIGHT.dotSize;
+      const tangent = laserDir
+        .subtract(normal.scale(Vector3.Dot(laserDir, normal)))
+        .normalize();
+      const bitangent =
+        tangent.lengthSquared() > 0.0001
+          ? Vector3.Cross(normal, tangent).normalize()
+          : Vector3.Cross(normal, cameraUp).normalize();
+      const rotationMatrix = new Matrix();
+      Matrix.FromXYZAxesToRef(tangent, bitangent, normal, rotationMatrix);
+      g.rifleLaserDot.rotationQuaternion =
+        Quaternion.FromRotationMatrix(rotationMatrix);
+      g.rifleLaserDot.scaling.set(
+        majorScale,
+        minorScale,
+        Math.max(0.12, minorScale * 0.18),
+      );
+    } else {
+      g.rifleLaserDot.rotationQuaternion = null;
+      g.rifleLaserDot.scaling.setAll(
+        embedWorldDiameter / RIFLE.LASER_SIGHT.dotSize,
+      );
+    }
+    updateRifleLaserLight();
+    return;
+  }
+
   const aimRay = g.camera.getForwardRay(100);
-  if (g.recoilPitch > 0) {
+  if (!scoped && g.recoilPitch > 0) {
     const cameraUp = g.camera.getDirection(Vector3.Up()).normalize();
     aimRay.direction = aimRay.direction
       .add(cameraUp.scale(Math.tan(g.recoilPitch)))
@@ -526,6 +588,33 @@ function updateRifleLaserSight(): void {
       aimRay.origin.add(aimRay.direction.scale(100)),
     );
   }
+  const distance = Vector3.Distance(
+    g.camera.position,
+    g.rifleLaserDot.position,
+  );
+  const worldDiameter =
+    (RIFLE.LASER_SIGHT.screenDiameterPx *
+      2 *
+      distance *
+      Math.tan(g.camera.fov / 2)) /
+    g.engine.getRenderHeight();
+  const scale = worldDiameter / RIFLE.LASER_SIGHT.dotSize;
+  g.rifleLaserDot.rotationQuaternion = null;
+  g.rifleLaserDot.scaling.setAll(scale);
+  updateRifleLaserLight();
+}
+
+function updateRifleLaserLight(): void {
+  if (!g.rifleLaserLight || !g.rifleLaserSight || !g.rifleLaserDot) return;
+  const lens = g.rifleLaserSight
+    .getChildMeshes(false)
+    .find((child) => child.name === "rLaserSightLens");
+  if (!lens) return;
+  const origin = lens.getAbsolutePosition();
+  const direction = g.rifleLaserDot.position.subtract(origin);
+  if (direction.lengthSquared() < 0.0001) return;
+  g.rifleLaserLight.position.copyFrom(origin);
+  g.rifleLaserLight.direction.copyFrom(direction.normalize());
 }
 
 function rifleLaserSightRayFilter(m: AbstractMesh): boolean {
@@ -744,7 +833,9 @@ function updateBayonetCharge(dt: number): void {
       m.name !== "enemyPhys" &&
       m.name !== "laserBeam" &&
       m.name !== "bhole" &&
-      m.name !== "supply",
+      m.name !== "supply" &&
+      m.name !== "rifleLaserDot" &&
+      !m.name.startsWith("rLaserSight"),
   );
   if (!hit?.hit || !hit.pickedMesh || !hit.pickedPoint) return;
 
@@ -933,6 +1024,7 @@ function embedBayonetInEnemy(
     hitLocalPosition,
     targetVisualRotation,
   );
+  const hitNormal = getBayonetEmbedHitNormal(targetVisualRotation, torsoSide);
   const startCameraRotation = g.camera.rotation.clone();
   const {
     playerPosition: targetPlayerPosition,
@@ -958,6 +1050,7 @@ function embedBayonetInEnemy(
   g.bayonetEmbed = {
     enemy,
     direction,
+    hitNormal,
     startPosition: enemy.physMesh.position.clone(),
     pinPosition,
     targetHitPoint,
@@ -1022,6 +1115,23 @@ function solveBayonetEmbedPlayerPose(
   );
 
   return { playerPosition, cameraRotation };
+}
+
+function getBayonetEmbedHitNormal(
+  targetVisualRotation: Quaternion,
+  torsoSide: BayonetTorsoSide,
+): Vector3 {
+  const localNormal =
+    torsoSide === "front"
+      ? new Vector3(0, 0, 1)
+      : torsoSide === "back"
+        ? new Vector3(0, 0, -1)
+        : torsoSide === "left"
+          ? new Vector3(-1, 0, 0)
+          : new Vector3(1, 0, 0);
+  const rotationMatrix = new Matrix();
+  targetVisualRotation.toRotationMatrix(rotationMatrix);
+  return Vector3.TransformNormal(localNormal, rotationMatrix).normalize();
 }
 
 function clamp(value: number, min: number, max: number): number {

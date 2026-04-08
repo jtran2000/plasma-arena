@@ -10,6 +10,7 @@ export const LIGHTING = {
   ambientGroundR: 0.03,
   ambientGroundG: 0.03,
   ambientGroundB: 0.05,
+  baseMaxSimultaneousLights: 6,
   lampHeight: 5, // lamp height from floor (m)
   spotAngle: Math.PI * 0.9, // radians — wider cone for lower lamp
   spotExponent: 1.25, // softer falloff at edges
@@ -152,16 +153,19 @@ export const RIFLE = {
   tracerLength: 0.42, // m
   tracerWidth: 0.026, // m
   SPREAD: {
-    base: 0.012, // first shot is never perfectly accurate
-    perShot: 0.0035,
+    base: 0.024, // first shot is never perfectly accurate
+    perShot: 0.007,
     max: 0.1,
-    decay: 0.16,
+    decay: 0.12,
     moveRate: 0.11,
   },
   LASER_SIGHT: {
     spreadScale: 0.35,
     dotSize: 0.045,
+    screenDiameterPx: 14,
     surfaceOffset: 0.02,
+    embedOffsetUp: 0.03,
+    embedOffsetLeft: 0.03,
   },
   RECOIL: {
     pitch: 0.05,
@@ -202,7 +206,7 @@ export const RIFLE = {
     scopedCameraOffsetZ: 0.8,
   },
   MELEE: {
-    damage: 24,
+    damage: 2,
     range: 2.2,
     cooldownMs: 600,
     animDurationMs: 320,

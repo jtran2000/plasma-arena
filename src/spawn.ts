@@ -3,6 +3,7 @@ import {
   MeshBuilder,
   StandardMaterial,
   Mesh,
+  AbstractMesh,
   Color3,
   Color4,
   PhysicsAggregate,
@@ -10,6 +11,7 @@ import {
   Quaternion,
   ParticleSystem,
   PointLight,
+  SpotLight,
   VertexData,
   DynamicTexture,
 } from "@babylonjs/core";
@@ -190,7 +192,7 @@ const RIFLE_WEAPON = {
     pos: new Vector3(0, 0, 0.08),
     diffuse: new Color3(0.12, 0.13, 0.16),
     specular: new Color3(0.25, 0.25, 0.3),
-    emissive: new Color3(0.02, 0.02, 0.03),
+    emissive: Color3.Black(),
   },
   barrel: {
     size: { diameter: 0.028, height: 0.78, tessellation: 14 } as const,
@@ -213,7 +215,7 @@ const RIFLE_WEAPON = {
     size: { width: 0.045, height: 0.18, depth: 0.09 } as const,
     pos: new Vector3(0, -0.11, 0.13),
     diffuse: new Color3(0.72, 0.32, 0.06),
-    emissive: new Color3(0.26, 0.08, 0.01),
+    emissive: Color3.Black(),
   },
   brake: {
     size: { width: 0.05, height: 0.05, depth: 0.08 } as const,
@@ -223,14 +225,17 @@ const RIFLE_WEAPON = {
   },
   laserSight: {
     body: {
-      size: { width: 0.035, height: 0.035, depth: 0.22 } as const,
-      pos: new Vector3(-0.07, 0.015, 0.64),
-      diffuse: new Color3(0.015, 0.018, 0.014),
-      emissive: new Color3(0.0, 0.015, 0.0),
+      size: { diameter: 0.03, height: 0.11, tessellation: 12 } as const,
+      // Mounted tight to the left side of the frame without clipping into it.
+      pos: new Vector3(-0.03, 0.01, 0.4),
+      rotX: Math.PI / 2,
+      diffuse: new Color3(0.62, 0.52, 0.34),
+      emissive: new Color3(0.08, 0.05, 0.015),
     },
     lens: {
       size: { diameter: 0.026, height: 0.008, tessellation: 12 } as const,
-      pos: new Vector3(-0.07, 0.015, 0.755),
+      // Slightly proud of the housing so the emitter reads clearly in first person.
+      pos: new Vector3(-0.03, 0.01, 0.46),
       rotX: Math.PI / 2,
       diffuse: new Color3(0.05, 0.75, 0.15),
       emissive: new Color3(0.0, 0.5, 0.08),
@@ -244,6 +249,8 @@ const RIFLE_WEAPON = {
         tessellation: 18,
         cap: Mesh.NO_CAP,
       } as const,
+      // Shared centerline for the whole scope stack so the scope-in animation
+      // can align the rear lens cleanly to screen center.
       pos: new Vector3(0, 0.1375, -0.02),
       rotX: Math.PI / 2,
     },
@@ -283,7 +290,11 @@ const RIFLE_WEAPON = {
     bracket: {
       postSize: { width: 0.04, height: 0.026, depth: 0.025 } as const,
       postCapSize: { width: 0.04, height: 0.01, depth: 0.025 } as const,
+      // Leaves a center gap so the post caps do not poke into the bottom curve
+      // of the scope tube when viewed from first person.
       postCapInnerGap: 0.02,
+      // Inner radius is intentionally just above the tube radius to close the
+      // visible collar/body seam without clipping through the scope body.
       collarInnerRadius: 0.0335,
       collarOuterRadius: 0.043,
       collarDepth: 0.028,
@@ -304,6 +315,8 @@ const RIFLE_WEAPON = {
       baseHeight: 0.045,
       tipHeight: 0.008,
       thickness: 0.012,
+      // Sits low enough under the barrel to read as a separate attachment while
+      // still lining up with the bayonet pinning/impact setup in gameplay.
       pos: new Vector3(0, -0.04, 1.305),
     },
     hilt: {
@@ -312,9 +325,9 @@ const RIFLE_WEAPON = {
       diffuse: new Color3(0.08, 0.07, 0.055),
       emissive: new Color3(0.02, 0.015, 0.01),
     },
-    diffuse: new Color3(0.75, 0.78, 0.82),
-    emissive: new Color3(0.08, 0.09, 0.1),
-    specular: new Color3(0.75, 0.78, 0.9),
+    diffuse: new Color3(0.82, 0.84, 0.88),
+    emissive: new Color3(0.02, 0.025, 0.03),
+    specular: new Color3(0.92, 0.95, 1.0),
   },
   barrelTipPos: new Vector3(0, 0.015, 1.13),
 };
@@ -353,36 +366,49 @@ const BULLET_HOLE_STYLE = {
   emissive: new Color3(0.02, 0.02, 0.02),
 };
 
+const VIEWMODEL_EXTRA_LIGHTS = 4;
+const WEAPON_EFFECT_EXTRA_LIGHTS = 2;
+
+function applyMaterialLightBudget(
+  mat: StandardMaterial,
+  extraLights = 0,
+): StandardMaterial {
+  // Babylon drops excess lights per material, so the weapon viewmodel gets
+  // extra headroom for the arena light plus local muzzle-flash / laser lights.
+  mat.maxSimultaneousLights = LIGHTING.baseMaxSimultaneousLights + extraLights;
+  return mat;
+}
+
 // ─── Arena materials (private) ────────────────────────────────────────────────
 function makeFloorMat(): StandardMaterial {
-  const mat = new StandardMaterial("floor", g.scene);
+  const mat = applyMaterialLightBudget(new StandardMaterial("floor", g.scene));
   mat.diffuseColor = ARENA_STYLE.floor.diffuse;
   mat.specularColor = ARENA_STYLE.floor.specular;
   return mat;
 }
 
 function makeWallMat(): StandardMaterial {
-  const mat = new StandardMaterial("wall", g.scene);
+  const mat = applyMaterialLightBudget(new StandardMaterial("wall", g.scene));
   mat.diffuseColor = ARENA_STYLE.wall.diffuse;
   mat.specularColor = ARENA_STYLE.wall.specular;
   return mat;
 }
 
 function makeCeilMat(): StandardMaterial {
-  const mat = new StandardMaterial("ceil", g.scene);
+  const mat = applyMaterialLightBudget(new StandardMaterial("ceil", g.scene));
   mat.diffuseColor = ARENA_STYLE.ceiling.diffuse;
   return mat;
 }
 
 function makeAccentMat(): StandardMaterial {
-  const mat = new StandardMaterial("accent", g.scene);
+  const mat = applyMaterialLightBudget(new StandardMaterial("accent", g.scene));
   mat.diffuseColor = ARENA_STYLE.accentStrip.diffuse;
   mat.emissiveColor = ARENA_STYLE.accentStrip.emissive;
   return mat;
 }
 
 function makeCrateMat(): StandardMaterial {
-  const mat = new StandardMaterial("crate", g.scene);
+  const mat = applyMaterialLightBudget(new StandardMaterial("crate", g.scene));
   mat.diffuseColor = ARENA_STYLE.crate.diffuse;
   return mat;
 }
@@ -534,7 +560,10 @@ export function setupArenaAccentStrips(): Mesh[] {
 
 // ─── Weapon materials (private) ───────────────────────────────────────────────
 function makeWeaponBodyMat(): StandardMaterial {
-  const mat = new StandardMaterial("wBodyMat", g.scene);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("wBodyMat", g.scene),
+    WEAPON_EFFECT_EXTRA_LIGHTS,
+  );
   mat.diffuseColor = WEAPON.body.diffuse;
   mat.specularColor = WEAPON.body.specular;
   mat.emissiveColor = WEAPON.body.emissive;
@@ -542,34 +571,49 @@ function makeWeaponBodyMat(): StandardMaterial {
 }
 
 function makeWeaponBarrelMat(): StandardMaterial {
-  const mat = new StandardMaterial("wBarrelMat", g.scene);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("wBarrelMat", g.scene),
+    WEAPON_EFFECT_EXTRA_LIGHTS,
+  );
   mat.diffuseColor = WEAPON.barrel.diffuse;
   mat.specularColor = WEAPON.barrel.specular;
   return mat;
 }
 
 function makeWeaponCellMat(): StandardMaterial {
-  const mat = new StandardMaterial("wCellMat", g.scene);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("wCellMat", g.scene),
+    WEAPON_EFFECT_EXTRA_LIGHTS,
+  );
   mat.diffuseColor = WEAPON.cell.diffuse;
   mat.emissiveColor = WEAPON.cell.emissive;
   return mat;
 }
 
 function makeWeaponGripMat(): StandardMaterial {
-  const mat = new StandardMaterial("wGripMat", g.scene);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("wGripMat", g.scene),
+    WEAPON_EFFECT_EXTRA_LIGHTS,
+  );
   mat.diffuseColor = WEAPON.grip.diffuse;
   return mat;
 }
 
 function makeWeaponAccentMat(): StandardMaterial {
-  const mat = new StandardMaterial("wAccentMat", g.scene);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("wAccentMat", g.scene),
+    WEAPON_EFFECT_EXTRA_LIGHTS,
+  );
   mat.diffuseColor = WEAPON.accent.diffuse;
   mat.emissiveColor = WEAPON.accent.emissive;
   return mat;
 }
 
 function makeWeaponLensMat(): StandardMaterial {
-  const mat = new StandardMaterial("wLensMat", g.scene);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("wLensMat", g.scene),
+    WEAPON_EFFECT_EXTRA_LIGHTS,
+  );
   mat.diffuseColor = WEAPON.lens.diffuse;
   mat.emissiveColor = WEAPON.lens.emissive;
   return mat;
@@ -667,13 +711,14 @@ function makeRifleLaserSightMesh(): Mesh {
   const root = new Mesh("rLaserSight", g.scene);
   root.isPickable = false;
 
-  const body = MeshBuilder.CreateBox(
+  const body = MeshBuilder.CreateCylinder(
     "rLaserSightBody",
     RIFLE_WEAPON.laserSight.body.size,
     g.scene,
   );
   body.parent = root;
   body.position = RIFLE_WEAPON.laserSight.body.pos.clone();
+  body.rotation.x = RIFLE_WEAPON.laserSight.body.rotX;
   body.isPickable = false;
   body.renderingGroupId = 1;
 
@@ -946,7 +991,10 @@ function makeRifleBayonetMesh(): Mesh {
   bladeMesh.renderingGroupId = 1;
 
   const hiltMesh = MeshBuilder.CreateBox("rBayonetHilt", hilt.size, g.scene);
-  const hiltMat = new StandardMaterial("rifleBayonetHilt", g.scene);
+  const hiltMat = applyMaterialLightBudget(
+    new StandardMaterial("rifleBayonetHilt", g.scene),
+    VIEWMODEL_EXTRA_LIGHTS,
+  );
   hiltMat.diffuseColor = hilt.diffuse;
   hiltMat.emissiveColor = hilt.emissive;
   hiltMesh.parent = root;
@@ -959,7 +1007,10 @@ function makeRifleBayonetMesh(): Mesh {
 }
 
 function makeRifleBodyMat(): StandardMaterial {
-  const mat = new StandardMaterial("rifleBody", g.scene);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("rifleBody", g.scene),
+    VIEWMODEL_EXTRA_LIGHTS,
+  );
   mat.diffuseColor = RIFLE_WEAPON.body.diffuse;
   mat.specularColor = new Color3(0.35, 0.35, 0.38);
   mat.emissiveColor = RIFLE_WEAPON.body.emissive;
@@ -967,41 +1018,59 @@ function makeRifleBodyMat(): StandardMaterial {
 }
 
 function makeRifleBarrelMat(): StandardMaterial {
-  const mat = new StandardMaterial("rifleBarrel", g.scene);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("rifleBarrel", g.scene),
+    VIEWMODEL_EXTRA_LIGHTS,
+  );
   mat.diffuseColor = RIFLE_WEAPON.barrel.diffuse;
   mat.emissiveColor = RIFLE_WEAPON.barrel.emissive;
   return mat;
 }
 
 function makeRifleGripMat(): StandardMaterial {
-  const mat = new StandardMaterial("rifleGrip", g.scene);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("rifleGrip", g.scene),
+    VIEWMODEL_EXTRA_LIGHTS,
+  );
   mat.diffuseColor = RIFLE_WEAPON.grip.diffuse;
   return mat;
 }
 
 function makeRifleStockMat(): StandardMaterial {
-  const mat = new StandardMaterial("rifleStock", g.scene);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("rifleStock", g.scene),
+    VIEWMODEL_EXTRA_LIGHTS,
+  );
   mat.diffuseColor = RIFLE_WEAPON.stock.diffuse;
   mat.backFaceCulling = false;
   return mat;
 }
 
 function makeRifleMagMat(): StandardMaterial {
-  const mat = new StandardMaterial("rifleMag", g.scene);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("rifleMag", g.scene),
+    VIEWMODEL_EXTRA_LIGHTS,
+  );
   mat.diffuseColor = RIFLE_WEAPON.mag.diffuse;
   mat.emissiveColor = RIFLE_WEAPON.mag.emissive;
   return mat;
 }
 
 function makeRifleBrakeMat(): StandardMaterial {
-  const mat = new StandardMaterial("rifleBrake", g.scene);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("rifleBrake", g.scene),
+    VIEWMODEL_EXTRA_LIGHTS,
+  );
   mat.diffuseColor = RIFLE_WEAPON.brake.diffuse;
   mat.emissiveColor = RIFLE_WEAPON.brake.emissive;
   return mat;
 }
 
 function makeRifleLaserSightMat(): StandardMaterial {
-  const mat = new StandardMaterial("rifleLaserSight", g.scene);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("rifleLaserSight", g.scene),
+    VIEWMODEL_EXTRA_LIGHTS,
+  );
   mat.diffuseColor = RIFLE_WEAPON.laserSight.body.diffuse;
   mat.emissiveColor = RIFLE_WEAPON.laserSight.body.emissive;
   mat.specularColor = new Color3(0.08, 0.1, 0.08);
@@ -1009,7 +1078,10 @@ function makeRifleLaserSightMat(): StandardMaterial {
 }
 
 function makeRifleLaserSightLensMat(): StandardMaterial {
-  const mat = new StandardMaterial("rifleLaserSightLens", g.scene);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("rifleLaserSightLens", g.scene),
+    VIEWMODEL_EXTRA_LIGHTS,
+  );
   mat.diffuseColor = RIFLE_WEAPON.laserSight.lens.diffuse;
   mat.emissiveColor = RIFLE_WEAPON.laserSight.lens.emissive;
   mat.specularColor = new Color3(0.25, 0.8, 0.3);
@@ -1017,15 +1089,26 @@ function makeRifleLaserSightLensMat(): StandardMaterial {
 }
 
 function makeRifleLaserDotMat(): StandardMaterial {
-  const mat = new StandardMaterial("rifleLaserDot", g.scene);
-  mat.diffuseColor = new Color3(0.05, 1, 0.18);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("rifleLaserDot", g.scene),
+    VIEWMODEL_EXTRA_LIGHTS,
+  );
+  mat.diffuseColor = Color3.Black();
   mat.emissiveColor = new Color3(0.0, 1.0, 0.12);
-  mat.specularColor = new Color3(0.2, 1, 0.3);
+  mat.specularColor = Color3.Black();
+  mat.disableLighting = true;
+  mat.fogEnabled = false;
+  // Keep the projected dot from z-fighting with the target surface.
+  mat.zOffset = -2;
+  mat.zOffsetUnits = -2;
   return mat;
 }
 
 function makeRifleScopeMat(): StandardMaterial {
-  const mat = new StandardMaterial("rifleScope", g.scene);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("rifleScope", g.scene),
+    VIEWMODEL_EXTRA_LIGHTS,
+  );
   mat.diffuseColor = RIFLE_WEAPON.scope.diffuse;
   mat.emissiveColor = RIFLE_WEAPON.scope.emissive;
   mat.specularColor = new Color3(0.08, 0.08, 0.09);
@@ -1045,6 +1128,8 @@ function makeRifleScopeLensMat(): StandardMaterial {
   ctx.fillStyle = "rgba(115, 125, 135, 0.48)";
   ctx.fillRect(0, 0, texSize, texSize);
   ctx.strokeStyle = "rgba(0, 0, 0, 0.96)";
+  // Keep the physical reticle thin so it reads like etched glass rather than
+  // a chunky overlay when the player is not fully zoomed in yet.
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(texSize / 2, 0);
@@ -1055,7 +1140,10 @@ function makeRifleScopeLensMat(): StandardMaterial {
   tex.hasAlpha = true;
   tex.update(false);
 
-  const mat = new StandardMaterial("rifleScopeLens", g.scene);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("rifleScopeLens", g.scene),
+    VIEWMODEL_EXTRA_LIGHTS,
+  );
   mat.diffuseColor = RIFLE_WEAPON.scope.rearLens.diffuse;
   mat.emissiveColor = RIFLE_WEAPON.scope.rearLens.emissive;
   mat.specularColor = RIFLE_WEAPON.scope.rearLens.specular;
@@ -1068,7 +1156,10 @@ function makeRifleScopeLensMat(): StandardMaterial {
 }
 
 function makeRifleScopeBracketMat(): StandardMaterial {
-  const mat = new StandardMaterial("rifleScopeBracket", g.scene);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("rifleScopeBracket", g.scene),
+    VIEWMODEL_EXTRA_LIGHTS,
+  );
   mat.diffuseColor = RIFLE_WEAPON.scope.bracket.diffuse;
   mat.emissiveColor = RIFLE_WEAPON.scope.bracket.emissive;
   mat.specularColor = RIFLE_WEAPON.scope.bracket.specular;
@@ -1076,10 +1167,15 @@ function makeRifleScopeBracketMat(): StandardMaterial {
 }
 
 function makeRifleBayonetMat(): StandardMaterial {
-  const mat = new StandardMaterial("rifleBayonet", g.scene);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("rifleBayonet", g.scene),
+    VIEWMODEL_EXTRA_LIGHTS,
+  );
   mat.diffuseColor = RIFLE_WEAPON.bayonet.diffuse;
   mat.emissiveColor = RIFLE_WEAPON.bayonet.emissive;
   mat.specularColor = RIFLE_WEAPON.bayonet.specular;
+  // High specular power gives the blade a tighter polished-metal highlight.
+  mat.specularPower = 96;
   return mat;
 }
 
@@ -1152,6 +1248,8 @@ export function setupRifleParts(root: Mesh): {
   brake: Mesh;
   scope: Mesh;
   laserSight: Mesh;
+  laserLight: SpotLight | null;
+  laserGlow: PointLight | null;
   laserDot: Mesh;
   bayonet: Mesh;
 } {
@@ -1196,9 +1294,39 @@ export function setupRifleParts(root: Mesh): {
     Vector3.Zero(),
   );
   const laserSightLensMat = makeRifleLaserSightLensMat();
+  let laserSightLens: AbstractMesh | null = null;
+  let laserLight: SpotLight | null = null;
+  let laserGlow: PointLight | null = null;
   for (const child of laserSight.getChildMeshes(false)) {
-    if (child.name === "rLaserSightLens") child.material = laserSightLensMat;
-    else child.material = laserSight.material;
+    if (child.name === "rLaserSightLens") {
+      child.material = laserSightLensMat;
+      laserSightLens = child;
+    } else child.material = laserSight.material;
+  }
+  if (laserSightLens) {
+    laserLight = new SpotLight(
+      "rLaserSightLight",
+      laserSightLens.getAbsolutePosition(),
+      Vector3.Forward(),
+      0.06,
+      24,
+      g.scene,
+    );
+    laserLight.diffuse = RIFLE_WEAPON.laserSight.lens.diffuse.clone();
+    laserLight.specular = RIFLE_WEAPON.laserSight.lens.diffuse.clone();
+    laserLight.intensity = 1.2;
+    laserLight.range = 10;
+    laserLight.setEnabled(false);
+
+    laserGlow = new PointLight("rLaserSightGlow", Vector3.Zero(), g.scene);
+    laserGlow.parent = laserSightLens;
+    laserGlow.position.setAll(0);
+    laserGlow.diffuse = RIFLE_WEAPON.laserSight.lens.diffuse.clone();
+    laserGlow.specular = RIFLE_WEAPON.laserSight.lens.diffuse.clone();
+    laserGlow.intensity = 0.5;
+    laserGlow.range = 1.1;
+    //laserGlow.includedOnlyMeshes.push(...laserSight.getChildMeshes(false));
+    laserGlow.setEnabled(false);
   }
   laserSight.setEnabled(false);
   const scope = wp(makeRifleScopeMesh(), makeRifleScopeMat(), Vector3.Zero());
@@ -1231,6 +1359,8 @@ export function setupRifleParts(root: Mesh): {
   );
   laserDot.material = makeRifleLaserDotMat();
   laserDot.isPickable = false;
+  laserDot.renderingGroupId = 2;
+  laserDot.alwaysSelectAsActiveMesh = true;
   laserDot.setEnabled(false);
 
   return {
@@ -1240,6 +1370,8 @@ export function setupRifleParts(root: Mesh): {
     brake,
     scope,
     laserSight,
+    laserLight,
+    laserGlow,
     laserDot,
     bayonet,
   };
@@ -1270,7 +1402,7 @@ export function makePlayerMesh(): { mesh: Mesh; aggregate: PhysicsAggregate } {
 
 // ─── Enemy material & meshes (exported) ───────────────────────────────────────
 function makeEnemyMat(): StandardMaterial {
-  const mat = new StandardMaterial("emat", g.scene);
+  const mat = applyMaterialLightBudget(new StandardMaterial("emat", g.scene));
   mat.diffuseColor = ENEMY_COLOR.clone();
   mat.emissiveColor = mat.diffuseColor.scale(0.2);
   return mat;
@@ -1480,7 +1612,9 @@ export function makeLegSplitHalves(
 export function setupLamppost(): { pole: Mesh; lightY: number } {
   const lampY = LIGHTING.lampHeight;
 
-  const poleMat = new StandardMaterial("poleMat", g.scene);
+  const poleMat = applyMaterialLightBudget(
+    new StandardMaterial("poleMat", g.scene),
+  );
   poleMat.diffuseColor = new Color3(0.2, 0.2, 0.22);
   poleMat.specularColor = new Color3(0.4, 0.4, 0.4);
 
@@ -1501,7 +1635,9 @@ export function setupLamppost(): { pole: Mesh; lightY: number } {
   head.position.y = lampY - 0.2;
   head.material = poleMat;
 
-  const bulbMat = new StandardMaterial("bulbMat", g.scene);
+  const bulbMat = applyMaterialLightBudget(
+    new StandardMaterial("bulbMat", g.scene),
+  );
   bulbMat.diffuseColor = new Color3(1, 0.9, 0.7);
   bulbMat.emissiveColor = new Color3(1, 0.85, 0.5);
   const bulb = MeshBuilder.CreateSphere("bulb", { diameter: 0.3 }, g.scene);
@@ -1516,7 +1652,9 @@ export function makeHealthSupply(position: Vector3): {
   mesh: Mesh;
   aggregate: PhysicsAggregate;
 } {
-  const mat = new StandardMaterial("supplyMat", g.scene);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("supplyMat", g.scene),
+  );
   mat.diffuseColor = new Color3(0.1, 0.9, 0.2);
   mat.emissiveColor = new Color3(0.1, 0.6, 0.1);
   const mesh = MeshBuilder.CreateSphere("supply", { diameter: 0.4 }, g.scene);
@@ -1537,7 +1675,9 @@ export function makeAmmoSupply(position: Vector3): {
   mesh: Mesh;
   aggregate: PhysicsAggregate;
 } {
-  const mat = new StandardMaterial("supplyMat", g.scene);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("supplyMat", g.scene),
+  );
   mat.diffuseColor = WEAPON.cell.diffuse.clone();
   mat.emissiveColor = WEAPON.cell.emissive.clone();
   const s = WEAPON.cell.size;
@@ -1561,7 +1701,10 @@ export function makeAmmoSupply(position: Vector3): {
 
 // ─── Laser beam (exported) ────────────────────────────────────────────────────
 export function makeBeam(from: Vector3, to: Vector3): Mesh {
-  const mat = new StandardMaterial("laserMat", g.scene);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("laserMat", g.scene),
+    WEAPON_EFFECT_EXTRA_LIGHTS,
+  );
   mat.diffuseColor = LASER_BEAM.diffuse;
   mat.emissiveColor = LASER_BEAM.emissive;
   mat.disableLighting = true;
@@ -1655,7 +1798,7 @@ function makeMaskedMarkMaterial(
   tex.hasAlpha = true;
   tex.update(false);
 
-  const mat = new StandardMaterial(name, g.scene);
+  const mat = applyMaterialLightBudget(new StandardMaterial(name, g.scene));
   mat.diffuseColor = color;
   mat.emissiveColor = color;
   mat.specularColor = Color3.Black();
@@ -1688,7 +1831,10 @@ export function makeBulletHoleDisc(): Mesh {
 
 // ─── Plasma projectile (exported) ───────────────────────────────────────────
 export function makePlasmaMesh(pos: Vector3): Mesh {
-  const mat = new StandardMaterial("plasmaMat", g.scene);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("plasmaMat", g.scene),
+    WEAPON_EFFECT_EXTRA_LIGHTS,
+  );
   mat.diffuseColor = new Color3(0, 1, 1);
   mat.emissiveColor = new Color3(0, 0.9, 1);
   mat.disableLighting = true;
@@ -1704,7 +1850,10 @@ export function makePlasmaMesh(pos: Vector3): Mesh {
 }
 
 export function makePlasmaChargeMesh(): Mesh {
-  const mat = new StandardMaterial("plasmaChargeMat", g.scene);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("plasmaChargeMat", g.scene),
+    WEAPON_EFFECT_EXTRA_LIGHTS,
+  );
   mat.diffuseColor = new Color3(0, 1, 1);
   mat.emissiveColor = new Color3(0, 0.9, 1);
   mat.disableLighting = true;
@@ -1727,11 +1876,16 @@ export function makeRifleTracerMesh(
   dir: Vector3,
   isCrit: boolean,
 ): Mesh {
-  const mat = new StandardMaterial("rifleTracerMat", g.scene);
-  mat.diffuseColor = isCrit ? new Color3(0.6, 0, 1) : new Color3(1, 0.9, 0.2);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("rifleTracerMat", g.scene),
+    WEAPON_EFFECT_EXTRA_LIGHTS,
+  );
+  mat.diffuseColor = Color3.Black();
   mat.emissiveColor = isCrit
-    ? new Color3(0.5, 0, 0.9)
-    : new Color3(1, 0.85, 0.1);
+    ? new Color3(1.2, 0.1, 2.2)
+    : new Color3(2.6, 2.2, 0.35);
+  mat.specularColor = Color3.Black();
+  mat.disableLighting = true;
   const mesh = MeshBuilder.CreateBox(
     "rifleTracer",
     {
@@ -1755,19 +1909,24 @@ export function makeRifleTracerMesh(
 export function spawnRifleMuzzleFlash(isCrit: boolean): void {
   const scopedFlash =
     g.rifleScoped && g.upgrades.rifleScope && g.rifleScopeAimT >= 0.995;
+  const flashColor = isCrit
+    ? new Color3(0.7, 0.2, 1)
+    : new Color3(1, 0.9, 0.25);
+  const flashEmissive = isCrit
+    ? new Color3(0.6, 0.1, 0.95)
+    : new Color3(1, 0.75, 0.15);
 
   const flash = MeshBuilder.CreateSphere(
     "rifleMuzzleFlash",
     { diameter: scopedFlash ? 0.08 : 0.3, segments: 6 },
     g.scene,
   );
-  const mat = new StandardMaterial("rifleMuzzleFlashMat", g.scene);
-  mat.diffuseColor = isCrit
-    ? new Color3(0.7, 0.2, 1)
-    : new Color3(1, 0.9, 0.25);
-  mat.emissiveColor = isCrit
-    ? new Color3(0.6, 0.1, 0.95)
-    : new Color3(1, 0.75, 0.15);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("rifleMuzzleFlashMat", g.scene),
+    WEAPON_EFFECT_EXTRA_LIGHTS,
+  );
+  mat.diffuseColor = flashColor;
+  mat.emissiveColor = flashEmissive;
   mat.alpha = 0.95;
   flash.material = mat;
   flash.parent = scopedFlash ? g.camera : g.rifleBarrelTip;
@@ -1781,6 +1940,18 @@ export function spawnRifleMuzzleFlash(isCrit: boolean): void {
   flash.isPickable = false;
   flash.renderingGroupId = 1;
 
+  const flashLight = new PointLight(
+    "rifleMuzzleFlashLight",
+    Vector3.Zero(),
+    g.scene,
+  );
+  flashLight.parent = scopedFlash ? g.camera : g.rifleBarrelTip;
+  flashLight.position.copyFrom(flash.position);
+  flashLight.diffuse = flashEmissive.clone();
+  flashLight.specular = flashEmissive.clone();
+  flashLight.intensity = scopedFlash ? 0.5 : 2.5;
+  flashLight.range = scopedFlash ? 1.5 : 4;
+
   const flashScale = g.upgrades.muzzleBrake ? RIFLE.MUZZLE_BRAKE.flashScale : 1;
 
   const start = performance.now();
@@ -1791,9 +1962,11 @@ export function spawnRifleMuzzleFlash(isCrit: boolean): void {
         flashScale,
     );
     mat.alpha = 0.95 * (1 - t);
+    flashLight.intensity = (scopedFlash ? 0.5 : 2.5) * flashScale * (1 - t);
     if (t >= 1) {
       g.scene.onBeforeRenderObservable.remove(obs);
       flash.dispose();
+      flashLight.dispose();
       mat.dispose();
     }
   });
@@ -1985,7 +2158,10 @@ export function spawnLightningBolt(
     { path, radius: 0.03, tessellation: 4, updatable: false, cap: 0 },
     g.scene,
   );
-  const mat = new StandardMaterial("lightningMat", g.scene);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("lightningMat", g.scene),
+    WEAPON_EFFECT_EXTRA_LIGHTS,
+  );
   mat.diffuseColor = isCrit ? new Color3(0.6, 0, 1) : new Color3(0.5, 0.7, 1);
   mat.emissiveColor = isCrit
     ? new Color3(0.5, 0, 0.9)

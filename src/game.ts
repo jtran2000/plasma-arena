@@ -10,6 +10,7 @@ import {
   Color3,
   ParticleSystem,
   PointLight,
+  SpotLight,
   Quaternion,
 } from "@babylonjs/core";
 import { AdvancedDynamicTexture, Control, Rectangle } from "@babylonjs/gui";
@@ -75,6 +76,7 @@ export interface RifleBullet {
 export interface BayonetEmbed {
   enemy: Enemy;
   direction: Vector3;
+  hitNormal: Vector3;
   startPosition: Vector3;
   pinPosition: Vector3;
   targetHitPoint: Vector3;
@@ -223,10 +225,10 @@ export function makeUpgradeState(): UpgradeState {
     plasmaCharger: false,
     plasmaGrenadier: false,
     rifleUnlock: true,
-    muzzleBrake: false,
+    muzzleBrake: true,
     rifleScope: true,
     rifleLaserSight: true,
-    bayonet: false,
+    bayonet: true,
   };
 }
 
@@ -321,6 +323,8 @@ export const g = {
   rifleBrake: null as unknown as Mesh,
   rifleScope: null as unknown as Mesh,
   rifleLaserSight: null as unknown as Mesh,
+  rifleLaserLight: null as SpotLight | null,
+  rifleLaserGlow: null as PointLight | null,
   rifleLaserDot: null as unknown as Mesh,
   rifleBayonet: null as unknown as Mesh,
   scopeOverlayGui: null as unknown as AdvancedDynamicTexture,
