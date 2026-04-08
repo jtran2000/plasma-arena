@@ -49,6 +49,11 @@ export function effectiveBloom(): number {
     SPREAD.perShot * Math.pow(1 - UPGRADE.bloomReduction, g.upgrades.bloom)
   );
 }
+export function effectiveRifleSpreadScale(): number {
+  return g.upgrades.rifleLaserSight && !g.rifleScoped
+    ? RIFLE.LASER_SIGHT.spreadScale
+    : 1;
+}
 export function effectiveMoveSpreadRate(): number {
   if (g.state.activeWeapon === "rifle") return RIFLE.SPREAD.moveRate;
   return (
@@ -108,6 +113,8 @@ export function incrementScore(amount: number, hitPoint?: Vector3): void {
 function syncWeaponUpgradeVisuals(): void {
   if (g.rifleBrake) g.rifleBrake.isVisible = g.upgrades.muzzleBrake;
   if (g.rifleScope) g.rifleScope.setEnabled(g.upgrades.rifleScope);
+  if (g.rifleLaserSight)
+    g.rifleLaserSight.setEnabled(g.upgrades.rifleLaserSight);
   if (g.rifleBayonet) g.rifleBayonet.setEnabled(g.upgrades.bayonet);
 }
 
@@ -299,8 +306,18 @@ const UPGRADE_DEFS: UpgradeDef[] = [
     key: "rifleScope",
     label: "Rifle Scope",
     weight: 400,
-    instruction:
-      "Hold RMB with the rifle to zoom and fire precise semi-automatic shots",
+    instruction: "Hold RMB with the rifle to zoom and fire precise shots",
+    oneTime: true,
+    requires: "rifleUnlock",
+    onApply: syncWeaponUpgradeVisuals,
+  },
+  {
+    key: "rifleLaserSight",
+    label: "Rifle Laser Sight",
+    weight: 400,
+    instruction: `Projects a green aim dot and reduces unscoped rifle spread by ${Math.round(
+      (1 - RIFLE.LASER_SIGHT.spreadScale) * 100,
+    )}%`,
     oneTime: true,
     requires: "rifleUnlock",
     onApply: syncWeaponUpgradeVisuals,

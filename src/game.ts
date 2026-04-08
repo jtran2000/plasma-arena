@@ -120,6 +120,7 @@ export interface UpgradeState {
   rifleUnlock: boolean;
   muzzleBrake: boolean;
   rifleScope: boolean;
+  rifleLaserSight: boolean;
   bayonet: boolean;
 }
 
@@ -224,6 +225,7 @@ export function makeUpgradeState(): UpgradeState {
     rifleUnlock: true,
     muzzleBrake: false,
     rifleScope: true,
+    rifleLaserSight: true,
     bayonet: false,
   };
 }
@@ -318,6 +320,8 @@ export const g = {
   rifleBarrelTip: null as unknown as Mesh,
   rifleBrake: null as unknown as Mesh,
   rifleScope: null as unknown as Mesh,
+  rifleLaserSight: null as unknown as Mesh,
+  rifleLaserDot: null as unknown as Mesh,
   rifleBayonet: null as unknown as Mesh,
   scopeOverlayGui: null as unknown as AdvancedDynamicTexture,
   scopeOverlay: null as unknown as Control,
@@ -331,7 +335,10 @@ export const g = {
   mouseHeld: false,
   mouse2Held: false,
   rifleScoped: false,
+  rifleScopeViewActive: false,
+  rifleScopeRecoilKicked: false,
   rifleScopeAimT: 0,
+  rifleScopeZoomT: 0,
   meleeHeld: false,
   bayonetCharging: false,
   bayonetChargeLockedUntilSprintEnd: false,

@@ -55,6 +55,7 @@ import {
   effectiveCooldown,
   effectiveHeatMax,
   effectiveBloom,
+  effectiveRifleSpreadScale,
   effectiveLaserDamage,
   effectivePlasmaDamage,
   effectiveReloadTime,
@@ -193,14 +194,19 @@ function currentMeleeStats() {
 }
 
 function currentRifleRecoilStats() {
-  const scale = g.upgrades.muzzleBrake ? RIFLE.MUZZLE_BRAKE.recoilScale : 1;
-  const cameraRatio = g.rifleScoped ? 1 : RIFLE.RECOIL.cameraRatio;
+  const brakeScale = g.upgrades.muzzleBrake
+    ? RIFLE.MUZZLE_BRAKE.recoilScale
+    : 1;
+  const scale = brakeScale * (g.rifleScoped ? RIFLE.RECOIL.scopedScale : 1);
+  const cameraRatio = g.rifleScopeViewActive ? 1 : RIFLE.RECOIL.cameraRatio;
   return {
     pitch: RIFLE.RECOIL.pitch * scale,
     recover: RIFLE.RECOIL.recover,
     maxPitch: RIFLE.RECOIL.maxPitch * scale,
     cameraRatio,
-    weaponRoll: g.rifleScoped ? 0 : RIFLE.RECOIL.weaponRoll * scale,
+    weaponRoll: g.rifleScopeViewActive
+      ? 0
+      : RIFLE.RECOIL.weaponRoll * brakeScale,
   };
 }
 
@@ -225,7 +231,10 @@ export function switchWeapon(): void {
   g.mouseHeld = false;
   g.mouse2Held = false;
   g.rifleScoped = false;
+  g.rifleScopeViewActive = false;
+  g.rifleScopeRecoilKicked = false;
   g.rifleScopeAimT = 0;
+  g.rifleScopeZoomT = 0;
   g.meleeHeld = false;
   g.bayonetCharging = false;
   g.bayonetChargeLockedUntilSprintEnd = false;
@@ -233,6 +242,7 @@ export function switchWeapon(): void {
   g.shootSpread = 0;
   g.moveSpread = 0;
   g.recoilPitch = 0;
+  g.rifleLaserDot?.setEnabled(false);
   g.recoilRoll = 0;
   g.cameraRecoilPitch = 0;
   g.appliedCameraRecoilPitch = 0;
@@ -493,11 +503,13 @@ function shootRifle(): void {
   g.state.shootCooldown = effectiveCooldown();
 
   const scoped = g.rifleScoped && g.upgrades.rifleScope;
+  const rifleSpreadScale = effectiveRifleSpreadScale();
   const spread = scoped
     ? 0
-    : RIFLE.SPREAD.base +
-      Math.min(g.shootSpread, RIFLE.SPREAD.max) +
-      g.moveSpread;
+    : (RIFLE.SPREAD.base +
+        Math.min(g.shootSpread, RIFLE.SPREAD.max) +
+        g.moveSpread) *
+      rifleSpreadScale;
   const aimRay = g.camera.getForwardRay(100);
   if (!scoped) aimRay.direction.copyFrom(aimAtRifleCrosshair(aimRay.direction));
   if (spread > 0)
@@ -553,6 +565,13 @@ function applyRifleRecoil(): void {
     g.cameraRecoilPitch + recoil.pitch,
     recoil.maxPitch,
   );
+  if (
+    g.rifleScopeViewActive &&
+    g.cameraRecoilPitch >= RIFLE.SCOPE.recoilExitPitch
+  ) {
+    g.rifleScopeViewActive = false;
+    g.rifleScopeRecoilKicked = true;
+  }
   const settleMagnitude =
     Math.random() *
     Math.min(
@@ -564,7 +583,7 @@ function applyRifleRecoil(): void {
   g.camera.rotation.y += Math.cos(settleDirection) * settleMagnitude;
   g.rifleBloomRecoilHoldTimer = RIFLE.RECOIL.decayHoldMs;
   const cameraRecoilPitch = g.cameraRecoilPitch * recoil.cameraRatio;
-  if (g.rifleScoped) {
+  if (g.rifleScopeViewActive) {
     const recoilDelta = cameraRecoilPitch - g.appliedCameraRecoilPitch;
     if (recoilDelta !== 0) {
       g.camera.rotation.x -= recoilDelta;
@@ -1629,6 +1648,9 @@ export function startReload(): void {
     return;
   releaseBayonetEmbed();
   g.rifleScoped = false;
+  g.rifleScopeViewActive = false;
+  g.rifleScopeRecoilKicked = false;
+  g.rifleLaserDot?.setEnabled(false);
   g.state.reloading = true;
   const reloadTime = effectiveReloadTime();
   g.state.reloadTimeLeft = reloadTime;

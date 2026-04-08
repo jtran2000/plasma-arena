@@ -100,6 +100,8 @@ export function bindSceneInput(): void {
       } else if (info.type === PointerEventTypes.POINTERUP) {
         g.mouse2Held = false;
         g.rifleScoped = false;
+        g.rifleScopeViewActive = false;
+        g.rifleScopeRecoilKicked = false;
         if (g.plasmaCharging) releasePlasmaCharge();
       }
     }

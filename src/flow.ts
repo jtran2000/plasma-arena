@@ -19,7 +19,10 @@ export function endGame(): void {
   g.mouseHeld = false;
   g.mouse2Held = false;
   g.rifleScoped = false;
+  g.rifleScopeViewActive = false;
+  g.rifleScopeRecoilKicked = false;
   g.rifleScopeAimT = 0;
+  g.rifleScopeZoomT = 0;
   g.meleeHeld = false;
   g.bayonetCharging = false;
   g.bayonetChargeLockedUntilSprintEnd = false;
@@ -36,6 +39,7 @@ export function endGame(): void {
   g.pressedKeys.clear();
   g.blasterRoot?.setEnabled(false);
   g.rifleRoot?.setEnabled(false);
+  g.rifleLaserDot?.setEnabled(false);
   dom.speedLines.classList.remove("active");
   if (g.scopeOverlay) g.scopeOverlay.isVisible = false;
   dom.hud.classList.remove("scoped");
@@ -47,6 +51,7 @@ export async function startGame(sensitivity: number): Promise<void> {
   dom.upgradeMenu.classList.remove("visible");
   dom.speedLines.classList.remove("active");
   if (g.scopeOverlay) g.scopeOverlay.isVisible = false;
+  g.rifleLaserDot?.setEnabled(false);
   dom.hud.classList.remove("scoped");
   dom.hud.style.display = "block";
   g.upgrades = makeUpgradeState();
@@ -69,7 +74,10 @@ export async function startGame(sensitivity: number): Promise<void> {
   g.plasmaChargeCrit = false;
   g.mouse2Held = false;
   g.rifleScoped = false;
+  g.rifleScopeViewActive = false;
+  g.rifleScopeRecoilKicked = false;
   g.rifleScopeAimT = 0;
+  g.rifleScopeZoomT = 0;
   g.meleeHeld = false;
   g.bayonetCharging = false;
   g.bayonetChargeLockedUntilSprintEnd = false;
@@ -106,7 +114,10 @@ export function pause(): void {
   g.mouseHeld = false;
   g.mouse2Held = false;
   g.rifleScoped = false;
+  g.rifleScopeViewActive = false;
+  g.rifleScopeRecoilKicked = false;
   g.rifleScopeAimT = 0;
+  g.rifleScopeZoomT = 0;
   g.meleeHeld = false;
   g.bayonetCharging = false;
   g.bayonetChargeLockedUntilSprintEnd = false;
@@ -125,6 +136,7 @@ export function pause(): void {
   g.camera.detachControl();
   dom.speedLines.classList.remove("active");
   if (g.scopeOverlay) g.scopeOverlay.isVisible = false;
+  g.rifleLaserDot?.setEnabled(false);
   dom.hud.classList.remove("scoped");
   dom.hud.classList.add("paused");
   if (g.audioCtx) g.audioCtx.suspend();

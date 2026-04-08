@@ -221,6 +221,21 @@ const RIFLE_WEAPON = {
     diffuse: new Color3(0.16, 0.16, 0.18),
     emissive: new Color3(0.04, 0.04, 0.05),
   },
+  laserSight: {
+    body: {
+      size: { width: 0.035, height: 0.035, depth: 0.22 } as const,
+      pos: new Vector3(-0.07, 0.015, 0.64),
+      diffuse: new Color3(0.015, 0.018, 0.014),
+      emissive: new Color3(0.0, 0.015, 0.0),
+    },
+    lens: {
+      size: { diameter: 0.026, height: 0.008, tessellation: 12 } as const,
+      pos: new Vector3(-0.07, 0.015, 0.755),
+      rotX: Math.PI / 2,
+      diffuse: new Color3(0.05, 0.75, 0.15),
+      emissive: new Color3(0.0, 0.5, 0.08),
+    },
+  },
   scope: {
     tube: {
       size: {
@@ -648,6 +663,34 @@ function makeRifleBrakeMesh(): Mesh {
   return MeshBuilder.CreateBox("rBrake", RIFLE_WEAPON.brake.size, g.scene);
 }
 
+function makeRifleLaserSightMesh(): Mesh {
+  const root = new Mesh("rLaserSight", g.scene);
+  root.isPickable = false;
+
+  const body = MeshBuilder.CreateBox(
+    "rLaserSightBody",
+    RIFLE_WEAPON.laserSight.body.size,
+    g.scene,
+  );
+  body.parent = root;
+  body.position = RIFLE_WEAPON.laserSight.body.pos.clone();
+  body.isPickable = false;
+  body.renderingGroupId = 1;
+
+  const lens = MeshBuilder.CreateCylinder(
+    "rLaserSightLens",
+    RIFLE_WEAPON.laserSight.lens.size,
+    g.scene,
+  );
+  lens.parent = root;
+  lens.position = RIFLE_WEAPON.laserSight.lens.pos.clone();
+  lens.rotation.x = RIFLE_WEAPON.laserSight.lens.rotX;
+  lens.isPickable = false;
+  lens.renderingGroupId = 1;
+
+  return root;
+}
+
 function makeRifleScopeBracketCollarMesh(): Mesh {
   const mesh = new Mesh("rScopeBracketCollar", g.scene);
   const vertexData = new VertexData();
@@ -957,6 +1000,30 @@ function makeRifleBrakeMat(): StandardMaterial {
   return mat;
 }
 
+function makeRifleLaserSightMat(): StandardMaterial {
+  const mat = new StandardMaterial("rifleLaserSight", g.scene);
+  mat.diffuseColor = RIFLE_WEAPON.laserSight.body.diffuse;
+  mat.emissiveColor = RIFLE_WEAPON.laserSight.body.emissive;
+  mat.specularColor = new Color3(0.08, 0.1, 0.08);
+  return mat;
+}
+
+function makeRifleLaserSightLensMat(): StandardMaterial {
+  const mat = new StandardMaterial("rifleLaserSightLens", g.scene);
+  mat.diffuseColor = RIFLE_WEAPON.laserSight.lens.diffuse;
+  mat.emissiveColor = RIFLE_WEAPON.laserSight.lens.emissive;
+  mat.specularColor = new Color3(0.25, 0.8, 0.3);
+  return mat;
+}
+
+function makeRifleLaserDotMat(): StandardMaterial {
+  const mat = new StandardMaterial("rifleLaserDot", g.scene);
+  mat.diffuseColor = new Color3(0.05, 1, 0.18);
+  mat.emissiveColor = new Color3(0.0, 1.0, 0.12);
+  mat.specularColor = new Color3(0.2, 1, 0.3);
+  return mat;
+}
+
 function makeRifleScopeMat(): StandardMaterial {
   const mat = new StandardMaterial("rifleScope", g.scene);
   mat.diffuseColor = RIFLE_WEAPON.scope.diffuse;
@@ -978,7 +1045,7 @@ function makeRifleScopeLensMat(): StandardMaterial {
   ctx.fillStyle = "rgba(115, 125, 135, 0.48)";
   ctx.fillRect(0, 0, texSize, texSize);
   ctx.strokeStyle = "rgba(0, 0, 0, 0.96)";
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(texSize / 2, 0);
   ctx.lineTo(texSize / 2, texSize);
@@ -1084,6 +1151,8 @@ export function setupRifleParts(root: Mesh): {
   barrelTip: Mesh;
   brake: Mesh;
   scope: Mesh;
+  laserSight: Mesh;
+  laserDot: Mesh;
   bayonet: Mesh;
 } {
   function wp(
@@ -1121,6 +1190,17 @@ export function setupRifleParts(root: Mesh): {
     RIFLE_WEAPON.brake.pos.clone(),
   );
   brake.isVisible = false;
+  const laserSight = wp(
+    makeRifleLaserSightMesh(),
+    makeRifleLaserSightMat(),
+    Vector3.Zero(),
+  );
+  const laserSightLensMat = makeRifleLaserSightLensMat();
+  for (const child of laserSight.getChildMeshes(false)) {
+    if (child.name === "rLaserSightLens") child.material = laserSightLensMat;
+    else child.material = laserSight.material;
+  }
+  laserSight.setEnabled(false);
   const scope = wp(makeRifleScopeMesh(), makeRifleScopeMat(), Vector3.Zero());
   const scopeBracketMat = makeRifleScopeBracketMat();
   for (const child of scope.getChildMeshes(false)) {
@@ -1144,7 +1224,25 @@ export function setupRifleParts(root: Mesh): {
   barrelTip.isVisible = false;
   barrelTip.isPickable = false;
 
-  return { mag, barrel, barrelTip, brake, scope, bayonet };
+  const laserDot = MeshBuilder.CreateSphere(
+    "rifleLaserDot",
+    { diameter: RIFLE.LASER_SIGHT.dotSize, segments: 12 },
+    g.scene,
+  );
+  laserDot.material = makeRifleLaserDotMat();
+  laserDot.isPickable = false;
+  laserDot.setEnabled(false);
+
+  return {
+    mag,
+    barrel,
+    barrelTip,
+    brake,
+    scope,
+    laserSight,
+    laserDot,
+    bayonet,
+  };
 }
 
 // ─── Player mesh (exported) ───────────────────────────────────────────────────

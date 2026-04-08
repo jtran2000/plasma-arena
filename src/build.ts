@@ -30,6 +30,11 @@ import {
   setupLamppost,
 } from "./spawn.js";
 
+function smoothstep(t: number): number {
+  const clamped = Math.max(0, Math.min(1, t));
+  return clamped * clamped * (3 - 2 * clamped);
+}
+
 class ScopeOverlayControl extends Control {
   public constructor() {
     super("scopeOverlay");
@@ -44,7 +49,9 @@ class ScopeOverlayControl extends Control {
     const cx = measure.left + measure.width / 2;
     const cy = measure.top + measure.height / 2;
     const radius =
-      Math.min(measure.width, measure.height) * RIFLE.SCOPE.pictureRadiusScale;
+      Math.min(measure.width, measure.height) *
+      RIFLE.SCOPE.pictureRadiusScale *
+      smoothstep(g.rifleScopeZoomT);
 
     context.save();
     context.fillStyle = RIFLE.SCOPE.overlayFill;
@@ -193,9 +200,13 @@ function buildWeapon(): void {
   g.rifleBarrelTip = rifle.barrelTip;
   g.rifleBrake = rifle.brake;
   g.rifleScope = rifle.scope;
+  g.rifleLaserSight = rifle.laserSight;
+  g.rifleLaserDot = rifle.laserDot;
   g.rifleBayonet = rifle.bayonet;
   g.rifleBrake.isVisible = g.upgrades.muzzleBrake;
   g.rifleScope.setEnabled(g.upgrades.rifleScope);
+  g.rifleLaserSight.setEnabled(g.upgrades.rifleLaserSight);
+  g.rifleLaserDot.setEnabled(false);
   g.rifleBayonet.setEnabled(g.upgrades.bayonet);
 
   if (g.state.activeWeapon === "rifle" && g.upgrades.rifleUnlock) {
