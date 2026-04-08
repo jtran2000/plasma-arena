@@ -10,8 +10,6 @@ import {
   DynamicTexture,
   HavokPlugin,
 } from "@babylonjs/core";
-import { Effect } from "@babylonjs/core/Materials/effect.js";
-import { PostProcess } from "@babylonjs/core/PostProcesses/postProcess.js";
 import type { ICanvasRenderingContext } from "@babylonjs/core/Engines/ICanvas.js";
 import { AdvancedDynamicTexture, Control } from "@babylonjs/gui";
 import HavokPhysics from "@babylonjs/havok";
@@ -31,49 +29,6 @@ import {
   setupRifleRoot,
   setupLamppost,
 } from "./spawn.js";
-
-Effect.ShadersStore.scopeBackgroundBlurFragmentShader = `
-precision highp float;
-
-varying vec2 vUV;
-uniform sampler2D textureSampler;
-uniform vec2 screenSize;
-uniform float scopeRadiusScale;
-uniform float backgroundDofKernel;
-uniform float backgroundEffectMarginPx;
-uniform float vignetteStrength;
-uniform float vignettePower;
-
-void main(void) {
-  vec4 baseColor = texture2D(textureSampler, vUV);
-  vec2 centeredPx = (vUV - vec2(0.5)) * screenSize;
-  float scopeRadius = min(screenSize.x, screenSize.y) * scopeRadiusScale;
-  float dist = length(centeredPx);
-  float backgroundT = step(scopeRadius + backgroundEffectMarginPx, dist);
-
-  vec2 stepUv = vec2(backgroundDofKernel) / screenSize;
-  vec4 dof = baseColor * 0.16;
-  dof += texture2D(textureSampler, vUV + vec2(stepUv.x, 0.0)) * 0.09;
-  dof += texture2D(textureSampler, vUV - vec2(stepUv.x, 0.0)) * 0.09;
-  dof += texture2D(textureSampler, vUV + vec2(0.0, stepUv.y)) * 0.09;
-  dof += texture2D(textureSampler, vUV - vec2(0.0, stepUv.y)) * 0.09;
-  dof += texture2D(textureSampler, vUV + stepUv) * 0.08;
-  dof += texture2D(textureSampler, vUV - stepUv) * 0.08;
-  dof += texture2D(textureSampler, vUV + vec2(stepUv.x, -stepUv.y)) * 0.08;
-  dof += texture2D(textureSampler, vUV + vec2(-stepUv.x, stepUv.y)) * 0.08;
-  dof += texture2D(textureSampler, vUV + vec2(stepUv.x * 1.7, 0.0)) * 0.06;
-  dof += texture2D(textureSampler, vUV - vec2(stepUv.x * 1.7, 0.0)) * 0.06;
-  dof += texture2D(textureSampler, vUV + vec2(0.0, stepUv.y * 1.7)) * 0.06;
-  dof += texture2D(textureSampler, vUV - vec2(0.0, stepUv.y * 1.7)) * 0.06;
-  dof /= 1.08;
-
-  float vignetteDist = clamp(length((vUV - vec2(0.5)) * vec2(screenSize.x / screenSize.y, 1.0)) * 2.0, 0.0, 1.0);
-  float vignetteFalloff = smoothstep(0.0, 1.0, pow(vignetteDist, vignettePower));
-  float vignette = vignetteFalloff * vignetteStrength;
-  vec4 backgroundColor = vec4(dof.rgb * (1.0 - vignette), dof.a);
-  gl_FragColor = mix(baseColor, backgroundColor, backgroundT);
-}
-`;
 
 class ScopeOverlayControl extends Control {
   public constructor() {
@@ -264,39 +219,6 @@ function buildWeapon(): void {
 }
 
 function setupScopeOverlay(): void {
-  g.scopeBackgroundBlur = new PostProcess(
-    "scopeBackgroundBlur",
-    "scopeBackgroundBlur",
-    [
-      "screenSize",
-      "scopeRadiusScale",
-      "backgroundDofKernel",
-      "backgroundEffectMarginPx",
-      "vignetteStrength",
-      "vignettePower",
-    ],
-    null,
-    1,
-    g.camera,
-  );
-  g.scopeBackgroundBlur.onApply = (effect) => {
-    effect.setFloat2(
-      "screenSize",
-      g.engine.getRenderWidth(),
-      g.engine.getRenderHeight(),
-    );
-    effect.setFloat("scopeRadiusScale", RIFLE.SCOPE.pictureRadiusScale + 1);
-    effect.setFloat("backgroundDofKernel", RIFLE.SCOPE.backgroundDofKernel);
-    effect.setFloat(
-      "backgroundEffectMarginPx",
-      RIFLE.SCOPE.backgroundEffectMarginPx,
-    );
-    effect.setFloat("vignetteStrength", RIFLE.SCOPE.vignetteStrength);
-    effect.setFloat("vignettePower", RIFLE.SCOPE.vignettePower);
-  };
-  g.camera.detachPostProcess(g.scopeBackgroundBlur);
-  g.scopeBlurActive = false;
-
   g.scopeOverlayGui = AdvancedDynamicTexture.CreateFullscreenUI(
     "scopeOverlayGui",
     true,

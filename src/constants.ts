@@ -180,7 +180,6 @@ export const RIFLE = {
     weaponAimRate: 12,
     overlayFill: "rgba(8, 8, 10, 0.86)",
     pictureRadiusScale: 0.36,
-    overlayBlurKernel: 18,
     aimRootX: 0,
     aimRootY: -0.1375,
     aimRootZ: 0.5,

@@ -6,7 +6,6 @@ import {
   makeWeaponAmmoState,
   releaseBayonetEmbed,
   restoreSprintLook,
-  setScopeBlurActive,
 } from "./game.js";
 import { stopPlasmaChargeSound } from "./audio.js";
 import { buildScene } from "./build.js";
@@ -39,7 +38,6 @@ export function endGame(): void {
   g.rifleRoot?.setEnabled(false);
   dom.speedLines.classList.remove("active");
   if (g.scopeOverlay) g.scopeOverlay.isVisible = false;
-  setScopeBlurActive(false);
   dom.hud.classList.remove("scoped");
   dom.hud.style.display = "none";
   document.exitPointerLock();
@@ -49,7 +47,6 @@ export async function startGame(sensitivity: number): Promise<void> {
   dom.upgradeMenu.classList.remove("visible");
   dom.speedLines.classList.remove("active");
   if (g.scopeOverlay) g.scopeOverlay.isVisible = false;
-  setScopeBlurActive(false);
   dom.hud.classList.remove("scoped");
   dom.hud.style.display = "block";
   g.upgrades = makeUpgradeState();
@@ -128,7 +125,6 @@ export function pause(): void {
   g.camera.detachControl();
   dom.speedLines.classList.remove("active");
   if (g.scopeOverlay) g.scopeOverlay.isVisible = false;
-  setScopeBlurActive(false);
   dom.hud.classList.remove("scoped");
   dom.hud.classList.add("paused");
   if (g.audioCtx) g.audioCtx.suspend();

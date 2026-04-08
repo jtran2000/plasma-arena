@@ -12,7 +12,6 @@ import {
   PointLight,
   Quaternion,
 } from "@babylonjs/core";
-import type { PostProcess } from "@babylonjs/core/PostProcesses/postProcess.js";
 import { AdvancedDynamicTexture, Control, Rectangle } from "@babylonjs/gui";
 import { PLAYER, BLASTER, RIFLE, SUPPLY, WAVE } from "./constants.js";
 const { LASER } = BLASTER;
@@ -322,8 +321,6 @@ export const g = {
   rifleBayonet: null as unknown as Mesh,
   scopeOverlayGui: null as unknown as AdvancedDynamicTexture,
   scopeOverlay: null as unknown as Control,
-  scopeBackgroundBlur: null as PostProcess | null,
-  scopeBlurActive: false,
   rifleMag: null as unknown as Mesh,
   weaponRoot: null as unknown as Mesh,
   weaponBarrel: null as unknown as Mesh,
@@ -375,17 +372,6 @@ export const g = {
 };
 
 const BAYONET_PINNED_ENEMY_MASK = 1 << 30;
-
-export function setScopeBlurActive(active: boolean): void {
-  if (!g.camera || !g.scopeBackgroundBlur || g.scopeBlurActive === active)
-    return;
-  if (active) {
-    g.camera.attachPostProcess(g.scopeBackgroundBlur);
-  } else {
-    g.camera.detachPostProcess(g.scopeBackgroundBlur);
-  }
-  g.scopeBlurActive = active;
-}
 
 export function disableBayonetEmbedPlayerEnemyCollision(enemy: Enemy): {
   playerCollideMask: number;

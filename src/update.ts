@@ -29,7 +29,6 @@ import {
   disableBayonetEmbedPlayerEnemyCollision,
   disableSprintLook,
   restoreSprintLook,
-  setScopeBlurActive,
   type Enemy,
 } from "./game.js";
 import {
@@ -129,7 +128,6 @@ function updateRifleScope(dt: number): void {
   }
   g.scopeOverlay.isVisible = scopeViewActive;
   g.scopeOverlay.markAsDirty();
-  setScopeBlurActive(scopeViewActive);
   dom.hud.classList.toggle("scoped", scopeViewActive);
 
   const targetFov = scopeViewActive
@@ -908,7 +906,6 @@ function embedBayonetInEnemy(
   g.rifleScoped = false;
   g.rifleScopeAimT = 0;
   if (g.scopeOverlay) g.scopeOverlay.isVisible = false;
-  setScopeBlurActive(false);
   dom.hud.classList.remove("scoped");
   disableBayonetEmbedLook();
   enemy.state = "patrol";
