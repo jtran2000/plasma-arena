@@ -67,6 +67,11 @@ export function effectiveLaserDamage(): number {
 export function effectivePlasmaDamage(): number {
   return PLASMA.damage + g.upgrades.plasmaDamage * UPGRADE.plasmaDamage;
 }
+export function effectivePlasmaSpeed(): number {
+  return (
+    PLASMA.speed * (1 + g.upgrades.plasmaVelocity * UPGRADE.plasmaVelocity)
+  );
+}
 export function effectiveSupplyDropRate(): number {
   return SUPPLY.dropRate + g.upgrades.supplyDropRate * UPGRADE.supplyDropRate;
 }
@@ -190,6 +195,11 @@ const UPGRADE_DEFS: UpgradeDef[] = [
   {
     key: "plasmaDamage",
     label: `+${UPGRADE.plasmaDamage} Plasma Damage`,
+    requires: "plasmaCaster",
+  },
+  {
+    key: "plasmaVelocity",
+    label: `+${Math.round(UPGRADE.plasmaVelocity * 100)}% Plasma Velocity`,
     requires: "plasmaCaster",
   },
   {

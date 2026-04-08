@@ -281,6 +281,7 @@ export const UPGRADE = {
   moveSpreadReduction: 0.25, // fraction less movement spread per upgrade
   laserDamage: 5, // + flat laser damage per upgrade
   plasmaDamage: 10, // + flat plasma damage per upgrade
+  plasmaVelocity: 0.25, // + fraction of base plasma speed per upgrade
   supplyDropRate: 0.05, // + absolute drop chance per upgrade
   critChance: 0.03, // + crit probability per upgrade
   critDamage: 0.25, // + crit multiplier per upgrade (+0.25× each)

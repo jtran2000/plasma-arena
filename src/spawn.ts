@@ -48,6 +48,7 @@ import {
 import {
   effectiveCooldown,
   effectiveHeatMax,
+  effectivePlasmaSpeed,
   incrementScore,
 } from "./progression.js";
 
@@ -2115,7 +2116,7 @@ export function spawnPlasma(
   }
   g.plasmas.push({
     mesh,
-    velocity: dir.scale(PLASMA.speed / chargeMultiplier),
+    velocity: dir.scale(effectivePlasmaSpeed() / chargeMultiplier),
     age: 0,
     heatPenalty,
     chargeMultiplier,

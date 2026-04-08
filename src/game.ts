@@ -103,6 +103,7 @@ export interface UpgradeState {
   moveSpread: number;
   laserDamage: number;
   plasmaDamage: number;
+  plasmaVelocity: number;
   supplyDropRate: number;
   critChance: number;
   critDamage: number;
@@ -208,6 +209,7 @@ export function makeUpgradeState(): UpgradeState {
     moveSpread: 0,
     laserDamage: 0,
     plasmaDamage: 0,
+    plasmaVelocity: 0,
     supplyDropRate: 0,
     critChance: 0,
     critDamage: 0,
