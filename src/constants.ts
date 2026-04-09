@@ -87,6 +87,10 @@ export const PLAYER = {
     combatBootsSprintScale: 0.65, // sprint drain multiplier with Combat Boots
     combatBootsJumpScale: 0.6, // jump cost multiplier with Combat Boots
   },
+  BARREL_CLIP: {
+    tiltX: -0.9, // weapon pitch when barrel is blocked (radians, negative = up)
+    lerpSpeed: 12, // interpolation speed toward blocked / unblocked pose (units/s)
+  },
 } as const;
 
 // ─── Blaster — Weapon System ────────────────────────────────────────────────
@@ -164,7 +168,7 @@ export const RIFLE = {
   reserveMags: 5, // starting reserve magazines
   maxReserveMags: 7, // cap on reserve mags from supply pickups
   reloadTime: 2200, // reload duration (ms)
-  bulletSpeed: 10, // muzzle velocity (m/s)
+  bulletSpeed: 400, // muzzle velocity (m/s)
   gravity: 0, // bullet drop acceleration (m/s²)
   tracerLifeMs: 1800, // how long tracer lines persist (ms)
   tracerLength: 0.42, // visual tracer length (m)

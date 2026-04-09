@@ -7,11 +7,9 @@ import {
   AbstractMesh,
   Ray,
   PickingInfo,
-  Quaternion,
 } from "@babylonjs/core";
 import { ARENA, PLAYER, BLASTER, RIFLE } from "./constants.js";
 const { HEAT, PLASMA, SPREAD, MULTISHOT, RICOCHET, LIGHTNING, MELEE } = BLASTER;
-const MAX_MUZZLE_AIM_ANGLE = Math.PI / 8;
 import {
   g,
   dom,
@@ -347,6 +345,7 @@ export function meleeAttack(): void {
 
 // ─── Laser shooting ─────────────────────────────────────────────────────────
 export function shoot(): void {
+  if (g.barrelClipping && !g.bayonetEmbed) return;
   if (g.state.activeWeapon === "rifle") {
     shootRifle();
     return;
@@ -424,32 +423,6 @@ function addRandomSpread(dir: Vector3, spread: number): Vector3 {
     .normalize();
 }
 
-function clampMuzzleAimDirection(
-  barrelDir: Vector3,
-  targetDir: Vector3,
-  maxAngle: number,
-): Vector3 {
-  const baseDir = barrelDir.normalizeToNew();
-  const desiredDir = targetDir.normalizeToNew();
-  const dot = Math.max(-1, Math.min(1, Vector3.Dot(baseDir, desiredDir)));
-  const angle = Math.acos(dot);
-  if (angle <= maxAngle) return desiredDir;
-  if (angle < 0.0001) return baseDir;
-
-  let axis = Vector3.Cross(baseDir, desiredDir);
-  if (axis.lengthSquared() < 0.0001) {
-    axis = Vector3.Cross(baseDir, Vector3.Up());
-    if (axis.lengthSquared() < 0.0001) {
-      axis = Vector3.Cross(baseDir, Vector3.Right());
-    }
-  }
-  axis.normalize();
-  const rotation = Quaternion.RotationAxis(axis, maxAngle);
-  const clampedDir = Vector3.Zero();
-  baseDir.rotateByQuaternionToRef(rotation, clampedDir);
-  return clampedDir.normalize();
-}
-
 function aimProjectileFromMuzzle(
   aimRay: Ray,
   spawnPos: Vector3,
@@ -462,7 +435,7 @@ function aimProjectileFromMuzzle(
       : aimRay.origin.add(aimRay.direction.scale(100));
   const dir = aimPoint.subtract(spawnPos);
   if (dir.lengthSquared() < 0.0001) return barrelDir.normalizeToNew();
-  return clampMuzzleAimDirection(barrelDir, dir, MAX_MUZZLE_AIM_ANGLE);
+  return dir.normalize();
 }
 
 function bayonetPinRayFilter(m: AbstractMesh): boolean {
@@ -509,21 +482,6 @@ function getProjectileSweepAxes(dir: Vector3): { up: Vector3; right: Vector3 } {
   up.normalize();
   const right = Vector3.Cross(dir, up).normalize();
   return { up, right };
-}
-
-function tryResolveImmediateRifleHit(
-  spawnPos: Vector3,
-  dir: Vector3,
-  damage: number,
-  isCrit: boolean,
-): boolean {
-  const rayLen =
-    RIFLE.bulletSpeed * getProjectileSpawnStepSeconds() * 2 +
-    RIFLE.tracerLength +
-    RIFLE.immediateHitBacktrack;
-  if (rayLen <= 0) return false;
-  const hit = g.scene.pickWithRay(new Ray(spawnPos, dir, rayLen));
-  return handleRifleHit(hit, dir, damage, isCrit);
 }
 
 function tryResolveImmediatePlasmaHit(
@@ -728,16 +686,14 @@ function shootRifle(): void {
     const spawnPos = g.barrelTip.getAbsolutePosition();
     const barrelDir = g.barrelTip.getDirection(Vector3.Forward()).normalize();
     const bulletDir = aimProjectileFromMuzzle(aimRay, spawnPos, barrelDir);
-    if (!tryResolveImmediateRifleHit(spawnPos, bulletDir, damage, isCrit)) {
-      const tracer = makeRifleTracerMesh(spawnPos, bulletDir, isCrit);
-      g.rifleBullets.push({
-        mesh: tracer,
-        velocity: bulletDir.scale(RIFLE.bulletSpeed),
-        age: 0,
-        damage,
-        isCrit,
-      });
-    }
+    const tracer = makeRifleTracerMesh(spawnPos, bulletDir, isCrit);
+    g.rifleBullets.push({
+      mesh: tracer,
+      velocity: bulletDir.scale(RIFLE.bulletSpeed),
+      age: 0,
+      damage,
+      isCrit,
+    });
   }
   playRifleShotSound();
   spawnRifleMuzzleFlash(isCrit);

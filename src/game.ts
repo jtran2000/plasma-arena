@@ -393,6 +393,8 @@ export const g = {
   appliedCameraRecoilPitch: 0,
   rifleBloomRecoilHoldTimer: 0,
   crosshairRecoil: 0,
+  barrelClipping: false,
+  barrelClipT: 0,
   pressedKeys: new Set<string>(),
   upgrades: makeUpgradeState(),
   pendingUpgrades: [] as string[],

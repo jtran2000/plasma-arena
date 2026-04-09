@@ -581,24 +581,30 @@ function updateRifleLaserSight(): void {
     return;
   }
 
-  const aimRay = g.camera.getForwardRay(100);
-  if (!scoped && g.recoilPitch > 0) {
-    const cameraUp = g.camera.getDirection(Vector3.Up()).normalize();
-    aimRay.direction = aimRay.direction
-      .add(cameraUp.scale(Math.tan(g.recoilPitch)))
-      .normalize();
-  }
-  const aimHit = g.scene.pickWithRay(aimRay);
-  const aimTarget =
-    aimHit?.hit && aimHit.pickedPoint
-      ? aimHit.pickedPoint
-      : aimRay.origin.add(aimRay.direction.scale(100));
   const laserOrigin = getRifleLaserOrigin();
-  const lensDir = aimTarget.subtract(laserOrigin);
-  const laserDir =
-    lensDir.lengthSquared() > 0.0001
-      ? lensDir.normalize()
-      : aimRay.direction.clone();
+  let laserDir: Vector3;
+  if (g.barrelClipT > 0) {
+    // Weapon is tilted — aim the laser along the actual barrel direction
+    laserDir = g.barrelTip.getDirection(Vector3.Forward()).normalize();
+  } else {
+    const aimRay = g.camera.getForwardRay(100);
+    if (!scoped && g.recoilPitch > 0) {
+      const cameraUp = g.camera.getDirection(Vector3.Up()).normalize();
+      aimRay.direction = aimRay.direction
+        .add(cameraUp.scale(Math.tan(g.recoilPitch)))
+        .normalize();
+    }
+    const aimHit = g.scene.pickWithRay(aimRay);
+    const aimTarget =
+      aimHit?.hit && aimHit.pickedPoint
+        ? aimHit.pickedPoint
+        : aimRay.origin.add(aimRay.direction.scale(100));
+    const lensDir = aimTarget.subtract(laserOrigin);
+    laserDir =
+      lensDir.lengthSquared() > 0.0001
+        ? lensDir.normalize()
+        : aimRay.direction.clone();
+  }
   const hit = g.scene.pickWithRay(new Ray(laserOrigin, laserDir, 100));
   if (hit?.hit && hit.pickedPoint) {
     const normal =
@@ -1526,10 +1532,41 @@ function poseEmbeddedEnemy(enemy: Enemy, t: number): void {
   enemy.rightArm.rotation.z = -0.34 * t;
 }
 
+// ─── Barrel-clip detection ───────────────────────────────────────────────────
+function updateBarrelClip(dt: number): void {
+  // Compute where the barrel tip would be in the untilted rest pose so the
+  // detection result is stable regardless of the current tilt animation.
+  const savedRot = g.weaponRoot.rotation.clone();
+  const savedPos = g.weaponRoot.position.clone();
+  g.weaponRoot.rotation.set(0, 0, 0);
+  g.weaponRoot.position.copyFrom(g.weaponRestPosition);
+  g.weaponRoot.computeWorldMatrix(true);
+  g.barrelTip.computeWorldMatrix(true);
+  const tipPos = g.barrelTip.getAbsolutePosition().clone();
+  g.weaponRoot.rotation.copyFrom(savedRot);
+  g.weaponRoot.position.copyFrom(savedPos);
+  g.weaponRoot.computeWorldMatrix(true);
+  g.barrelTip.computeWorldMatrix(true);
+
+  const camPos = g.camera.globalPosition;
+  const toTip = tipPos.subtract(camPos);
+  const dist = toTip.length();
+  const dir = dist > 0.0001 ? toTip.scale(1 / dist) : Vector3.Forward();
+  const hit = g.scene.pickWithRay(new Ray(camPos, dir, dist));
+  g.barrelClipping = !!(hit?.hit && hit.pickedPoint && hit.distance < dist);
+
+  const dtSec = dt / 1000;
+  const speed = PLAYER.BARREL_CLIP.lerpSpeed * dtSec;
+  g.barrelClipT = g.barrelClipping
+    ? Math.min(1, g.barrelClipT + speed)
+    : Math.max(0, g.barrelClipT - speed);
+}
+
 // ─── Weapon animation ─────────────────────────────────────────────────────────
 function updateWeapon(dt: number): void {
   if (!g.weaponRoot) return;
   g.weaponRoot.position.copyFrom(g.weaponRestPosition);
+  updateBarrelClip(dt);
 
   if (g.state.activeWeapon === "rifle" && g.bayonetChargeAnim > 0) {
     updateRifleBayonetChargeWeapon();
@@ -1542,6 +1579,13 @@ function updateWeapon(dt: number): void {
     g.weaponRoot.rotation.x = 0.14 * Math.sin(g.sprintBobTime / 150);
     g.weaponRoot.rotation.z = 0.07 * Math.sin(g.sprintBobTime / 300);
     dom.crosshair.style.display = "none";
+    return;
+  }
+
+  if (g.barrelClipT > 0 && g.state.meleeAnimTime <= 0 && !g.bayonetEmbed) {
+    g.weaponRoot.rotation.x = PLAYER.BARREL_CLIP.tiltX * g.barrelClipT;
+    dom.crosshair.style.display = "none";
+    g.sprintBobTime = 0;
     return;
   }
 

@@ -1327,6 +1327,7 @@ export function setupRifleParts(root: Mesh): {
     laserLight.specular = RIFLE_WEAPON.laserSight.lens.diffuse.clone();
     laserLight.intensity = 1.2;
     laserLight.range = 10;
+    laserLight.excludedMeshes = [root, ...root.getChildMeshes(false)];
     laserLight.setEnabled(false);
 
     laserGlow = new PointLight("rLaserSightGlow", Vector3.Zero(), g.scene);
@@ -1735,34 +1736,6 @@ export function makeBeam(from: Vector3, to: Vector3): Mesh {
   beam.material = mat;
   beam.isPickable = false;
   return beam;
-}
-
-export function attachDebugBarrelBeam(
-  barrelTip: Mesh,
-  color: Color3 = new Color3(0.2, 1.4, 0.3),
-): Mesh {
-  const length = 80;
-  const mesh = MeshBuilder.CreateBox(
-    "debugBarrelBeam",
-    { width: 0.015, height: 0.015, depth: length },
-    g.scene,
-  );
-  const mat = applyMaterialLightBudget(
-    new StandardMaterial("debugBarrelBeamMat", g.scene),
-    WEAPON_EFFECT_EXTRA_LIGHTS,
-  );
-  mat.diffuseColor = Color3.Black();
-  mat.emissiveColor = color;
-  mat.specularColor = Color3.Black();
-  mat.disableLighting = true;
-  mat.alpha = 0.7;
-  mesh.material = mat;
-  mesh.parent = barrelTip;
-  mesh.position = new Vector3(0, 0, length / 2);
-  mesh.isPickable = false;
-  mesh.renderingGroupId = 1;
-  mesh.alwaysSelectAsActiveMesh = true;
-  return mesh;
 }
 
 // ─── Ragdoll physics helpers (exported) ──────────────────────────────────────
