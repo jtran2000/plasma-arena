@@ -2,7 +2,7 @@ import { Vector3 } from "@babylonjs/core";
 import { PLAYER, BLASTER, RIFLE, SUPPLY, CRIT, UPGRADE } from "./constants.js";
 const { LASER, SPREAD, HEAT, PLASMA, MULTISHOT, RICOCHET, LIGHTNING, IGNITE } =
   BLASTER;
-import { g, dom } from "./game.js";
+import { g, dom, equipWeapon } from "./game.js";
 
 // ─── Effective stat functions ─────────────────────────────────────────────────
 export function effectiveMaxHealth(): number {
@@ -72,6 +72,18 @@ export function effectivePlasmaSpeed(): number {
     PLASMA.speed * (1 + g.upgrades.plasmaVelocity * UPGRADE.plasmaVelocity)
   );
 }
+export function effectiveSprintStaminaDrain(): number {
+  return (
+    PLAYER.STAMINA.sprintDrainPerSec *
+    (g.upgrades.combatBoots ? PLAYER.STAMINA.combatBootsSprintScale : 1)
+  );
+}
+export function effectiveJumpStaminaCost(): number {
+  return (
+    PLAYER.STAMINA.jumpCost *
+    (g.upgrades.combatBoots ? PLAYER.STAMINA.combatBootsJumpScale : 1)
+  );
+}
 export function effectiveSupplyDropRate(): number {
   return SUPPLY.dropRate + g.upgrades.supplyDropRate * UPGRADE.supplyDropRate;
 }
@@ -127,13 +139,14 @@ function syncWeaponUpgradeVisuals(): void {
 export function updateHUD(): void {
   const maxHp = effectiveMaxHealth();
   const hpFrac = g.state.health / maxHp;
-  const baseWidth = 120;
-  const barWidth = baseWidth * (maxHp / PLAYER.maxHealth);
-  dom.healthBar.style.width = `${barWidth}px`;
-  dom.healthFill.style.width = `${hpFrac * 100}%`;
+  const baseHeight = 150;
+  const barHeight = baseHeight * (maxHp / PLAYER.maxHealth);
+  dom.healthBar.style.height = `${barHeight}px`;
+  dom.healthFill.style.height = `${hpFrac * 100}%`;
   dom.healthFill.style.background =
     hpFrac > 0.5 ? "#4f4" : hpFrac > 0.25 ? "#fa0" : "#f44";
   dom.healthText.textContent = `${Math.ceil(g.state.health)} / ${maxHp}`;
+  updateStaminaHUD();
   dom.weaponEl.textContent =
     g.state.activeWeapon === "rifle" ? "RIFLE" : "BLASTER";
   dom.ammoEl.textContent = `${g.state.ammo} / ${g.state.reserve}`;
@@ -142,6 +155,24 @@ export function updateHUD(): void {
   dom.waveValue.textContent = String(g.state.wave);
   dom.waveRemaining.textContent = String(
     g.state.waveEnemiesLeft + g.enemies.length,
+  );
+}
+
+export function updateStaminaHUD(): void {
+  const frac = g.state.stamina / PLAYER.STAMINA.max;
+  dom.staminaBar.classList.toggle(
+    "visible",
+    g.state.stamina < PLAYER.STAMINA.max || g.state.staminaDisplayTimer > 0,
+  );
+  dom.staminaFill.style.width = `${frac * 100}%`;
+  dom.staminaFill.classList.toggle(
+    "low",
+    frac <= PLAYER.STAMINA.lowFraction &&
+      frac > PLAYER.STAMINA.criticalFraction,
+  );
+  dom.staminaFill.classList.toggle(
+    "critical",
+    frac <= PLAYER.STAMINA.criticalFraction,
   );
 }
 
@@ -154,6 +185,43 @@ interface UpgradeDef {
   oneTime?: boolean;
   requires?: keyof typeof g.upgrades;
   onApply?: () => void;
+}
+
+function preferredWeaponForUpgrade(
+  key: keyof typeof g.upgrades,
+): "blaster" | "rifle" | null {
+  if (
+    key === "rifleUnlock" ||
+    key === "muzzleBrake" ||
+    key === "rifleScope" ||
+    key === "rifleLaserSight" ||
+    key === "bayonet"
+  ) {
+    return "rifle";
+  }
+
+  if (
+    key === "pulseLaser" ||
+    key === "laserDamage" ||
+    key === "plasmaCaster" ||
+    key === "plasmaCharger" ||
+    key === "plasmaGrenadier" ||
+    key === "plasmaDamage" ||
+    key === "plasmaVelocity" ||
+    key === "plasmaSelfDamage" ||
+    key === "multishotUnlock" ||
+    key === "multishot" ||
+    key === "ricochetUnlock" ||
+    key === "ricochet" ||
+    key === "lightningUnlock" ||
+    key === "lightning" ||
+    key === "igniteUnlock" ||
+    key === "ignite"
+  ) {
+    return "blaster";
+  }
+
+  return null;
 }
 
 const UPGRADE_DEFS: UpgradeDef[] = [
@@ -169,6 +237,17 @@ const UPGRADE_DEFS: UpgradeDef[] = [
     },
   },
   { key: "speed", label: `+${UPGRADE.speed} Speed` },
+  {
+    key: "combatBoots",
+    label: "Combat Boots",
+    weight: 8,
+    instruction: `Cuts sprint stamina drain by ${Math.round(
+      (1 - PLAYER.STAMINA.combatBootsSprintScale) * 100,
+    )}% and jump stamina drain by ${Math.round(
+      (1 - PLAYER.STAMINA.combatBootsJumpScale) * 100,
+    )}%`,
+    oneTime: true,
+  },
   {
     key: "reloadTime",
     label: `+${Math.round(UPGRADE.reloadSpeed * 100)}% Reload Speed`,
@@ -409,6 +488,10 @@ export function selectUpgrade(index: number): void {
     upgrades[def.key] = true;
   } else {
     upgrades[def.key] = val + 1;
+  }
+  const preferredWeapon = preferredWeaponForUpgrade(def.key);
+  if (preferredWeapon && g.state.running) {
+    equipWeapon(preferredWeapon);
   }
   def.onApply?.();
   if (def.instruction) showInstruction(def.instruction);

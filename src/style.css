@@ -58,10 +58,9 @@ canvas {
 #heat-bar {
   display: none;
   position: absolute;
-  bottom: 80px;
-  left: 0;
-  right: 0;
-  margin: 0 auto;
+  left: 50%;
+  top: 60%;
+  transform: translateX(-50%);
   width: 120px;
   height: 6px;
   background: rgba(0, 0, 0, 0.5);
@@ -84,7 +83,7 @@ canvas {
 #overheat-msg {
   display: none;
   position: absolute;
-  bottom: 92px;
+  top: calc(60% - 18px);
   left: 50%;
   transform: translateX(-50%);
   color: #f22;
@@ -102,7 +101,7 @@ canvas {
   left: 0;
   right: 0;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   padding: 0 32px;
   align-items: flex-end;
 }
@@ -132,20 +131,31 @@ canvas {
   font-weight: bold;
   letter-spacing: 0.05em;
 }
+#health-hud {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
 #health-bar {
   position: relative;
-  width: 120px;
-  height: 24px;
+  width: 96px;
+  height: 150px;
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.3);
-  transition: width 0.3s;
+  transition: height 0.3s;
 }
 #health-fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
   height: 100%;
   width: 100%;
   background: #4f4;
   transition:
-    width 0.15s,
+    height 0.15s,
     background 0.3s;
 }
 #health-text {
@@ -154,13 +164,49 @@ canvas {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.75rem;
+  font-size: 1rem;
   font-weight: bold;
   color: #fff;
   text-shadow:
-    0 0 3px #000,
-    0 0 3px #000;
+    0 0 4px #000,
+    0 0 4px #000;
   pointer-events: none;
+  white-space: nowrap;
+}
+#health-hud .hud-label {
+  width: 100%;
+  font-size: 0.85rem;
+  text-align: center;
+  letter-spacing: 0.18em;
+}
+#stamina-bar {
+  display: none;
+  position: absolute;
+  left: 50%;
+  top: 66%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  overflow: hidden;
+}
+#stamina-bar.visible {
+  display: block;
+}
+#stamina-fill {
+  height: 100%;
+  width: 100%;
+  background: #4af;
+  transition:
+    width 0.08s linear,
+    background 0.2s;
+}
+#stamina-fill.low {
+  background: #fa0;
+}
+#stamina-fill.critical {
+  background: #f44;
 }
 #ammo-value {
   color: #fa0;
@@ -259,7 +305,7 @@ canvas {
 
 #reload-msg {
   position: absolute;
-  top: 58%;
+  top: 63%;
   left: 50%;
   transform: translateX(-50%);
   font-size: 1.1rem;
@@ -272,7 +318,8 @@ canvas {
   opacity: 1;
 }
 
-#hud.paused #crosshair {
+#hud.paused #crosshair,
+#hud.paused #stamina-bar {
   display: none;
 }
 
@@ -286,6 +333,11 @@ canvas {
 #hud.scoped #speed-lines,
 #hud.scoped #instruction-msg {
   display: none;
+}
+
+#hud.scoped #stamina-bar {
+  top: auto;
+  bottom: 20px;
 }
 
 #upgrade-menu {

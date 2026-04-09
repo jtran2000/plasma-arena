@@ -22,6 +22,11 @@ export type WeaponKind = "blaster" | "rifle";
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface GameState {
   health: number;
+  stamina: number;
+  staminaRegenDelay: number;
+  staminaDisplayTimer: number;
+  staminaRegenBlockedByJump: boolean;
+  staminaWasFull: boolean;
   ammo: number;
   reserve: number;
   activeWeapon: WeaponKind;
@@ -104,6 +109,7 @@ export interface UpgradeState {
   laserDamage: number;
   plasmaDamage: number;
   plasmaVelocity: number;
+  combatBoots: boolean;
   supplyDropRate: number;
   critChance: number;
   critDamage: number;
@@ -169,6 +175,11 @@ export interface Enemy {
 export function makeState(): GameState {
   return {
     health: PLAYER.maxHealth,
+    stamina: PLAYER.STAMINA.max,
+    staminaRegenDelay: 0,
+    staminaDisplayTimer: 0,
+    staminaRegenBlockedByJump: false,
+    staminaWasFull: true,
     ammo: LASER.magSize,
     reserve: LASER.magSize * LASER.reserveMags,
     activeWeapon: "blaster",
@@ -210,6 +221,7 @@ export function makeUpgradeState(): UpgradeState {
     laserDamage: 0,
     plasmaDamage: 0,
     plasmaVelocity: 0,
+    combatBoots: false,
     supplyDropRate: 0,
     critChance: 0,
     critDamage: 0,
@@ -263,6 +275,8 @@ export const dom = {
   healthBar: getEl("health-bar"),
   healthFill: getEl("health-fill"),
   healthText: getEl("health-text"),
+  staminaBar: getEl("stamina-bar"),
+  staminaFill: getEl("stamina-fill"),
   weaponEl: getEl("weapon-value"),
   ammoEl: getEl("ammo-value"),
   scoreEl: getEl("score-value-alt"),
@@ -385,6 +399,47 @@ export const g = {
 };
 
 const BAYONET_PINNED_ENEMY_MASK = 1 << 30;
+
+export function cacheActiveWeaponAmmo(): void {
+  g.weaponAmmo[g.state.activeWeapon].ammo = g.state.ammo;
+  g.weaponAmmo[g.state.activeWeapon].reserve = g.state.reserve;
+}
+
+export function equipWeapon(kind: WeaponKind): void {
+  cacheActiveWeaponAmmo();
+  g.state.activeWeapon = kind;
+  g.state.ammo = g.weaponAmmo[kind].ammo;
+  g.state.reserve = g.weaponAmmo[kind].reserve;
+
+  if (kind === "rifle") {
+    g.weaponRoot = g.rifleRoot;
+    g.weaponBarrel = g.rifleBarrel;
+    g.barrelTip = g.rifleBarrelTip;
+    g.weaponCell = g.rifleMag;
+    g.weaponRestPosition = g.weaponRoot.position.clone();
+    g.blasterRoot.setEnabled(false);
+    g.rifleRoot.setEnabled(true);
+  } else {
+    g.weaponRoot = g.blasterRoot;
+    g.weaponBarrel = g.blasterBarrel;
+    g.barrelTip = g.blasterBarrelTip;
+    g.weaponCell = g.blasterCell;
+    g.weaponRestPosition = g.weaponRoot.position.clone();
+    g.blasterRoot.setEnabled(true);
+    g.rifleRoot.setEnabled(false);
+  }
+}
+
+export function canSpendStamina(cost: number): boolean {
+  return g.state.stamina >= cost;
+}
+
+export function spendStamina(cost: number): void {
+  if (cost <= 0) return;
+  g.state.stamina = Math.max(0, g.state.stamina - cost);
+  g.state.staminaRegenDelay = PLAYER.STAMINA.regenDelayMs;
+  g.state.staminaDisplayTimer = 0;
+}
 
 export function disableBayonetEmbedPlayerEnemyCollision(enemy: Enemy): {
   playerCollideMask: number;

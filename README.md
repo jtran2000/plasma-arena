@@ -9,7 +9,7 @@ The game starts with a basic semi-auto laser blaster and unfolds through randomi
 ## Features
 
 - First-person camera with pointer lock and mouse look
-- WASD movement with jump, sprint, acceleration smoothing, physics-backed collision, and distance-based sprint ramp-up
+- WASD movement with jump, sprint, acceleration smoothing, physics-backed collision, distance-based sprint ramp-up, and a stamina bar drained by sprinting, melee, and jumping
 - Middle-click melee attack with knockback and headshot bonus damage
 - Semi-auto laser by default, with `Pulse Laser` unlock enabling hold-to-fire continuous shooting
 - Shared ammo magazine, reserve ammo, auto-reload on empty, and manual reload on `R`
@@ -25,6 +25,7 @@ The game starts with a basic semi-auto laser blaster and unfolds through randomi
 - Rifle `Scope` upgrade that adds a scoped aim animation, zoomed reticle view, scoped hitscan fire, and stronger camera-only scoped recoil
 - Rifle `Laser Sight` upgrade that mounts a visible side laser, projects a green aiming dot, and sharply reduces unscoped rifle spread
 - Rifle `Bayonet` upgrade that extends melee range, enables bayonet charge at full sprint, and can embed enemies on non-lethal charge impacts
+- `Combat Boots` upgrade that reduces stamina drain from sprinting and jumping
 - Sprint ramp is affected by movement: straight-line travel builds speed, collisions/impacts break sprint, and sharp turns reduce or reset the ramp
 - Critical hit system for laser, plasma, and rifle shots, including laser-on-plasma interactions
 - Unlockable proc systems for multishot, ricochet, lightning, and ignite, each with follow-up chance upgrades

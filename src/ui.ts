@@ -103,6 +103,7 @@ async function startGameFromUi(): Promise<void> {
   await startGame(sensitivity);
   createUI();
   hideStart();
+  hidePause();
   hideGameOver();
 }
 
@@ -166,6 +167,12 @@ function buildPauseScreen(): void {
     showOptions("pause");
   });
   panel.addControl(optBtn);
+
+  const restartBtn = makeButton("RESTART", RED, TEXT_COLOR, HOVER_RED);
+  restartBtn.onPointerUpObservable.add(() => {
+    startGameFromUi().catch(console.error);
+  });
+  panel.addControl(restartBtn);
 }
 
 function buildOptionsScreen(): void {

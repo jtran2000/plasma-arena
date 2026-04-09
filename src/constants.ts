@@ -58,18 +58,32 @@ export const ENEMY_HEALTH_BAR = {
 
 // ─── Player — Health & Movement ─────────────────────────────────────────────
 export const PLAYER = {
-  maxHealth: 10000, // starting and max health
+  maxHealth: 100, // starting and max health
   mass: 35, // physics mass (kg)
   spawnY: 0.9, // camera height above floor (m)
   speed: 5, // base walk speed (m/s)
   sprintMultiplier: 2, // top sprint speed = walk speed × this
-  sprintRampDistance: 1.25, // m of straight-line travel to reach full sprint
+  sprintRampDistance: 5, // m of straight-line travel to reach full sprint
   sprintTurnSpeed: Math.PI / 2, // max turn rate while sprinting (rad/s)
   sprintRampResetTurnAngle: Math.PI / 4, // turn angle (rad) that fully clears sprint ramp; 45°
   sprintImpactMinRamp: 0.25, // ignore wall impacts below this ramp fraction; prevents false stops
   sprintImpactSpeedRatio: 0.45, // if actual/expected speed drops below this, cancel sprint (blocked)
   acceleration: 0.15, // per-frame lerp factor toward target velocity (0 = sluggish, 1 = instant)
   jumpSpeed: 13, // upward impulse (m/s); with gravity −20 reaches ~4.2 m
+  STAMINA: {
+    max: 100, // full stamina pool
+    regenPerSec: 30, // stamina recovered per second after the regen delay
+    regenDelayMs: 700, // ms after spending stamina before regen starts
+    displayMs: 1200, // ms the stamina bar stays visible after stamina is spent
+    sprintDrainPerSec: 18, // stamina drained each second while sprinting
+    jumpCost: 18, // stamina spent on a grounded jump
+    meleeCost: 14, // stamina spent on a melee swing
+    scopeDrainPerSec: 6, // stamina drained each second while scoped
+    lowFraction: 0.5, // stamina bar warning threshold
+    criticalFraction: 0.25, // stamina bar critical threshold
+    combatBootsSprintScale: 0.65, // sprint drain multiplier with Combat Boots
+    combatBootsJumpScale: 0.6, // jump cost multiplier with Combat Boots
+  },
 } as const;
 
 // ─── Blaster — Weapon System ────────────────────────────────────────────────

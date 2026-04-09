@@ -25,6 +25,7 @@ import {
   g,
   dom,
   releaseBayonetEmbed,
+  spendStamina,
   disableBayonetEmbedLook,
   disableBayonetEmbedPlayerEnemyCollision,
   disableSprintLook,
@@ -58,9 +59,11 @@ import {
   effectiveHeatDecay,
   effectiveMoveSpreadRate,
   effectiveRifleSpreadScale,
+  effectiveSprintStaminaDrain,
   effectiveIgniteChance,
   showUpgradeMenu,
   selectUpgrade,
+  updateStaminaHUD,
   updateHUD,
   incrementScore,
 } from "./progression.js";
@@ -112,16 +115,21 @@ function updateRifleScope(dt: number): void {
     g.pressedKeys.has("KeyS") ||
     g.pressedKeys.has("KeyA") ||
     g.pressedKeys.has("KeyD");
-  const scoped =
+  let scoped =
     g.rifleScoped &&
     g.upgrades.rifleScope &&
     g.state.activeWeapon === "rifle" &&
     g.state.running &&
     !g.state.reloading &&
     !g.isSprinting &&
+    g.state.stamina > 0 &&
     !movementKeyPressed &&
     !g.bayonetEmbed &&
     g.pendingUpgrades.length === 0;
+  if (scoped) {
+    spendStamina((PLAYER.STAMINA.scopeDrainPerSec * dt) / 1000);
+    if (g.state.stamina <= 0) scoped = false;
+  }
   g.rifleScoped = scoped;
   const aimTarget = scoped ? 1 : 0;
   const aimStep = Math.min(1, (RIFLE.SCOPE.weaponAimRate * dt) / 1000);
@@ -196,6 +204,36 @@ function updateTimers(dt: number): void {
 
   if (g.state.meleeCooldown > 0) g.state.meleeCooldown -= dt;
   if (g.state.meleeAnimTime > 0) g.state.meleeAnimTime -= dt;
+  if (g.state.stamina < PLAYER.STAMINA.max) {
+    g.state.staminaDisplayTimer = 0;
+    g.state.staminaWasFull = false;
+    if (g.state.staminaRegenBlockedByJump) {
+      if (isPlayerGroundedForStaminaRegen()) {
+        g.state.staminaRegenBlockedByJump = false;
+        g.state.staminaRegenDelay = PLAYER.STAMINA.regenDelayMs;
+      }
+    } else if (g.state.staminaRegenDelay > 0) {
+      g.state.staminaRegenDelay = Math.max(0, g.state.staminaRegenDelay - dt);
+    } else {
+      g.state.stamina = Math.min(
+        PLAYER.STAMINA.max,
+        g.state.stamina + (PLAYER.STAMINA.regenPerSec * dt) / 1000,
+      );
+    }
+  } else {
+    g.state.staminaRegenDelay = 0;
+    g.state.staminaRegenBlockedByJump = false;
+    if (!g.state.staminaWasFull) {
+      g.state.staminaDisplayTimer = PLAYER.STAMINA.displayMs;
+      g.state.staminaWasFull = true;
+    } else {
+      g.state.staminaDisplayTimer = Math.max(
+        0,
+        g.state.staminaDisplayTimer - dt,
+      );
+    }
+  }
+  updateStaminaHUD();
 
   // Heat decay (blocked while charging plasma)
   if (g.state.heat > 0 && !g.plasmaCharging) {
@@ -492,6 +530,24 @@ function updateTimers(dt: number): void {
   }
 }
 
+function isPlayerGroundedForStaminaRegen(): boolean {
+  const vel = g.playerAggregate.body.getLinearVelocity();
+  if (vel.y > 0.5) return false;
+
+  const groundRay = new Ray(g.playerMesh.position, new Vector3(0, -1, 0), 1.05);
+  const hit = g.scene.pickWithRay(
+    groundRay,
+    (m: AbstractMesh) =>
+      m.renderingGroupId !== 1 &&
+      m.name !== "player" &&
+      m.name !== "enemyPhys" &&
+      m.name !== "laserBeam" &&
+      m.name !== "bhole" &&
+      m.name !== "supply",
+  );
+  return !!hit?.hit;
+}
+
 function updateRifleLaserSight(): void {
   if (!g.rifleLaserDot) return;
   const scoped = g.rifleScoped && g.upgrades.rifleScope;
@@ -653,6 +709,7 @@ function updatePlayer(dt: number): void {
     sprintKey &&
     !g.sprintBlockedUntilShiftRelease &&
     g.state.meleeCooldown <= 0 &&
+    g.state.stamina > 0 &&
     !g.bayonetEmbed;
   const sprintControls =
     canSprint && (g.isSprinting || g.pressedKeys.has("KeyW"));
@@ -679,7 +736,7 @@ function updatePlayer(dt: number): void {
   if (g.pressedKeys.has("KeyD") && !sprintControls) wish.addInPlace(right);
 
   const wasSprinting = g.isSprinting;
-  const nowSprinting =
+  let nowSprinting =
     canSprint && g.pressedKeys.has("KeyW") && wish.lengthSquared() > 0;
 
   if (nowSprinting && !g.isSprinting && g.state.reloading) {
@@ -706,6 +763,11 @@ function updatePlayer(dt: number): void {
       );
     }
     g.sprintRampDirection.copyFrom(wishDir);
+    spendStamina((effectiveSprintStaminaDrain() * dt) / 1000);
+    if (g.state.stamina <= 0) {
+      breakSprintUntilShiftRelease();
+      nowSprinting = false;
+    }
   } else {
     g.sprintRamp = 0;
     g.sprintRampDirection.set(0, 0, 0);

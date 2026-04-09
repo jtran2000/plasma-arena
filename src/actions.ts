@@ -13,7 +13,11 @@ const { HEAT, PLASMA, SPREAD, MULTISHOT, RICOCHET, LIGHTNING, MELEE } = BLASTER;
 import {
   g,
   dom,
+  cacheActiveWeaponAmmo,
+  canSpendStamina,
+  equipWeapon,
   releaseBayonetEmbed,
+  spendStamina,
   type Enemy,
   type Plasma,
 } from "./game.js";
@@ -58,6 +62,7 @@ import {
   effectiveRifleSpreadScale,
   effectiveLaserDamage,
   effectivePlasmaDamage,
+  effectiveJumpStaminaCost,
   effectiveReloadTime,
   effectiveMagSize,
   effectiveCritChance,
@@ -135,37 +140,6 @@ export function findEnemyByMesh(
   return { enemy, hitMesh };
 }
 
-function cacheActiveWeaponAmmo(): void {
-  g.weaponAmmo[g.state.activeWeapon].ammo = g.state.ammo;
-  g.weaponAmmo[g.state.activeWeapon].reserve = g.state.reserve;
-}
-
-function loadWeaponAmmo(kind: "blaster" | "rifle"): void {
-  g.state.activeWeapon = kind;
-  g.state.ammo = g.weaponAmmo[kind].ammo;
-  g.state.reserve = g.weaponAmmo[kind].reserve;
-}
-
-function applyActiveWeaponRefs(): void {
-  if (g.state.activeWeapon === "rifle") {
-    g.weaponRoot = g.rifleRoot;
-    g.weaponBarrel = g.rifleBarrel;
-    g.barrelTip = g.rifleBarrelTip;
-    g.weaponCell = g.rifleMag;
-    g.weaponRestPosition = g.weaponRoot.position.clone();
-    g.blasterRoot.setEnabled(false);
-    g.rifleRoot.setEnabled(true);
-  } else {
-    g.weaponRoot = g.blasterRoot;
-    g.weaponBarrel = g.blasterBarrel;
-    g.barrelTip = g.blasterBarrelTip;
-    g.weaponCell = g.blasterCell;
-    g.weaponRestPosition = g.weaponRoot.position.clone();
-    g.blasterRoot.setEnabled(true);
-    g.rifleRoot.setEnabled(false);
-  }
-}
-
 function cancelReloadAndCharge(): void {
   g.state.reloading = false;
   g.state.reloadTimeLeft = 0;
@@ -219,7 +193,6 @@ export function switchWeapon(): void {
     g.state.meleeCooldown > 0
   )
     return;
-  cacheActiveWeaponAmmo();
   releaseBayonetEmbed();
   cancelReloadAndCharge();
   if (g.bayonetCharging || g.bayonetChargeCooldownPending) {
@@ -251,8 +224,7 @@ export function switchWeapon(): void {
   g.state.shootCooldown = 0;
   g.state.plasmaCooldown = 0;
   const next = g.state.activeWeapon === "blaster" ? "rifle" : "blaster";
-  loadWeaponAmmo(next);
-  applyActiveWeaponRefs();
+  equipWeapon(next);
   updateHUD();
 }
 
@@ -276,6 +248,12 @@ export function tryJump(): void {
   );
   if (!hit?.hit) return;
 
+  const jumpCost = effectiveJumpStaminaCost();
+  if (!canSpendStamina(jumpCost)) return;
+  spendStamina(jumpCost);
+  g.state.staminaRegenDelay = 0;
+  g.state.staminaRegenBlockedByJump = true;
+
   g.playerAggregate.body.setLinearVelocity(
     new Vector3(g.playerVelocityXZ.x, PLAYER.jumpSpeed, g.playerVelocityXZ.z),
   );
@@ -293,6 +271,8 @@ export function meleeAttack(): void {
     return;
 
   const melee = currentMeleeStats();
+  if (!canSpendStamina(PLAYER.STAMINA.meleeCost)) return;
+  spendStamina(PLAYER.STAMINA.meleeCost);
   g.state.meleeCooldown = melee.cooldownMs;
   g.state.meleeAnimTime = melee.animDurationMs;
 
