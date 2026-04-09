@@ -75,6 +75,7 @@ import {
   updatePlasmas,
   updateRifleBullets,
   damagePlayer,
+  findBayonetPinPosition,
   isEnemyPart,
   findEnemyByMesh,
   damageEnemy,
@@ -434,16 +435,7 @@ function updateTimers(dt: number): void {
       .add(cameraUp.scale(Math.tan(g.recoilPitch)))
       .normalize();
   }
-  const centerHit = g.scene.pickWithRay(
-    centerRay,
-    (m: AbstractMesh) =>
-      m.name !== "player" &&
-      m.name !== "enemyPhys" &&
-      m.name !== "laserBeam" &&
-      m.name !== "bhole" &&
-      m.name !== "supply" &&
-      m.renderingGroupId !== 1,
-  );
+  const centerHit = g.scene.pickWithRay(centerRay);
   const overEnemy =
     centerHit?.hit &&
     centerHit.pickedMesh &&
@@ -535,16 +527,7 @@ function isPlayerGroundedForStaminaRegen(): boolean {
   if (vel.y > 0.5) return false;
 
   const groundRay = new Ray(g.playerMesh.position, new Vector3(0, -1, 0), 1.05);
-  const hit = g.scene.pickWithRay(
-    groundRay,
-    (m: AbstractMesh) =>
-      m.renderingGroupId !== 1 &&
-      m.name !== "player" &&
-      m.name !== "enemyPhys" &&
-      m.name !== "laserBeam" &&
-      m.name !== "bhole" &&
-      m.name !== "supply",
-  );
+  const hit = g.scene.pickWithRay(groundRay);
   return !!hit?.hit;
 }
 
@@ -588,38 +571,12 @@ function updateRifleLaserSight(): void {
         embedDistance *
         Math.tan(g.camera.fov / 2)) /
       g.engine.getRenderHeight();
-    const laserDir = dotPosition.subtract(
-      g.rifleBarrelTip.getAbsolutePosition(),
+    applyRifleLaserDotIncidenceShape(
+      dotPosition,
+      embedWorldDiameter,
+      embed.hitNormal.normalizeToNew(),
+      cameraUp,
     );
-    if (laserDir.lengthSquared() > 0.0001) {
-      laserDir.normalize();
-      const normal = embed.hitNormal.normalizeToNew();
-      const incidence = Math.max(0.2, Math.abs(Vector3.Dot(laserDir, normal)));
-      const majorScale =
-        embedWorldDiameter / incidence / RIFLE.LASER_SIGHT.dotSize;
-      const minorScale = embedWorldDiameter / RIFLE.LASER_SIGHT.dotSize;
-      const tangent = laserDir
-        .subtract(normal.scale(Vector3.Dot(laserDir, normal)))
-        .normalize();
-      const bitangent =
-        tangent.lengthSquared() > 0.0001
-          ? Vector3.Cross(normal, tangent).normalize()
-          : Vector3.Cross(normal, cameraUp).normalize();
-      const rotationMatrix = new Matrix();
-      Matrix.FromXYZAxesToRef(tangent, bitangent, normal, rotationMatrix);
-      g.rifleLaserDot.rotationQuaternion =
-        Quaternion.FromRotationMatrix(rotationMatrix);
-      g.rifleLaserDot.scaling.set(
-        majorScale,
-        minorScale,
-        Math.max(0.12, minorScale * 0.18),
-      );
-    } else {
-      g.rifleLaserDot.rotationQuaternion = null;
-      g.rifleLaserDot.scaling.setAll(
-        embedWorldDiameter / RIFLE.LASER_SIGHT.dotSize,
-      );
-    }
     updateRifleLaserLight();
     return;
   }
@@ -631,33 +588,105 @@ function updateRifleLaserSight(): void {
       .add(cameraUp.scale(Math.tan(g.recoilPitch)))
       .normalize();
   }
-  const hit = g.scene.pickWithRay(aimRay, rifleLaserSightRayFilter);
+  const aimHit = g.scene.pickWithRay(aimRay);
+  const aimTarget =
+    aimHit?.hit && aimHit.pickedPoint
+      ? aimHit.pickedPoint
+      : aimRay.origin.add(aimRay.direction.scale(100));
+  const laserOrigin = getRifleLaserOrigin();
+  const lensDir = aimTarget.subtract(laserOrigin);
+  const laserDir =
+    lensDir.lengthSquared() > 0.0001
+      ? lensDir.normalize()
+      : aimRay.direction.clone();
+  const hit = g.scene.pickWithRay(new Ray(laserOrigin, laserDir, 100));
   if (hit?.hit && hit.pickedPoint) {
     const normal =
-      hit.getNormal(true)?.normalize() ??
-      aimRay.direction.scale(-1).normalize();
-    g.rifleLaserDot.position.copyFrom(
-      hit.pickedPoint.add(normal.scale(RIFLE.LASER_SIGHT.surfaceOffset)),
+      hit.getNormal(true)?.normalizeToNew() ?? laserDir.scale(-1).normalize();
+    const dotPosition = hit.pickedPoint.add(
+      normal.scale(RIFLE.LASER_SIGHT.surfaceOffset),
+    );
+    g.rifleLaserDot.position.copyFrom(dotPosition);
+    const distance = Vector3.Distance(g.camera.position, dotPosition);
+    const worldDiameter =
+      (RIFLE.LASER_SIGHT.screenDiameterPx *
+        2 *
+        distance *
+        Math.tan(g.camera.fov / 2)) /
+      g.engine.getRenderHeight();
+    const cameraUp = g.camera.getDirection(Vector3.Up()).normalize();
+    applyRifleLaserDotIncidenceShape(
+      dotPosition,
+      worldDiameter,
+      normal,
+      cameraUp,
     );
   } else {
-    g.rifleLaserDot.position.copyFrom(
-      aimRay.origin.add(aimRay.direction.scale(100)),
+    g.rifleLaserDot.position.copyFrom(laserOrigin.add(laserDir.scale(100)));
+    const distance = Vector3.Distance(
+      g.camera.position,
+      g.rifleLaserDot.position,
     );
+    const worldDiameter =
+      (RIFLE.LASER_SIGHT.screenDiameterPx *
+        2 *
+        distance *
+        Math.tan(g.camera.fov / 2)) /
+      g.engine.getRenderHeight();
+    const scale = worldDiameter / RIFLE.LASER_SIGHT.dotSize;
+    g.rifleLaserDot.rotationQuaternion = null;
+    g.rifleLaserDot.scaling.setAll(scale);
   }
-  const distance = Vector3.Distance(
-    g.camera.position,
-    g.rifleLaserDot.position,
-  );
-  const worldDiameter =
-    (RIFLE.LASER_SIGHT.screenDiameterPx *
-      2 *
-      distance *
-      Math.tan(g.camera.fov / 2)) /
-    g.engine.getRenderHeight();
-  const scale = worldDiameter / RIFLE.LASER_SIGHT.dotSize;
-  g.rifleLaserDot.rotationQuaternion = null;
-  g.rifleLaserDot.scaling.setAll(scale);
   updateRifleLaserLight();
+}
+
+function getRifleLaserOrigin(): Vector3 {
+  const lens = g.rifleLaserSight
+    ?.getChildMeshes(false)
+    .find((child) => child.name === "rLaserSightLens");
+  return lens?.getAbsolutePosition() ?? g.rifleBarrelTip.getAbsolutePosition();
+}
+
+function applyRifleLaserDotIncidenceShape(
+  dotPosition: Vector3,
+  worldDiameter: number,
+  surfaceNormal: Vector3 | null,
+  fallbackUp: Vector3,
+): void {
+  if (!surfaceNormal) {
+    g.rifleLaserDot.rotationQuaternion = null;
+    g.rifleLaserDot.scaling.setAll(worldDiameter / RIFLE.LASER_SIGHT.dotSize);
+    return;
+  }
+
+  const laserDir = dotPosition.subtract(getRifleLaserOrigin());
+  if (laserDir.lengthSquared() < 0.0001) {
+    g.rifleLaserDot.rotationQuaternion = null;
+    g.rifleLaserDot.scaling.setAll(worldDiameter / RIFLE.LASER_SIGHT.dotSize);
+    return;
+  }
+
+  laserDir.normalize();
+  const normal = surfaceNormal.normalizeToNew();
+  const incidence = Math.max(0.2, Math.abs(Vector3.Dot(laserDir, normal)));
+  const majorScale = worldDiameter / incidence / RIFLE.LASER_SIGHT.dotSize;
+  const minorScale = worldDiameter / RIFLE.LASER_SIGHT.dotSize;
+  const tangent = laserDir
+    .subtract(normal.scale(Vector3.Dot(laserDir, normal)))
+    .normalize();
+  const bitangent =
+    tangent.lengthSquared() > 0.0001
+      ? Vector3.Cross(normal, tangent).normalize()
+      : Vector3.Cross(normal, fallbackUp).normalize();
+  const rotationMatrix = new Matrix();
+  Matrix.FromXYZAxesToRef(tangent, bitangent, normal, rotationMatrix);
+  g.rifleLaserDot.rotationQuaternion =
+    Quaternion.FromRotationMatrix(rotationMatrix);
+  g.rifleLaserDot.scaling.set(
+    majorScale,
+    minorScale,
+    Math.max(0.12, minorScale * 0.18),
+  );
 }
 
 function updateRifleLaserLight(): void {
@@ -671,20 +700,6 @@ function updateRifleLaserLight(): void {
   if (direction.lengthSquared() < 0.0001) return;
   g.rifleLaserLight.position.copyFrom(origin);
   g.rifleLaserLight.direction.copyFrom(direction.normalize());
-}
-
-function rifleLaserSightRayFilter(m: AbstractMesh): boolean {
-  return (
-    m.renderingGroupId !== 1 &&
-    m.name !== "player" &&
-    m.name !== "enemyPhys" &&
-    m.name !== "laserBeam" &&
-    m.name !== "bhole" &&
-    m.name !== "supply" &&
-    m.name !== "rifleTracer" &&
-    m.name !== "rifleLaserDot" &&
-    m.name !== "plasmaCharge"
-  );
 }
 
 // ─── Player ───────────────────────────────────────────────────────────────────
@@ -887,18 +902,7 @@ function updateBayonetCharge(dt: number): void {
   g.state.meleeAnimTime = RIFLE.MELEE.animDurationMs;
 
   const ray = g.camera.getForwardRay(RIFLE.BAYONET.range);
-  const hit = g.scene.pickWithRay(
-    ray,
-    (m: AbstractMesh) =>
-      m.renderingGroupId !== 1 &&
-      m.name !== "player" &&
-      m.name !== "enemyPhys" &&
-      m.name !== "laserBeam" &&
-      m.name !== "bhole" &&
-      m.name !== "supply" &&
-      m.name !== "rifleLaserDot" &&
-      !m.name.startsWith("rLaserSight"),
-  );
+  const hit = g.scene.pickWithRay(ray);
   if (!hit?.hit || !hit.pickedMesh || !hit.pickedPoint) return;
 
   const hitPoint = hit.pickedPoint;
@@ -1157,7 +1161,9 @@ function solveBayonetEmbedPlayerPose(
   const playerStandoff =
     torsoSide === "front"
       ? RIFLE.BAYONET.embedPlayerFrontStandoff
-      : RIFLE.BAYONET.embedPlayerStandoff;
+      : torsoSide === "back"
+        ? RIFLE.BAYONET.embedPlayerBackStandoff
+        : RIFLE.BAYONET.embedPlayerStandoff;
   const playerPosition = targetHitPoint.subtract(
     direction.scale(playerStandoff),
   );
@@ -1198,30 +1204,6 @@ function getBayonetEmbedHitNormal(
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
-}
-
-function findBayonetPinPosition(
-  hitPoint: Vector3,
-  direction: Vector3,
-): {
-  position: Vector3;
-  hitPoint: Vector3;
-  normal: Vector3;
-} {
-  const groundProbe = hitPoint.add(
-    direction.scale(RIFLE.BAYONET.embedGroundKnockbackDistance),
-  );
-  const groundHit = g.scene.pickWithRay(
-    new Ray(groundProbe.add(new Vector3(0, 2, 0)), new Vector3(0, -1, 0), 6),
-    bayonetPinRayFilter,
-  );
-  const groundHitPoint = groundProbe.clone();
-  groundHitPoint.y = groundHit?.pickedPoint?.y ?? 0;
-  return {
-    position: groundHitPoint.clone(),
-    hitPoint: groundHitPoint,
-    normal: groundHit?.getNormal(true)?.normalizeToNew() ?? Vector3.Up(),
-  };
 }
 
 function transformBayonetEmbedLocalPoint(
@@ -1460,20 +1442,6 @@ function isBayonetEmbedBlockingWorldMesh(mesh: AbstractMesh): boolean {
       mesh.name === "crate" ||
       mesh.name === "pillar" ||
       mesh.name === "ceil")
-  );
-}
-
-function bayonetPinRayFilter(m: AbstractMesh): boolean {
-  return (
-    m.renderingGroupId !== 1 &&
-    m.name !== "player" &&
-    !isEnemyPart(m.name) &&
-    m.name !== "enemyPhys" &&
-    m.name !== "laserBeam" &&
-    m.name !== "bhole" &&
-    m.name !== "supply" &&
-    m.name !== "plasma" &&
-    m.name !== "plasmaCharge"
   );
 }
 
@@ -1782,8 +1750,10 @@ function updateEnemies(): void {
     const pos = e.physMesh.position;
     const toPlayer = camPos.subtract(pos);
     const dist = toPlayer.length();
+    const toPlayerXZ = new Vector3(toPlayer.x, 0, toPlayer.z);
     const dtSec = g.engine.getDeltaTime() / 1000;
     const turnSpeed = ENEMY.turnSpeed;
+    let meleeTargetDir: Vector3 | null = null;
 
     if (dist < ENEMY.chaseRange) e.state = "chase";
 
@@ -1792,8 +1762,9 @@ function updateEnemies(): void {
     let moveSpeed = e.speed;
 
     if (e.state === "chase") {
-      const dirXZ = new Vector3(toPlayer.x, 0, toPlayer.z);
+      const dirXZ = toPlayerXZ.clone();
       if (dirXZ.lengthSquared() > 0) dirXZ.normalize();
+      if (dirXZ.lengthSquared() > 0) meleeTargetDir = dirXZ.clone();
 
       // Zigzag lateral offset
       e.zigzagTimer += dtSec * ENEMY.zigzagFreq * Math.PI * 2;
@@ -1802,16 +1773,6 @@ function updateEnemies(): void {
       const moveDir = dirXZ.add(lateral.scale(zigzag)).normalize();
 
       targetYaw = Math.atan2(moveDir.x, moveDir.z);
-
-      if (dist < ENEMY.meleeRange) {
-        e.attackCooldown -= g.engine.getDeltaTime();
-        if (e.attackCooldown <= 0) {
-          playEnemyAttackSound(pos.clone());
-          damagePlayer(e.meleeDamage);
-          e.attackCooldown = e.meleeIntervalMs;
-          e.attackAnimTime = 300;
-        }
-      }
     } else {
       const toTarget = e.patrolTarget.subtract(pos);
       const toTargetXZ = new Vector3(toTarget.x, 0, toTarget.z);
@@ -1846,6 +1807,21 @@ function updateEnemies(): void {
     e.aggregate.body.setLinearVelocity(
       new Vector3(fwd.x * moveSpeed, currentVel.y, fwd.z * moveSpeed),
     );
+
+    if (
+      e.state === "chase" &&
+      dist < ENEMY.meleeRange &&
+      meleeTargetDir &&
+      Vector3.Dot(fwd, meleeTargetDir) >= ENEMY.meleeFacingDot
+    ) {
+      e.attackCooldown -= g.engine.getDeltaTime();
+      if (e.attackCooldown <= 0) {
+        playEnemyAttackSound(pos.clone());
+        damagePlayer(e.meleeDamage);
+        e.attackCooldown = e.meleeIntervalMs;
+        e.attackAnimTime = 300;
+      }
+    }
 
     // Walk animation — phase advances proportional to actual speed
     const actualSpeed = e.state === "chase" ? e.speed : e.speed * 0.5;

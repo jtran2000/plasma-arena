@@ -188,6 +188,9 @@ const WEAPON = {
 
 const RIFLE_WEAPON = {
   rootPos: new Vector3(0.24, -0.22, 0.58),
+  alignPos: new Vector3(-0.012, 0, 0),
+  alignPitch: 0.05,
+  alignYaw: -0.03,
   body: {
     size: { width: 0.09, height: 0.09, depth: 0.58 } as const,
     pos: new Vector3(0, 0, 0.08),
@@ -1254,13 +1257,20 @@ export function setupRifleParts(root: Mesh): {
   laserDot: Mesh;
   bayonet: Mesh;
 } {
+  const assembly = new Mesh("rifleAssembly", g.scene);
+  assembly.parent = root;
+  assembly.position = RIFLE_WEAPON.alignPos.clone();
+  assembly.rotation.x = RIFLE_WEAPON.alignPitch;
+  assembly.rotation.y = RIFLE_WEAPON.alignYaw;
+  assembly.isPickable = false;
+
   function wp(
     mesh: Mesh,
     mat: StandardMaterial,
     localPos: Vector3,
     localRotX = 0,
   ): Mesh {
-    mesh.parent = root;
+    mesh.parent = assembly;
     mesh.position = localPos;
     mesh.rotation.x = localRotX;
     mesh.material = mat;
@@ -1348,7 +1358,7 @@ export function setupRifleParts(root: Mesh): {
   bayonet.setEnabled(false);
 
   const barrelTip = new Mesh("rBarrelTip", g.scene);
-  barrelTip.parent = root;
+  barrelTip.parent = assembly;
   barrelTip.position = RIFLE_WEAPON.barrelTipPos.clone();
   barrelTip.isVisible = false;
   barrelTip.isPickable = false;
@@ -1387,6 +1397,7 @@ export function makePlayerMesh(): { mesh: Mesh; aggregate: PhysicsAggregate } {
   );
   mesh.position.y = PLAYER.spawnY;
   mesh.isVisible = false;
+  mesh.isPickable = false;
   const aggregate = new PhysicsAggregate(
     mesh,
     PhysicsShapeType.CAPSULE,
@@ -1428,6 +1439,7 @@ export function makeEnemyPhysCapsule(position: Vector3): {
     g.scene,
   );
   mesh.isVisible = false;
+  mesh.isPickable = false;
   mesh.position = position;
   const aggregate = new PhysicsAggregate(
     mesh,
@@ -1725,6 +1737,34 @@ export function makeBeam(from: Vector3, to: Vector3): Mesh {
   return beam;
 }
 
+export function attachDebugBarrelBeam(
+  barrelTip: Mesh,
+  color: Color3 = new Color3(0.2, 1.4, 0.3),
+): Mesh {
+  const length = 80;
+  const mesh = MeshBuilder.CreateBox(
+    "debugBarrelBeam",
+    { width: 0.015, height: 0.015, depth: length },
+    g.scene,
+  );
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("debugBarrelBeamMat", g.scene),
+    WEAPON_EFFECT_EXTRA_LIGHTS,
+  );
+  mat.diffuseColor = Color3.Black();
+  mat.emissiveColor = color;
+  mat.specularColor = Color3.Black();
+  mat.disableLighting = true;
+  mat.alpha = 0.7;
+  mesh.material = mat;
+  mesh.parent = barrelTip;
+  mesh.position = new Vector3(0, 0, length / 2);
+  mesh.isPickable = false;
+  mesh.renderingGroupId = 1;
+  mesh.alwaysSelectAsActiveMesh = true;
+  return mesh;
+}
+
 // ─── Ragdoll physics helpers (exported) ──────────────────────────────────────
 export function makeRagdollBodyAggregate(mesh: Mesh): PhysicsAggregate {
   return new PhysicsAggregate(
@@ -1846,7 +1886,7 @@ export function makePlasmaMesh(pos: Vector3): Mesh {
   );
   mesh.material = mat;
   mesh.position = pos.clone();
-  mesh.isPickable = false;
+  mesh.isPickable = true;
   return mesh;
 }
 
@@ -2098,6 +2138,23 @@ export function spawnPlasma(
   hasGravity: boolean,
   ricochetDepth: number,
 ): void {
+  spawnPlasmaWithVelocity(
+    pos,
+    dir.scale(effectivePlasmaSpeed() / chargeMultiplier),
+    chargeMultiplier,
+    heatPenalty,
+    isCrit,
+    hasGravity,
+    ricochetDepth,
+  );
+}
+
+export function createPlasmaProjectileMesh(
+  pos: Vector3,
+  chargeMultiplier: number,
+  heatPenalty: number,
+  isCrit: boolean,
+): Mesh {
   const mesh = makePlasmaMesh(pos);
   mesh.scaling.setAll(chargeMultiplier);
   const plasmaMat = mesh.material as StandardMaterial;
@@ -2114,9 +2171,27 @@ export function spawnPlasma(
       t,
     );
   }
+  return mesh;
+}
+
+export function spawnPlasmaWithVelocity(
+  pos: Vector3,
+  velocity: Vector3,
+  chargeMultiplier: number,
+  heatPenalty: number,
+  isCrit: boolean,
+  hasGravity: boolean,
+  ricochetDepth: number,
+): void {
+  const mesh = createPlasmaProjectileMesh(
+    pos,
+    chargeMultiplier,
+    heatPenalty,
+    isCrit,
+  );
   g.plasmas.push({
     mesh,
-    velocity: dir.scale(effectivePlasmaSpeed() / chargeMultiplier),
+    velocity: velocity.clone(),
     age: 0,
     heatPenalty,
     chargeMultiplier,

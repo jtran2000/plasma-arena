@@ -17,6 +17,7 @@ import { g } from "./game.js";
 import { CAMERA, LIGHTING, RIFLE } from "./constants.js";
 import {
   makePlayerMesh,
+  attachDebugBarrelBeam,
   setupArenaFloor,
   setupArenaCeil,
   setupArenaWalls,
@@ -192,12 +193,14 @@ function buildWeapon(): void {
   g.blasterCell = blaster.cell;
   g.blasterBarrel = blaster.barrel;
   g.blasterBarrelTip = blaster.barrelTip;
+  attachDebugBarrelBeam(g.blasterBarrelTip, new Color3(0.15, 1.3, 1.4));
 
   g.rifleRoot = setupRifleRoot();
   const rifle = setupRifleParts(g.rifleRoot);
   g.rifleMag = rifle.mag;
   g.rifleBarrel = rifle.barrel;
   g.rifleBarrelTip = rifle.barrelTip;
+  attachDebugBarrelBeam(g.rifleBarrelTip, new Color3(1.1, 0.35, 0.2));
   g.rifleBrake = rifle.brake;
   g.rifleScope = rifle.scope;
   g.rifleLaserSight = rifle.laserSight;

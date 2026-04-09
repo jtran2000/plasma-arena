@@ -7,9 +7,11 @@ import {
   AbstractMesh,
   Ray,
   PickingInfo,
+  Quaternion,
 } from "@babylonjs/core";
 import { ARENA, PLAYER, BLASTER, RIFLE } from "./constants.js";
 const { HEAT, PLASMA, SPREAD, MULTISHOT, RICOCHET, LIGHTNING, MELEE } = BLASTER;
+const MAX_MUZZLE_AIM_ANGLE = Math.PI / 8;
 import {
   g,
   dom,
@@ -24,7 +26,9 @@ import {
 import {
   makeRifleTracerMesh,
   makePlasmaChargeMesh,
+  createPlasmaProjectileMesh,
   spawnPlasma,
+  spawnPlasmaWithVelocity,
   spawnRifleMuzzleFlash,
   spawnLightningBolt,
   spawnExplosionParticle,
@@ -62,6 +66,7 @@ import {
   effectiveRifleSpreadScale,
   effectiveLaserDamage,
   effectivePlasmaDamage,
+  effectivePlasmaSpeed,
   effectiveJumpStaminaCost,
   effectiveReloadTime,
   effectiveMagSize,
@@ -138,6 +143,10 @@ export function findEnemyByMesh(
   // For leg hits, use bodyMesh as the flash target
   const hitMesh = mesh.name === "enemyLeg" ? enemy.bodyMesh : (mesh as Mesh);
   return { enemy, hitMesh };
+}
+
+export function isRaycastPickable(mesh: AbstractMesh): boolean {
+  return mesh.isPickable && mesh.isVisible && mesh.isEnabled();
 }
 
 function cancelReloadAndCharge(): void {
@@ -236,16 +245,7 @@ export function tryJump(): void {
   if (Math.abs(vel.y) > 2) return;
 
   const groundRay = new Ray(g.playerMesh.position, new Vector3(0, -1, 0), 1.05);
-  const hit = g.scene.pickWithRay(
-    groundRay,
-    (m: AbstractMesh) =>
-      m.renderingGroupId !== 1 &&
-      m.name !== "player" &&
-      m.name !== "enemyPhys" &&
-      m.name !== "laserBeam" &&
-      m.name !== "bhole" &&
-      m.name !== "supply",
-  );
+  const hit = g.scene.pickWithRay(groundRay);
   if (!hit?.hit) return;
 
   const jumpCost = effectiveJumpStaminaCost();
@@ -280,18 +280,7 @@ export function meleeAttack(): void {
   playMeleeSound(pos);
 
   const ray = g.camera.getForwardRay(melee.range);
-  const hit = g.scene.pickWithRay(
-    ray,
-    (m: AbstractMesh) =>
-      m.renderingGroupId !== 1 &&
-      m.name !== "player" &&
-      m.name !== "enemyPhys" &&
-      m.name !== "laserBeam" &&
-      m.name !== "bhole" &&
-      m.name !== "supply" &&
-      m.name !== "rifleLaserDot" &&
-      !m.name.startsWith("rLaserSight"),
-  );
+  const hit = g.scene.pickWithRay(ray);
 
   if (!hit?.hit || !hit.pickedMesh) return;
 
@@ -435,35 +424,248 @@ function addRandomSpread(dir: Vector3, spread: number): Vector3 {
     .normalize();
 }
 
-function aimAtRifleCrosshair(dir: Vector3): Vector3 {
-  const aimLift = g.recoilPitch;
-  if (aimLift <= 0) return dir;
-  const cameraUp = g.camera.getDirection(Vector3.Up()).normalize();
-  return dir.add(cameraUp.scale(Math.tan(aimLift))).normalize();
+function clampMuzzleAimDirection(
+  barrelDir: Vector3,
+  targetDir: Vector3,
+  maxAngle: number,
+): Vector3 {
+  const baseDir = barrelDir.normalizeToNew();
+  const desiredDir = targetDir.normalizeToNew();
+  const dot = Math.max(-1, Math.min(1, Vector3.Dot(baseDir, desiredDir)));
+  const angle = Math.acos(dot);
+  if (angle <= maxAngle) return desiredDir;
+  if (angle < 0.0001) return baseDir;
+
+  let axis = Vector3.Cross(baseDir, desiredDir);
+  if (axis.lengthSquared() < 0.0001) {
+    axis = Vector3.Cross(baseDir, Vector3.Up());
+    if (axis.lengthSquared() < 0.0001) {
+      axis = Vector3.Cross(baseDir, Vector3.Right());
+    }
+  }
+  axis.normalize();
+  const rotation = Quaternion.RotationAxis(axis, maxAngle);
+  const clampedDir = Vector3.Zero();
+  baseDir.rotateByQuaternionToRef(rotation, clampedDir);
+  return clampedDir.normalize();
 }
 
-function projectileRayFilter(m: AbstractMesh): boolean {
-  return (
-    m.renderingGroupId !== 1 &&
-    m.name !== "player" &&
-    m.name !== "enemyPhys" &&
-    m.name !== "laserBeam" &&
-    m.name !== "bhole" &&
-    m.name !== "supply" &&
-    m.name !== "rifleTracer" &&
-    m.name !== "plasmaCharge"
-  );
-}
-
-function aimProjectileFromMuzzle(aimRay: Ray, spawnPos: Vector3): Vector3 {
-  const aimHit = g.scene.pickWithRay(aimRay, projectileRayFilter);
+function aimProjectileFromMuzzle(
+  aimRay: Ray,
+  spawnPos: Vector3,
+  barrelDir: Vector3,
+): Vector3 {
+  const aimHit = g.scene.pickWithRay(aimRay);
   const aimPoint =
     aimHit?.hit && aimHit.pickedPoint
       ? aimHit.pickedPoint
       : aimRay.origin.add(aimRay.direction.scale(100));
   const dir = aimPoint.subtract(spawnPos);
-  if (dir.lengthSquared() < 0.0001) return aimRay.direction.clone();
-  return dir.normalize();
+  if (dir.lengthSquared() < 0.0001) return barrelDir.normalizeToNew();
+  return clampMuzzleAimDirection(barrelDir, dir, MAX_MUZZLE_AIM_ANGLE);
+}
+
+function bayonetPinRayFilter(m: AbstractMesh): boolean {
+  return isRaycastPickable(m) && !isEnemyPart(m.name) && m.name !== "plasma";
+}
+
+export function findBayonetPinPosition(
+  hitPoint: Vector3,
+  direction: Vector3,
+): {
+  position: Vector3;
+  hitPoint: Vector3;
+  normal: Vector3;
+} {
+  const groundProbe = hitPoint.add(
+    direction.scale(RIFLE.BAYONET.embedGroundKnockbackDistance),
+  );
+  const groundHit = g.scene.pickWithRay(
+    new Ray(groundProbe.add(new Vector3(0, 2, 0)), new Vector3(0, -1, 0), 6),
+    bayonetPinRayFilter,
+  );
+  const groundHitPoint = groundProbe.clone();
+  groundHitPoint.y = groundHit?.pickedPoint?.y ?? 0;
+  return {
+    position: groundHitPoint.clone(),
+    hitPoint: groundHitPoint,
+    normal: groundHit?.getNormal(true)?.normalizeToNew() ?? Vector3.Up(),
+  };
+}
+
+function getProjectileSpawnStepSeconds(): number {
+  const dtMs = g.engine.getDeltaTime();
+  return (dtMs > 0 ? dtMs : 1000 / 60) / 1000;
+}
+
+function plasmaRayFilter(m: AbstractMesh): boolean {
+  return isRaycastPickable(m) && m.name !== "plasma";
+}
+
+function getProjectileSweepAxes(dir: Vector3): { up: Vector3; right: Vector3 } {
+  const up = Vector3.Cross(dir, new Vector3(1, 0, 0));
+  if (up.lengthSquared() < 0.01)
+    up.copyFrom(Vector3.Cross(dir, new Vector3(0, 0, 1)));
+  up.normalize();
+  const right = Vector3.Cross(dir, up).normalize();
+  return { up, right };
+}
+
+function tryResolveImmediateRifleHit(
+  spawnPos: Vector3,
+  dir: Vector3,
+  damage: number,
+  isCrit: boolean,
+): boolean {
+  const rayLen =
+    RIFLE.bulletSpeed * getProjectileSpawnStepSeconds() * 2 +
+    RIFLE.tracerLength +
+    RIFLE.immediateHitBacktrack;
+  if (rayLen <= 0) return false;
+  const hit = g.scene.pickWithRay(new Ray(spawnPos, dir, rayLen));
+  return handleRifleHit(hit, dir, damage, isCrit);
+}
+
+function tryResolveImmediatePlasmaHit(
+  spawnPos: Vector3,
+  dir: Vector3,
+  chargeMultiplier: number,
+  heatPenalty: number,
+  isCrit: boolean,
+  hasGravity: boolean,
+  ricochetDepth: number,
+): boolean {
+  const dtSec = getProjectileSpawnStepSeconds();
+  const velocity = dir.scale(effectivePlasmaSpeed() / chargeMultiplier);
+  if (hasGravity) velocity.y -= PLASMA.gravity * dtSec;
+  const rayLen = velocity.length() * dtSec;
+  if (rayLen <= 0) return false;
+
+  const rayDir =
+    velocity.lengthSquared() > 0.0001
+      ? velocity.normalizeToNew()
+      : dir.normalizeToNew();
+  const { up, right } = getProjectileSweepAxes(rayDir);
+  const plasmaR = PLASMA.radius * chargeMultiplier;
+  const rayOrigins = [
+    spawnPos,
+    spawnPos.add(up.scale(plasmaR)),
+    spawnPos.add(up.scale(-plasmaR)),
+    spawnPos.add(right.scale(plasmaR)),
+    spawnPos.add(right.scale(-plasmaR)),
+  ];
+
+  let explode = false;
+  let explodePos = spawnPos.clone();
+  let explodeNormal: Vector3 | null = null;
+  const directHits = new Map<Enemy, Mesh>();
+  let bounced = false;
+  let bouncedVelocity: Vector3 | null = null;
+  let bouncedPosition: Vector3 | null = null;
+  const canRicochet = ricochetDepth < RICOCHET.maxDepth;
+
+  for (const origin of rayOrigins) {
+    const hit = g.scene.pickWithRay(
+      new Ray(origin, rayDir, rayLen),
+      plasmaRayFilter,
+    );
+    if (!hit?.hit || !hit.pickedPoint || hit.distance >= rayLen) continue;
+
+    if (hit.pickedMesh && isEnemyPart(hit.pickedMesh.name)) {
+      const result = findEnemyByMesh(hit.pickedMesh);
+      if (result) {
+        const prev = directHits.get(result.enemy);
+        if (!prev || result.hitMesh.name === "enemyHead") {
+          directHits.set(result.enemy, result.hitMesh);
+        }
+      }
+      if (!explode) {
+        explode = true;
+        explodePos = hit.pickedPoint;
+        explodeNormal = hit.getNormal(true) ?? rayDir.negate();
+      }
+    } else if (hasGravity && !bounced) {
+      const normal = hit.getNormal(true);
+      if (normal) {
+        const dot = Vector3.Dot(velocity, normal);
+        if (dot < 0) {
+          bouncedVelocity = velocity.subtract(normal.scale(2 * dot));
+          bouncedVelocity.scaleInPlace(PLASMA.bounceDamping);
+          bouncedPosition = hit.pickedPoint.add(normal.scale(plasmaR + 0.05));
+          bounced = true;
+          if (canRicochet && Math.random() < effectiveRicochetChance()) {
+            const rDir = addRandomSpread(
+              bouncedVelocity.normalizeToNew(),
+              Math.PI * 0.5,
+            );
+            spawnPlasma(
+              bouncedPosition.add(rDir.scale(plasmaR + 0.1)),
+              rDir,
+              chargeMultiplier,
+              heatPenalty,
+              isCrit,
+              hasGravity,
+              ricochetDepth + 1,
+            );
+          }
+        }
+      }
+    } else if (!explode) {
+      explode = true;
+      explodePos = hit.pickedPoint;
+      explodeNormal = hit.getNormal(true) ?? rayDir.negate();
+    }
+  }
+
+  if (explode) {
+    if (
+      canRicochet &&
+      explodeNormal &&
+      Math.random() < effectiveRicochetChance()
+    ) {
+      const rDir = reflectWithSpread(rayDir, explodeNormal);
+      spawnPlasma(
+        explodePos.add(rDir.scale(plasmaR + 0.1)),
+        rDir,
+        chargeMultiplier,
+        heatPenalty,
+        isCrit,
+        hasGravity,
+        ricochetDepth + 1,
+      );
+    }
+    const plasmaMesh = createPlasmaProjectileMesh(
+      explodePos,
+      chargeMultiplier,
+      heatPenalty,
+      isCrit,
+    );
+    explodePlasma(
+      explodePos,
+      directHits,
+      heatPenalty,
+      plasmaMesh,
+      chargeMultiplier,
+      false,
+      isCrit ? 1 : 0,
+    );
+    return true;
+  }
+
+  if (bounced && bouncedVelocity && bouncedPosition) {
+    spawnPlasmaWithVelocity(
+      bouncedPosition,
+      bouncedVelocity,
+      chargeMultiplier,
+      heatPenalty,
+      isCrit,
+      hasGravity,
+      ricochetDepth,
+    );
+    return true;
+  }
+
+  return false;
 }
 
 function shootRifle(): void {
@@ -493,7 +695,12 @@ function shootRifle(): void {
         g.moveSpread) *
       rifleSpreadScale;
   const aimRay = g.camera.getForwardRay(100);
-  if (!scoped) aimRay.direction.copyFrom(aimAtRifleCrosshair(aimRay.direction));
+  if (!scoped && g.recoilPitch > 0) {
+    const cameraUp = g.camera.getDirection(Vector3.Up()).normalize();
+    aimRay.direction
+      .addInPlace(cameraUp.scale(Math.tan(g.recoilPitch)))
+      .normalize();
+  }
   if (spread > 0)
     aimRay.direction.copyFrom(addRandomSpread(aimRay.direction, spread));
   if (scoped) {
@@ -515,19 +722,22 @@ function shootRifle(): void {
     shootPinnedEnemy(damage, isCrit, aimRay.direction);
   } else if (scoped) {
     const bulletDir = aimRay.direction.normalizeToNew();
-    const hit = g.scene.pickWithRay(aimRay, projectileRayFilter);
+    const hit = g.scene.pickWithRay(aimRay);
     handleRifleHit(hit, bulletDir, damage, isCrit);
   } else {
     const spawnPos = g.barrelTip.getAbsolutePosition();
-    const bulletDir = aimProjectileFromMuzzle(aimRay, spawnPos);
-    const tracer = makeRifleTracerMesh(spawnPos, bulletDir, isCrit);
-    g.rifleBullets.push({
-      mesh: tracer,
-      velocity: bulletDir.scale(RIFLE.bulletSpeed),
-      age: 0,
-      damage,
-      isCrit,
-    });
+    const barrelDir = g.barrelTip.getDirection(Vector3.Forward()).normalize();
+    const bulletDir = aimProjectileFromMuzzle(aimRay, spawnPos, barrelDir);
+    if (!tryResolveImmediateRifleHit(spawnPos, bulletDir, damage, isCrit)) {
+      const tracer = makeRifleTracerMesh(spawnPos, bulletDir, isCrit);
+      g.rifleBullets.push({
+        mesh: tracer,
+        velocity: bulletDir.scale(RIFLE.bulletSpeed),
+        age: 0,
+        damage,
+        isCrit,
+      });
+    }
   }
   playRifleShotSound();
   spawnRifleMuzzleFlash(isCrit);
@@ -722,10 +932,7 @@ export function updateRifleBullets(dt: number): void {
     const nextPos = prevPos.add(step);
     const dir =
       step.lengthSquared() > 0.0001 ? step.normalizeToNew() : Vector3.Forward();
-    const hit = g.scene.pickWithRay(
-      new Ray(prevPos, dir, step.length()),
-      projectileRayFilter,
-    );
+    const hit = g.scene.pickWithRay(new Ray(prevPos, dir, step.length()));
 
     if (handleRifleHit(hit, dir, bullet.damage, bullet.isCrit)) {
       bullet.mesh.dispose();
@@ -749,21 +956,13 @@ function reflectWithSpread(dir: Vector3, normal: Vector3): Vector3 {
 }
 
 function fireLaserRay(ray: Ray, isCrit: boolean, depth = 0): void {
-  const rayFilter = (m: AbstractMesh) =>
-    m.renderingGroupId !== 1 &&
-    m.name !== "player" &&
-    m.name !== "enemyPhys" &&
-    m.name !== "laserBeam" &&
-    m.name !== "bhole" &&
-    m.name !== "supply";
-
   const canRicochet = depth < RICOCHET.maxDepth;
   const laserOrigin =
     depth === 0 ? g.barrelTip.getAbsolutePosition() : ray.origin;
 
   if (isCrit) {
     // Crit laser: penetrate through enemies
-    const hits = g.scene.multiPickWithRay(ray, rayFilter) ?? [];
+    const hits = g.scene.multiPickWithRay(ray) ?? [];
     hits.sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0));
 
     let laserEnd = ray.origin.add(ray.direction.scale(100));
@@ -839,7 +1038,7 @@ function fireLaserRay(ray: Ray, isCrit: boolean, depth = 0): void {
     spawnLaserBeam(laserOrigin, laserEnd, true);
   } else {
     // Normal laser: single hit
-    const hit = g.scene.pickWithRay(ray, rayFilter);
+    const hit = g.scene.pickWithRay(ray);
 
     const laserEnd =
       hit?.hit && hit.pickedPoint
@@ -1174,15 +1373,29 @@ function firePlasma(
   playPlasmaLaunchSound(spawnPos, chargeMultiplier);
 
   for (const aimRay of aimRays) {
-    spawnPlasma(
-      spawnPos,
-      aimProjectileFromMuzzle(aimRay, spawnPos),
-      chargeMultiplier,
-      heatPenalty,
-      isCrit,
-      hasGravity,
-      0,
-    );
+    const barrelDir = g.barrelTip.getDirection(Vector3.Forward()).normalize();
+    const plasmaDir = aimProjectileFromMuzzle(aimRay, spawnPos, barrelDir);
+    if (
+      !tryResolveImmediatePlasmaHit(
+        spawnPos,
+        plasmaDir,
+        chargeMultiplier,
+        heatPenalty,
+        isCrit,
+        hasGravity,
+        0,
+      )
+    ) {
+      spawnPlasma(
+        spawnPos,
+        plasmaDir,
+        chargeMultiplier,
+        heatPenalty,
+        isCrit,
+        hasGravity,
+        0,
+      );
+    }
   }
 
   if (g.state.ammo === 0 && g.state.reserve > 0) g.state.autoReloadDelay = 300;
@@ -1220,16 +1433,6 @@ export function updatePlasmas(dt: number): void {
       p.mesh.position.add(right.scale(-plasmaR)),
     ];
 
-    const rayFilter = (m: AbstractMesh) =>
-      m.renderingGroupId !== 1 &&
-      m.name !== "player" &&
-      m.name !== "enemyPhys" &&
-      m.name !== "laserBeam" &&
-      m.name !== "bhole" &&
-      m.name !== "supply" &&
-      m.name !== "plasma" &&
-      m.name !== "plasmaCharge";
-
     let explode = false;
     let explodePos = p.mesh.position.clone();
     let explodeNormal: Vector3 | null = null;
@@ -1239,7 +1442,7 @@ export function updatePlasmas(dt: number): void {
 
     for (const origin of rayOrigins) {
       const ray = new Ray(origin, rayDir, rayLen);
-      const hit = g.scene.pickWithRay(ray, rayFilter);
+      const hit = g.scene.pickWithRay(ray, plasmaRayFilter);
       if (hit?.hit && hit.pickedPoint && hit.distance < rayLen) {
         if (hit.pickedMesh && isEnemyPart(hit.pickedMesh.name)) {
           const result = findEnemyByMesh(hit.pickedMesh);
