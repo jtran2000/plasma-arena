@@ -23,9 +23,7 @@ import {
 import {
   makeRifleTracerMesh,
   makePlasmaChargeMesh,
-  createPlasmaProjectileMesh,
   spawnPlasma,
-  spawnPlasmaWithVelocity,
   spawnRifleMuzzleFlash,
   spawnLightningBolt,
   spawnExplosionParticle,
@@ -63,7 +61,6 @@ import {
   effectiveRifleSpreadScale,
   effectiveLaserDamage,
   effectivePlasmaDamage,
-  effectivePlasmaSpeed,
   effectiveJumpStaminaCost,
   effectiveReloadTime,
   effectiveMagSize,
@@ -186,12 +183,11 @@ function currentRifleRecoilStats() {
     ? RIFLE.MUZZLE_BRAKE.recoilScale
     : 1;
   const scale = brakeScale * (g.rifleScoped ? RIFLE.RECOIL.scopedScale : 1);
-  const cameraRatio = g.rifleScopeViewActive ? 1 : RIFLE.RECOIL.cameraRatio;
   return {
     pitch: RIFLE.RECOIL.pitch * scale,
     recover: RIFLE.RECOIL.recover,
     maxPitch: RIFLE.RECOIL.maxPitch * scale,
-    cameraRatio,
+    cameraRatio: RIFLE.RECOIL.cameraRatio,
     weaponRoll: g.rifleScopeViewActive
       ? 0
       : RIFLE.RECOIL.weaponRoll * brakeScale,
@@ -437,6 +433,14 @@ function addRandomSpread(dir: Vector3, spread: number): Vector3 {
     .normalize();
 }
 
+export function applyRifleCrosshairRecoil(ray: Ray): Ray {
+  if (g.state.activeWeapon !== "rifle" || g.recoilPitch <= 0) return ray;
+  const cameraUp = g.camera.getDirection(Vector3.Up()).normalize();
+  ray.direction = ray.direction.add(cameraUp.scale(Math.tan(g.recoilPitch)));
+  ray.direction.normalize();
+  return ray;
+}
+
 function aimProjectileFromMuzzle(
   aimRay: Ray,
   spawnPos: Vector3,
@@ -517,18 +521,12 @@ function shootRifle(): void {
   const scoped = g.rifleScoped && g.upgrades.rifleScope;
   const rifleSpreadScale = effectiveRifleSpreadScale();
   const spread = scoped
-    ? 0
+    ? RIFLE.SPREAD.base * RIFLE.SPREAD.scopedScale
     : (RIFLE.SPREAD.base +
         Math.min(g.shootSpread, RIFLE.SPREAD.max) +
         g.moveSpread) *
       rifleSpreadScale;
-  const aimRay = g.camera.getForwardRay(100);
-  if (!scoped && g.recoilPitch > 0) {
-    const cameraUp = g.camera.getDirection(Vector3.Up()).normalize();
-    aimRay.direction
-      .addInPlace(cameraUp.scale(Math.tan(g.recoilPitch)))
-      .normalize();
-  }
+  const aimRay = applyRifleCrosshairRecoil(g.camera.getForwardRay(100));
   if (spread > 0)
     aimRay.direction.copyFrom(addRandomSpread(aimRay.direction, spread));
   if (scoped) {

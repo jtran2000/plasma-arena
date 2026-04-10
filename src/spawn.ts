@@ -1668,16 +1668,55 @@ export function makeHealthSupply(position: Vector3): {
   mesh: Mesh;
   aggregate: PhysicsAggregate;
 } {
-  const mat = applyMaterialLightBudget(
-    new StandardMaterial("supplyMat", g.scene),
+  const mesh = MeshBuilder.CreateBox(
+    "supply",
+    { width: 0.5, height: 0.16, depth: 0.32 },
+    g.scene,
   );
-  mat.diffuseColor = new Color3(0.1, 0.9, 0.2);
-  mat.emissiveColor = new Color3(0.1, 0.6, 0.1);
-  const mesh = MeshBuilder.CreateSphere("supply", { diameter: 0.4 }, g.scene);
   mesh.position = position.clone();
   mesh.position.y = Math.max(mesh.position.y, 0.3);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("healthSupplyMat", g.scene),
+  );
+  mat.diffuseColor = new Color3(1, 1, 1);
+  mat.emissiveColor = new Color3(0.1, 0.1, 0.1);
   mesh.material = mat;
   mesh.isPickable = false;
+
+  const crossTex = new DynamicTexture(
+    "healthSupplyCrossTex",
+    { width: 256, height: 256 },
+    g.scene,
+    false,
+  );
+  const crossCtx = crossTex.getContext();
+  crossCtx.clearRect(0, 0, 256, 256);
+  crossCtx.fillStyle = "#fefefe";
+  crossCtx.fillRect(0, 0, 256, 256);
+  crossCtx.fillStyle = "#1fb84f";
+  crossCtx.fillRect(98, 42, 60, 172);
+  crossCtx.fillRect(42, 98, 172, 60);
+  crossTex.update(false);
+
+  const crossMat = applyMaterialLightBudget(
+    new StandardMaterial("healthSupplyCrossMat", g.scene),
+  );
+  crossMat.diffuseTexture = crossTex;
+  crossMat.emissiveTexture = crossTex;
+  crossMat.specularColor = Color3.Black();
+  crossMat.disableLighting = true;
+
+  const cross = MeshBuilder.CreatePlane(
+    "healthSupplyCross",
+    { width: 0.38, height: 0.24 },
+    g.scene,
+  );
+  cross.parent = mesh;
+  cross.position.y = 0.081;
+  cross.rotation.x = Math.PI / 2;
+  cross.material = crossMat;
+  cross.isPickable = false;
+
   const aggregate = new PhysicsAggregate(
     mesh,
     PhysicsShapeType.BOX,
@@ -1705,6 +1744,24 @@ export function makeAmmoSupply(position: Vector3): {
   mesh.position = position.clone();
   mesh.position.y = Math.max(mesh.position.y, 0.3);
   mesh.material = mat;
+  mesh.isPickable = false;
+  const aggregate = new PhysicsAggregate(
+    mesh,
+    PhysicsShapeType.BOX,
+    { mass: 1, friction: 0.8, restitution: 0.2 },
+    g.scene,
+  );
+  return { mesh, aggregate };
+}
+
+export function makeRifleAmmoSupply(position: Vector3): {
+  mesh: Mesh;
+  aggregate: PhysicsAggregate;
+} {
+  const mesh = makeRifleMagMesh();
+  mesh.material = makeRifleMagMat();
+  mesh.position = position.clone();
+  mesh.position.y = Math.max(mesh.position.y, 0.3);
   mesh.isPickable = false;
   const aggregate = new PhysicsAggregate(
     mesh,
@@ -2096,11 +2153,15 @@ export function spawnEnemy(): void {
 
 export function spawnSupply(
   position: Vector3,
-  forceType?: "health" | "ammo",
+  forceType?: "health" | "ammo" | "rifleAmmo",
 ): void {
   const type = forceType ?? (Math.random() < 0.5 ? "health" : "ammo");
   const { mesh, aggregate } =
-    type === "health" ? makeHealthSupply(position) : makeAmmoSupply(position);
+    type === "health"
+      ? makeHealthSupply(position)
+      : type === "rifleAmmo"
+        ? makeRifleAmmoSupply(position)
+        : makeAmmoSupply(position);
   g.supplies.push({ mesh, aggregate, type });
 }
 

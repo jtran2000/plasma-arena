@@ -43,6 +43,7 @@ export function endGame(): void {
   dom.speedLines.classList.remove("active");
   if (g.scopeOverlay) g.scopeOverlay.isVisible = false;
   dom.hud.classList.remove("scoped");
+  dom.hud.classList.remove("paused");
   dom.hud.style.display = "none";
   document.exitPointerLock();
 }
@@ -53,7 +54,9 @@ export async function startGame(sensitivity: number): Promise<void> {
   if (g.scopeOverlay) g.scopeOverlay.isVisible = false;
   g.rifleLaserDot?.setEnabled(false);
   dom.hud.classList.remove("scoped");
+  dom.hud.classList.remove("paused");
   dom.hud.style.display = "block";
+  g.returnToStartScreen = false;
   g.upgrades = makeUpgradeState();
   g.weaponAmmo = makeWeaponAmmoState();
   g.recoilPitch = 0;
@@ -152,4 +155,9 @@ export function resume(): void {
     dom.upgradeMenu.classList.add("visible");
     document.exitPointerLock();
   }
+}
+
+export function exitToStartScreen(): void {
+  g.returnToStartScreen = true;
+  endGame();
 }

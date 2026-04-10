@@ -9,7 +9,7 @@ import {
 } from "@babylonjs/gui";
 import { g, dom } from "./game.js";
 import { AUDIO } from "./constants.js";
-import { startGame } from "./flow.js";
+import { startGame, exitToStartScreen } from "./flow.js";
 
 // ─── Style constants ─────────────────────────────────────────────────────────
 const FONT = "Courier New";
@@ -168,11 +168,14 @@ function buildPauseScreen(): void {
   });
   panel.addControl(optBtn);
 
-  const restartBtn = makeButton("RESTART", RED, TEXT_COLOR, HOVER_RED);
-  restartBtn.onPointerUpObservable.add(() => {
-    startGameFromUi().catch(console.error);
+  const exitBtn = makeButton("\u2302  EXIT", RED, TEXT_COLOR, HOVER_RED);
+  exitBtn.onPointerUpObservable.add(() => {
+    exitToStartScreen();
+    hidePause();
+    hideGameOver();
+    showStart();
   });
-  panel.addControl(restartBtn);
+  panel.addControl(exitBtn);
 }
 
 function buildOptionsScreen(): void {

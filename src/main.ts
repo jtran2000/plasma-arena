@@ -3,6 +3,8 @@ import { g, dom } from "./game.js";
 import {
   createUI,
   showGameOver,
+  showStart,
+  hideGameOver,
   optionsOpen,
   hideOptions,
   hidePause,
@@ -78,7 +80,14 @@ g.engine.runRenderLoop(() => {
     endGame();
   }
   if (previousRunning && !g.state.running) {
-    showGameOver(g.state.wave, g.state.score, g.state.kills);
+    if (g.returnToStartScreen) {
+      g.returnToStartScreen = false;
+      hidePause();
+      hideGameOver();
+      showStart();
+    } else {
+      showGameOver(g.state.wave, g.state.score, g.state.kills);
+    }
   }
   previousRunning = g.state.running;
   if (g.scene) g.scene.render();

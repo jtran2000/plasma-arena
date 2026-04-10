@@ -80,6 +80,7 @@ import {
   isEnemyPart,
   findEnemyByMesh,
   damageEnemy,
+  applyRifleCrosshairRecoil,
 } from "./actions.js";
 export { selectUpgrade };
 
@@ -367,7 +368,7 @@ function updateTimers(dt: number): void {
   const scopedRecoilScale = g.rifleScoped ? RIFLE.RECOIL.scopedScale : 1;
   const rifleRecoil = {
     recover: RIFLE.RECOIL.recover,
-    cameraRatio: g.rifleScopeViewActive ? 1 : RIFLE.RECOIL.cameraRatio,
+    cameraRatio: RIFLE.RECOIL.cameraRatio,
     maxPitch: RIFLE.RECOIL.maxPitch * recoilScale * scopedRecoilScale,
   };
   const rifleShooting = g.state.activeWeapon === "rifle" && g.mouseHeld;
@@ -430,13 +431,7 @@ function updateTimers(dt: number): void {
   dom.crosshair.style.transform = `translate(-50%, calc(-50% - ${g.crosshairRecoil}px))`;
 
   // Crosshair color: red when over a living enemy
-  const centerRay = g.camera.getForwardRay(100);
-  if (g.state.activeWeapon === "rifle" && g.recoilPitch > 0) {
-    const cameraUp = g.camera.getDirection(Vector3.Up()).normalize();
-    centerRay.direction = centerRay.direction
-      .add(cameraUp.scale(Math.tan(g.recoilPitch)))
-      .normalize();
-  }
+  const centerRay = applyRifleCrosshairRecoil(g.camera.getForwardRay(100));
   const centerHit = g.scene.pickWithRay(centerRay);
   const overEnemy =
     centerHit?.hit &&
@@ -495,21 +490,35 @@ function updateTimers(dt: number): void {
     const p = g.supplies[i];
     const dist = Vector3.Distance(g.playerMesh.position, p.mesh.position);
     if (dist < SUPPLY.collectRange) {
-      const maxReserve =
+      const activeMaxReserve =
         (g.state.activeWeapon === "rifle"
           ? RIFLE.maxReserveMags
           : LASER.maxReserveMags) * effectiveMagSize();
+      const rifleMaxReserve = RIFLE.maxReserveMags * RIFLE.magSize;
       if (p.type === "health" && g.state.health >= effectiveMaxHealth())
         continue;
-      if (p.type === "ammo" && g.state.reserve >= maxReserve) continue;
+      if (p.type === "ammo" && g.state.reserve >= activeMaxReserve) continue;
+      if (
+        p.type === "rifleAmmo" &&
+        g.weaponAmmo.rifle.reserve >= rifleMaxReserve
+      )
+        continue;
       if (p.type === "health") {
         g.state.health = Math.min(
           effectiveMaxHealth(),
           g.state.health + SUPPLY.healthAmount,
         );
+      } else if (p.type === "rifleAmmo") {
+        g.weaponAmmo.rifle.reserve = Math.min(
+          rifleMaxReserve,
+          g.weaponAmmo.rifle.reserve + RIFLE.magSize,
+        );
+        if (g.state.activeWeapon === "rifle") {
+          g.state.reserve = g.weaponAmmo.rifle.reserve;
+        }
       } else {
         g.state.reserve = Math.min(
-          maxReserve,
+          activeMaxReserve,
           g.state.reserve + effectiveMagSize(),
         );
       }
@@ -535,7 +544,6 @@ function isPlayerGroundedForStaminaRegen(): boolean {
 
 function updateRifleLaserSight(): void {
   if (!g.rifleLaserDot) return;
-  const scoped = g.rifleScoped && g.upgrades.rifleScope;
   const embed = g.bayonetEmbed;
   const visible =
     g.state.running &&
@@ -589,13 +597,7 @@ function updateRifleLaserSight(): void {
     // Weapon is tilted — aim the laser along the actual barrel direction
     laserDir = g.barrelTip.getDirection(Vector3.Forward()).normalize();
   } else {
-    const aimRay = g.camera.getForwardRay(100);
-    if (!scoped && g.recoilPitch > 0) {
-      const cameraUp = g.camera.getDirection(Vector3.Up()).normalize();
-      aimRay.direction = aimRay.direction
-        .add(cameraUp.scale(Math.tan(g.recoilPitch)))
-        .normalize();
-    }
+    const aimRay = applyRifleCrosshairRecoil(g.camera.getForwardRay(100));
     const aimHit = g.scene.pickWithRay(aimRay);
     const aimTarget =
       aimHit?.hit && aimHit.pickedPoint
@@ -716,10 +718,7 @@ function updatePlayer(dt: number): void {
 
   const p = g.playerMesh.position;
   g.camera.position.set(p.x, p.y + 0.7, p.z);
-  const recoilCameraRatio = g.rifleScopeViewActive
-    ? 1
-    : RIFLE.RECOIL.cameraRatio;
-  const cameraRecoilPitch = g.cameraRecoilPitch * recoilCameraRatio;
+  const cameraRecoilPitch = g.cameraRecoilPitch * RIFLE.RECOIL.cameraRatio;
   const recoilDelta = cameraRecoilPitch - g.appliedCameraRecoilPitch;
   if (recoilDelta !== 0) {
     g.camera.rotation.x -= recoilDelta;
@@ -2010,10 +2009,14 @@ function updateWaves(dt: number): void {
 
     // Reward: spawn supplies in front of player + score bonus
     const fwd = g.camera.getForwardRay(3).direction;
+    const right = g.camera.getDirection(Vector3.Right()).normalize();
     const frontPos = g.camera.position.add(fwd.scale(3));
     frontPos.y = 0.5;
     spawnSupply(frontPos.clone(), "health");
-    spawnSupply(new Vector3(frontPos.x + 0.6, frontPos.y, frontPos.z), "ammo");
+    spawnSupply(frontPos.add(right.scale(0.7)), "ammo");
+    if (g.upgrades.rifleUnlock) {
+      spawnSupply(frontPos.add(right.scale(-0.7)), "rifleAmmo");
+    }
     incrementScore(SCORING.waveComplete, frontPos);
     showUpgradeMenu();
   }

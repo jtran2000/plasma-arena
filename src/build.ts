@@ -47,7 +47,9 @@ class ScopeOverlayControl extends Control {
   public _draw(context: ICanvasRenderingContext): void {
     const measure = this._currentMeasure;
     const cx = measure.left + measure.width / 2;
-    const cy = measure.top + measure.height / 2;
+    // Scoped rifle recoil shifts the visible scope picture with the same
+    // screen-space offset used by the rifle crosshair.
+    const cy = measure.top + measure.height / 2 - g.crosshairRecoil;
     const overlayAlpha = smoothstep(g.rifleScopeZoomT);
     if (overlayAlpha <= Number.EPSILON) return;
     const radius =

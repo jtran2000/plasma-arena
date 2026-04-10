@@ -56,7 +56,7 @@ export interface GameState {
 export interface Supply {
   mesh: Mesh;
   aggregate: PhysicsAggregate;
-  type: "health" | "ammo";
+  type: "health" | "ammo" | "rifleAmmo";
 }
 
 export interface Plasma {
@@ -238,11 +238,11 @@ export function makeUpgradeState(): UpgradeState {
     plasmaCaster: false,
     plasmaCharger: false,
     plasmaGrenadier: false,
-    rifleUnlock: true,
-    muzzleBrake: true,
-    rifleScope: true,
-    rifleLaserSight: true,
-    bayonet: true,
+    rifleUnlock: false,
+    muzzleBrake: false,
+    rifleScope: false,
+    rifleLaserSight: false,
+    bayonet: false,
   };
 }
 
@@ -403,6 +403,7 @@ export const g = {
   crosshairRecoil: 0,
   barrelClipping: false,
   barrelClipT: 0,
+  returnToStartScreen: false,
   pressedKeys: new Set<string>(),
   upgrades: makeUpgradeState(),
   pendingUpgrades: [] as string[],

@@ -240,7 +240,7 @@ const UPGRADE_DEFS: UpgradeDef[] = [
   {
     key: "combatBoots",
     label: "Combat Boots",
-    weight: 8,
+    weight: 5,
     instruction: `Cuts sprint stamina drain by ${Math.round(
       (1 - PLAYER.STAMINA.combatBootsSprintScale) * 100,
     )}% and jump stamina drain by ${Math.round(
@@ -298,7 +298,7 @@ const UPGRADE_DEFS: UpgradeDef[] = [
   {
     key: "multishotUnlock",
     label: "Multishot",
-    weight: 5,
+    weight: 2,
     instruction: "Blaster shots have a chance to split into 3",
     oneTime: true,
   },
@@ -322,7 +322,7 @@ const UPGRADE_DEFS: UpgradeDef[] = [
   {
     key: "lightningUnlock",
     label: "Lightning",
-    weight: 5,
+    weight: 2,
     instruction:
       "Blaster hits can call down lightning that chains between enemies",
     oneTime: true,
@@ -335,7 +335,7 @@ const UPGRADE_DEFS: UpgradeDef[] = [
   {
     key: "igniteUnlock",
     label: "Ignite",
-    weight: 5,
+    weight: 2,
     instruction:
       "Blaster hits can set enemies on fire, spreading to nearby foes",
     oneTime: true,
@@ -385,7 +385,7 @@ const UPGRADE_DEFS: UpgradeDef[] = [
   {
     key: "muzzleBrake",
     label: "Muzzle Brake",
-    weight: 400,
+    weight: 2,
     instruction: "Rifle recoil and flash are reduced",
     oneTime: true,
     requires: "rifleUnlock",
@@ -394,7 +394,7 @@ const UPGRADE_DEFS: UpgradeDef[] = [
   {
     key: "rifleScope",
     label: "Rifle Scope",
-    weight: 400,
+    weight: 5,
     instruction: "Hold RMB with the rifle to zoom and fire precise shots",
     oneTime: true,
     requires: "rifleUnlock",
@@ -403,7 +403,7 @@ const UPGRADE_DEFS: UpgradeDef[] = [
   {
     key: "rifleLaserSight",
     label: "Rifle Laser Sight",
-    weight: 400,
+    weight: 2,
     instruction: `Projects a green aim dot and reduces unscoped rifle spread by ${Math.round(
       (1 - RIFLE.LASER_SIGHT.spreadScale) * 100,
     )}%`,
@@ -414,7 +414,7 @@ const UPGRADE_DEFS: UpgradeDef[] = [
   {
     key: "bayonet",
     label: "Bayonet",
-    weight: 400,
+    weight: 5,
     instruction: `Rifle melee deals ${RIFLE.BAYONET.damageMultiplier}x damage and stabs enemies`,
     oneTime: true,
     requires: "muzzleBrake",

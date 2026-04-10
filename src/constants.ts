@@ -28,8 +28,7 @@ export const CAMERA = {
 export const ENEMY = {
   hp: 50, // base hit points at wave 1
   mass: 120, // physics mass (kg); higher = harder to knock back
-  //speed: 2, // base move speed (m/s)
-  speed: 0,
+  speed: 2, // base move speed (m/s)
   meleeRange: 1.8, // distance at which enemy can hit player (m)
   meleeFacingDot: Math.PI / 4, // melee allowed only when facing within 45 degrees of the player
   meleeDamage: 10, // base damage per melee swing
@@ -42,8 +41,7 @@ export const ENEMY = {
   meleeDamagePerWave: 2.4, // extra melee damage per wave
   meleeAttacksPerMinPerWave: 3, // extra swings/min per wave
   // Movement AI
-  //turnSpeed: 3, // how fast enemies rotate toward the player (rad/s)
-  turnSpeed: 0,
+  turnSpeed: 3, // how fast enemies rotate toward the player (rad/s)
   zigzagFreq: 0.5, // full lateral zigzag cycles per second
   zigzagAmplitude: 0.8, // lateral offset strength (0–1); higher = wider strafes
 } as const;
@@ -170,7 +168,7 @@ export const BLASTER = {
 
 // ─── Rifle ──────────────────────────────────────────────────────────────────
 export const RIFLE = {
-  damage: 75, // base damage per bullet
+  damage: 65, // base damage per bullet
   rateOfFire: 800, // rounds per minute (unscoped full-auto)
   magSize: 50, // rounds per magazine
   reserveMags: 5, // starting reserve magazines
@@ -183,10 +181,11 @@ export const RIFLE = {
   tracerWidth: 0.026, // visual tracer thickness (m)
   SPREAD: {
     base: 0.024, // minimum bloom even on first shot (radians)
-    perShot: 0.007, // bloom added per shot (radians)
+    perShot: 0.01, // bloom added per shot (radians)
     max: 0, // maximum bloom cap (radians)
     decay: 0.12, // bloom recovery while idle (radians/s)
     moveRate: 0.11, // bloom added while moving (radians/s)
+    scopedScale: 0.12, // scoped shots keep a tiny fraction of rifle spread instead of becoming perfectly accurate
   },
   LASER_SIGHT: {
     spreadScale: 0.35, // multiplier on unscoped spread when laser sight is active (lower = tighter)
@@ -197,8 +196,7 @@ export const RIFLE = {
     embedOffsetLeft: 0.03, // horizontal offset of laser dot during bayonet embed (m)
   },
   RECOIL: {
-    //pitch: 0.05, // upward camera kick per shot (radians)
-    pitch: 0,
+    pitch: 0.05, // upward camera kick per shot (radians)
     recover: 5, // camera pitch recovery speed (radians/s)
     maxPitch: 0.8, // max cumulative camera pitch from recoil (radians)
     cameraRatio: 0.53, // fraction of weapon recoil applied to camera (rest is weapon-only)
