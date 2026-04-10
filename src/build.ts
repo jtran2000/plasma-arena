@@ -48,15 +48,20 @@ class ScopeOverlayControl extends Control {
     const measure = this._currentMeasure;
     const cx = measure.left + measure.width / 2;
     const cy = measure.top + measure.height / 2;
+    const overlayAlpha = smoothstep(g.rifleScopeZoomT);
+    if (overlayAlpha <= Number.EPSILON) return;
     const radius =
       Math.min(measure.width, measure.height) *
       RIFLE.SCOPE.pictureRadiusScale *
       smoothstep(g.rifleScopeZoomT);
 
     context.save();
+    (context as unknown as CanvasRenderingContext2D).globalAlpha = overlayAlpha;
     context.fillStyle = RIFLE.SCOPE.overlayFill;
     context.fillRect(measure.left, measure.top, measure.width, measure.height);
+    context.restore();
 
+    context.save();
     (context as unknown as CanvasRenderingContext2D).globalCompositeOperation =
       "destination-out";
     context.beginPath();
@@ -65,6 +70,7 @@ class ScopeOverlayControl extends Control {
     context.restore();
 
     context.save();
+    (context as unknown as CanvasRenderingContext2D).globalAlpha = overlayAlpha;
     context.beginPath();
     context.arc(cx, cy, radius, 0, Math.PI * 2);
     context.clip();
@@ -195,6 +201,10 @@ function buildWeapon(): void {
 
   g.rifleRoot = setupRifleRoot();
   const rifle = setupRifleParts(g.rifleRoot);
+  g.rifleAssembly = rifle.assembly;
+  g.rifleAssemblyBasePosition = rifle.assembly.position.clone();
+  g.rifleAssemblyBasePitch = rifle.assembly.rotation.x;
+  g.rifleAssemblyBaseYaw = rifle.assembly.rotation.y;
   g.rifleMag = rifle.mag;
   g.rifleBarrel = rifle.barrel;
   g.rifleBarrelTip = rifle.barrelTip;

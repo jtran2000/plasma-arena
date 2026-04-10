@@ -210,12 +210,12 @@ export const RIFLE = {
     sensitivityScale: 0.45, // mouse sensitivity multiplier while scoped
     zoomRate: 8, // FOV lerp speed when entering/exiting scope (units/s)
     weaponAimRate: 12, // weapon model lerp speed toward aim position (units/s)
-    overlayFill: "rgba(8, 8, 10, 0.86)", // scope vignette overlay color
+    overlayFill: "#000", // scope vignette overlay color
     pictureRadiusScale: 0.36, // scope clear-circle radius as fraction of screen height
     recoilExitPitch: 0.35, // cumulative recoil pitch that kicks player out of scope (radians)
     recoilReenterPitch: 0.16, // recoil must recover below this to re-enter scope (radians)
     aimRootX: 0, // weapon X offset when fully scoped
-    aimRootY: -0.1375, // weapon Y offset when fully scoped (lower = more centered)
+    aimRootY: -0.145, // weapon Y offset when fully scoped (lower = more centered)
     aimRootZ: 0.5, // weapon Z offset when fully scoped (forward toward camera)
     inwardPullStart: 0.72, // aim progress (0–1) at which weapon begins pulling inward
     inwardRootZ: 0.34, // final Z position during the inward-pull phase
@@ -228,7 +228,7 @@ export const RIFLE = {
     scopedCameraOffsetZ: 0.8, // Z offset for flash position when scoped
   },
   MELEE: {
-    damage: 2, // base rifle butt strike damage
+    damage: 24, // base rifle butt strike damage
     range: 2.2, // melee raycast distance (m)
     cooldownMs: 600, // minimum time between melee attacks (ms)
     animDurationMs: 320, // butt stroke animation duration (ms)
@@ -265,6 +265,7 @@ export const RIFLE = {
 // ─── Scoring ────────────────────────────────────────────────────────────────
 export const SCORING = {
   kill: 100, // points awarded per enemy kill
+  specialKill: 200, // points awarded for melee kills and kills on pinned enemies
   waveComplete: 250, // bonus points when a wave is cleared
 } as const;
 

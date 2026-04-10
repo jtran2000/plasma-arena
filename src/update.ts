@@ -149,16 +149,16 @@ function updateRifleScope(dt: number): void {
     g.shootSpread = 0;
     g.moveSpread = 0;
   }
-  g.scopeOverlay.isVisible = scopeViewActive;
-  g.scopeOverlay.markAsDirty();
-  dom.hud.classList.toggle("scoped", scopeViewActive);
-
   const targetFov = scopeViewActive
     ? CAMERA.defaultFov / RIFLE.SCOPE.zoom
     : CAMERA.defaultFov;
   const lerpT = Math.min(1, (RIFLE.SCOPE.zoomRate * dt) / 1000);
   const zoomTarget = scopeViewActive ? 1 : 0;
   g.rifleScopeZoomT += (zoomTarget - g.rifleScopeZoomT) * lerpT;
+  g.scopeOverlay.isVisible =
+    scopeViewActive || g.rifleScopeZoomT > Number.EPSILON;
+  g.scopeOverlay.markAsDirty();
+  dom.hud.classList.toggle("scoped", scopeViewActive);
   if (g.state.activeWeapon === "rifle") {
     const rifleHidden = scopeViewActive && g.rifleScopeZoomT >= 0.995;
     g.rifleRoot.setEnabled(!rifleHidden);
@@ -1671,6 +1671,12 @@ function updateRifleBayonetChargeWeapon(): void {
 
 function updateRifleWeapon(): void {
   const mag = g.weaponCell;
+  const scopeAlignT = smoothstep(g.rifleScopeAimT);
+  g.rifleAssembly.position.copyFrom(g.rifleAssemblyBasePosition);
+  g.rifleAssembly.position.x *= 1 - scopeAlignT;
+  g.rifleAssembly.rotation.x = g.rifleAssemblyBasePitch;
+  g.rifleAssembly.rotation.y = g.rifleAssemblyBaseYaw * (1 - scopeAlignT);
+  g.rifleAssembly.rotation.z = 0;
 
   if (g.state.meleeAnimTime > 0) {
     const t = 1 - g.state.meleeAnimTime / RIFLE.MELEE.animDurationMs;

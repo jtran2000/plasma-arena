@@ -8,7 +8,7 @@ import {
   Ray,
   PickingInfo,
 } from "@babylonjs/core";
-import { ARENA, PLAYER, BLASTER, RIFLE } from "./constants.js";
+import { ARENA, PLAYER, BLASTER, RIFLE, SCORING } from "./constants.js";
 const { HEAT, PLASMA, SPREAD, MULTISHOT, RICOCHET, LIGHTNING, MELEE } = BLASTER;
 import {
   g,
@@ -100,13 +100,21 @@ export function damageEnemy(
     canLightning?: boolean;
     canIgnite?: boolean;
     showNumber?: boolean;
+    scoreOverride?: number;
   },
 ): boolean {
   enemy.hp -= amount;
   if (opts?.showNumber !== false) spawnDamageNumber(hitPoint, amount, isCrit);
   updateEnemyHealthBar(enemy);
   if (enemy.hp <= 0) {
-    killEnemy(enemy, killMesh, hitPoint, opts?.plasmaKill, opts?.intactKill);
+    killEnemy(
+      enemy,
+      killMesh,
+      hitPoint,
+      opts?.plasmaKill,
+      opts?.intactKill,
+      opts?.scoreOverride,
+    );
     return true;
   }
   const critMult = isCrit ? effectiveCritDamage() : 1;
@@ -315,6 +323,7 @@ export function meleeAttack(): void {
       damageEnemy(result.enemy, dmg, result.hitMesh, hitPoint, false, {
         canIgnite: true,
         intactKill: true,
+        scoreOverride: SCORING.specialKill,
       });
       spawnHitParticle(
         hitPoint,
@@ -438,6 +447,18 @@ function aimProjectileFromMuzzle(
   return dir.normalize();
 }
 
+function getBarrelTipSpawnTransform(): {
+  spawnPos: Vector3;
+  barrelDir: Vector3;
+} {
+  g.weaponRoot.computeWorldMatrix(true);
+  g.barrelTip.computeWorldMatrix(true);
+  return {
+    spawnPos: g.barrelTip.getAbsolutePosition().clone(),
+    barrelDir: g.barrelTip.getDirection(Vector3.Forward()).normalize(),
+  };
+}
+
 function bayonetPinRayFilter(m: AbstractMesh): boolean {
   return isRaycastPickable(m) && !isEnemyPart(m.name) && m.name !== "plasma";
 }
@@ -522,13 +543,8 @@ function shootRifle(): void {
   );
   if (g.bayonetEmbed) {
     shootPinnedEnemy(damage, isCrit, aimRay.direction);
-  } else if (scoped) {
-    const bulletDir = aimRay.direction.normalizeToNew();
-    const hit = g.scene.pickWithRay(aimRay);
-    handleRifleHit(hit, bulletDir, damage, isCrit);
   } else {
-    const spawnPos = g.barrelTip.getAbsolutePosition();
-    const barrelDir = g.barrelTip.getDirection(Vector3.Forward()).normalize();
+    const { spawnPos, barrelDir } = getBarrelTipSpawnTransform();
     const bulletDir = aimProjectileFromMuzzle(aimRay, spawnPos, barrelDir);
     const tracer = makeRifleTracerMesh(spawnPos, bulletDir, isCrit);
     g.rifleBullets.push({
@@ -618,12 +634,12 @@ function shootPinnedEnemy(
     enemy.bodyMesh,
     point,
     isCrit,
-    { intactKill: true },
+    { intactKill: true, scoreOverride: SCORING.specialKill },
   );
 }
 
 const RIFLE_GEOMETRY_BULLET_HOLE = new Color3(0.35, 0.35, 0.35);
-const RIFLE_FLESH_BULLET_HOLE = new Color3(0.8, 0.02, 0.02);
+const RIFLE_FLESH_BULLET_HOLE = new Color3(0.24, 0, 0);
 
 function spawnRifleBulletHole(
   position: Vector3,
@@ -635,6 +651,52 @@ function spawnRifleBulletHole(
     color: flesh ? RIFLE_FLESH_BULLET_HOLE : RIFLE_GEOMETRY_BULLET_HOLE,
     glow: false,
   });
+}
+
+function spawnDeadEnemyBulletHole(
+  position: Vector3,
+  normal: Vector3 | null,
+  parentMesh: Mesh,
+): void {
+  spawnBulletHole(position, normal, parentMesh);
+}
+
+function spawnRifleDeadEnemyBulletHole(
+  position: Vector3,
+  normal: Vector3 | null,
+  parentMesh: Mesh,
+): void {
+  spawnBulletHole(position, normal, parentMesh, {
+    color: RIFLE_FLESH_BULLET_HOLE,
+    glow: false,
+  });
+}
+
+function pickSplitImpactMesh(impactPoint: Vector3, meshes: [Mesh, Mesh]): Mesh {
+  const [topHalf, bottomHalf] = meshes;
+  return impactPoint.y >= (topHalf.position.y + bottomHalf.position.y) / 2
+    ? topHalf
+    : bottomHalf;
+}
+
+function markSplitDeadEnemyHit(
+  hitMesh: Mesh,
+  direction: Vector3,
+  impactPoint?: Vector3,
+  normal?: Vector3 | null,
+  spawnMark: (
+    position: Vector3,
+    hitNormal: Vector3 | null,
+    parentMesh: Mesh,
+  ) => void = spawnDeadEnemyBulletHole,
+): void {
+  const corpseHalves = splitRagdoll(hitMesh, direction, impactPoint);
+  if (!impactPoint) return;
+  spawnMark(
+    impactPoint,
+    normal ?? null,
+    pickSplitImpactMesh(impactPoint, corpseHalves),
+  );
 }
 
 function handleRifleHit(
@@ -687,7 +749,13 @@ function handleRifleHit(
         hit.getNormal(true) ?? dir.negate(),
       );
     } else {
-      splitRagdoll(hit.pickedMesh as Mesh, dir, point);
+      markSplitDeadEnemyHit(
+        hit.pickedMesh as Mesh,
+        dir,
+        point,
+        hit.getNormal(true),
+        spawnRifleDeadEnemyBulletHole,
+      );
     }
   } else if (
     hit.pickedMesh.name === "bodyHalf" ||
@@ -695,13 +763,13 @@ function handleRifleHit(
     hit.pickedMesh.name === "armHalf" ||
     hit.pickedMesh.name === "legHalf"
   ) {
-    hitDebris(hit.pickedMesh as Mesh, dir, point);
     spawnRifleBulletHole(
       point,
       hit.getNormal(true),
       hit.pickedMesh as Mesh,
       true,
     );
+    hitDebris(hit.pickedMesh as Mesh, dir, point);
     spawnHitParticle(
       point,
       new Color4(0.8, 0.0, 0.0, 1),
@@ -797,7 +865,13 @@ function fireLaserRay(ray: Ray, isCrit: boolean, depth = 0): void {
             );
           }
         } else {
-          splitRagdoll(h.pickedMesh as Mesh, ray.direction, h.pickedPoint);
+          markSplitDeadEnemyHit(
+            h.pickedMesh as Mesh,
+            ray.direction,
+            h.pickedPoint,
+            h.getNormal(true),
+            spawnDeadEnemyBulletHole,
+          );
         }
       } else if (
         name === "bodyHalf" ||
@@ -805,6 +879,11 @@ function fireLaserRay(ray: Ray, isCrit: boolean, depth = 0): void {
         name === "armHalf" ||
         name === "legHalf"
       ) {
+        spawnDeadEnemyBulletHole(
+          h.pickedPoint,
+          h.getNormal(true),
+          h.pickedMesh as Mesh,
+        );
         hitDebris(h.pickedMesh as Mesh, ray.direction, h.pickedPoint);
         const hitNormal = h.getNormal(true) ?? ray.direction.negate();
         spawnHitParticle(
@@ -876,10 +955,12 @@ function fireLaserRay(ray: Ray, isCrit: boolean, depth = 0): void {
             }
           }
         } else {
-          splitRagdoll(
+          markSplitDeadEnemyHit(
             hit.pickedMesh as Mesh,
             ray.direction,
             hit.pickedPoint ?? undefined,
+            hit.getNormal(true),
+            spawnDeadEnemyBulletHole,
           );
         }
       } else if (
@@ -888,6 +969,13 @@ function fireLaserRay(ray: Ray, isCrit: boolean, depth = 0): void {
         hit.pickedMesh.name === "armHalf" ||
         hit.pickedMesh.name === "legHalf"
       ) {
+        if (hit.pickedPoint) {
+          spawnDeadEnemyBulletHole(
+            hit.pickedPoint,
+            hit.getNormal(true),
+            hit.pickedMesh as Mesh,
+          );
+        }
         hitDebris(
           hit.pickedMesh as Mesh,
           ray.direction,

@@ -1246,6 +1246,7 @@ export function setupWeaponParts(root: Mesh): {
 }
 
 export function setupRifleParts(root: Mesh): {
+  assembly: Mesh;
   mag: Mesh;
   barrel: Mesh;
   barrelTip: Mesh;
@@ -1376,6 +1377,7 @@ export function setupRifleParts(root: Mesh): {
   laserDot.setEnabled(false);
 
   return {
+    assembly,
     mag,
     barrel,
     barrelTip,
@@ -2713,6 +2715,7 @@ export function killEnemy(
   hitPoint?: Vector3,
   orbKill = false,
   intactKill = false,
+  scoreOverride?: number,
 ): void {
   const bodyWorldPos = enemy.bodyMesh.getAbsolutePosition().clone();
   playEnemyDeathSound(bodyWorldPos);
@@ -2756,7 +2759,8 @@ export function killEnemy(
   const finishKill = () => {
     g.state.kills++;
     incrementScore(
-      isHeadshot ? Math.round(SCORING.kill * 1.5) : SCORING.kill,
+      scoreOverride ??
+        (isHeadshot ? Math.round(SCORING.kill * 1.5) : SCORING.kill),
       hitPoint,
     );
   };
@@ -2800,7 +2804,7 @@ export function killEnemy(
     enemy.physMesh.isPickable = false;
     enemy.visualRoot.isPickable = false;
     for (const mesh of enemy.visualRoot.getChildMeshes()) {
-      mesh.isPickable = false;
+      mesh.isPickable = true;
     }
     enemy.aggregate.dispose();
     if (enemyIndex >= 0) g.enemies.splice(enemyIndex, 1);
@@ -2899,7 +2903,7 @@ export function killEnemy(
         collider.isPickable = false;
 
         visual.setParent(collider);
-        visual.isPickable = false;
+        visual.isPickable = true;
 
         const aggregate = new PhysicsAggregate(
           collider,
@@ -3219,7 +3223,7 @@ export function splitRagdoll(
   mesh: Mesh,
   beamDir: Vector3,
   hitPoint?: Vector3,
-): void {
+): [Mesh, Mesh] {
   const worldPos = mesh.getAbsolutePosition().clone();
   const mat = mesh.material as StandardMaterial;
   const name = mesh.name;
@@ -3268,6 +3272,7 @@ export function splitRagdoll(
     spawnHitParticle(hitPoint, new Color4(0.8, 0.0, 0.0, 1), beamDir.negate());
 
   incrementScore(1, hitPoint);
+  return [topHalf, bottomHalf];
 }
 
 export function hitDebris(
