@@ -466,164 +466,8 @@ export function findBayonetPinPosition(
   };
 }
 
-function getProjectileSpawnStepSeconds(): number {
-  const dtMs = g.engine.getDeltaTime();
-  return (dtMs > 0 ? dtMs : 1000 / 60) / 1000;
-}
-
 function plasmaRayFilter(m: AbstractMesh): boolean {
   return isRaycastPickable(m) && m.name !== "plasma";
-}
-
-function getProjectileSweepAxes(dir: Vector3): { up: Vector3; right: Vector3 } {
-  const up = Vector3.Cross(dir, new Vector3(1, 0, 0));
-  if (up.lengthSquared() < 0.01)
-    up.copyFrom(Vector3.Cross(dir, new Vector3(0, 0, 1)));
-  up.normalize();
-  const right = Vector3.Cross(dir, up).normalize();
-  return { up, right };
-}
-
-function tryResolveImmediatePlasmaHit(
-  spawnPos: Vector3,
-  dir: Vector3,
-  chargeMultiplier: number,
-  heatPenalty: number,
-  isCrit: boolean,
-  hasGravity: boolean,
-  ricochetDepth: number,
-): boolean {
-  const dtSec = getProjectileSpawnStepSeconds();
-  const velocity = dir.scale(effectivePlasmaSpeed() / chargeMultiplier);
-  if (hasGravity) velocity.y -= PLASMA.gravity * dtSec;
-  const rayLen = velocity.length() * dtSec;
-  if (rayLen <= 0) return false;
-
-  const rayDir =
-    velocity.lengthSquared() > 0.0001
-      ? velocity.normalizeToNew()
-      : dir.normalizeToNew();
-  const { up, right } = getProjectileSweepAxes(rayDir);
-  const plasmaR = PLASMA.radius * chargeMultiplier;
-  const rayOrigins = [
-    spawnPos,
-    spawnPos.add(up.scale(plasmaR)),
-    spawnPos.add(up.scale(-plasmaR)),
-    spawnPos.add(right.scale(plasmaR)),
-    spawnPos.add(right.scale(-plasmaR)),
-  ];
-
-  let explode = false;
-  let explodePos = spawnPos.clone();
-  let explodeNormal: Vector3 | null = null;
-  const directHits = new Map<Enemy, Mesh>();
-  let bounced = false;
-  let bouncedVelocity: Vector3 | null = null;
-  let bouncedPosition: Vector3 | null = null;
-  const canRicochet = ricochetDepth < RICOCHET.maxDepth;
-
-  for (const origin of rayOrigins) {
-    const hit = g.scene.pickWithRay(
-      new Ray(origin, rayDir, rayLen),
-      plasmaRayFilter,
-    );
-    if (!hit?.hit || !hit.pickedPoint || hit.distance >= rayLen) continue;
-
-    if (hit.pickedMesh && isEnemyPart(hit.pickedMesh.name)) {
-      const result = findEnemyByMesh(hit.pickedMesh);
-      if (result) {
-        const prev = directHits.get(result.enemy);
-        if (!prev || result.hitMesh.name === "enemyHead") {
-          directHits.set(result.enemy, result.hitMesh);
-        }
-      }
-      if (!explode) {
-        explode = true;
-        explodePos = hit.pickedPoint;
-        explodeNormal = hit.getNormal(true) ?? rayDir.negate();
-      }
-    } else if (hasGravity && !bounced) {
-      const normal = hit.getNormal(true);
-      if (normal) {
-        const dot = Vector3.Dot(velocity, normal);
-        if (dot < 0) {
-          bouncedVelocity = velocity.subtract(normal.scale(2 * dot));
-          bouncedVelocity.scaleInPlace(PLASMA.bounceDamping);
-          bouncedPosition = hit.pickedPoint.add(normal.scale(plasmaR + 0.05));
-          bounced = true;
-          if (canRicochet && Math.random() < effectiveRicochetChance()) {
-            const rDir = addRandomSpread(
-              bouncedVelocity.normalizeToNew(),
-              Math.PI * 0.5,
-            );
-            spawnPlasma(
-              bouncedPosition.add(rDir.scale(plasmaR + 0.1)),
-              rDir,
-              chargeMultiplier,
-              heatPenalty,
-              isCrit,
-              hasGravity,
-              ricochetDepth + 1,
-            );
-          }
-        }
-      }
-    } else if (!explode) {
-      explode = true;
-      explodePos = hit.pickedPoint;
-      explodeNormal = hit.getNormal(true) ?? rayDir.negate();
-    }
-  }
-
-  if (explode) {
-    if (
-      canRicochet &&
-      explodeNormal &&
-      Math.random() < effectiveRicochetChance()
-    ) {
-      const rDir = reflectWithSpread(rayDir, explodeNormal);
-      spawnPlasma(
-        explodePos.add(rDir.scale(plasmaR + 0.1)),
-        rDir,
-        chargeMultiplier,
-        heatPenalty,
-        isCrit,
-        hasGravity,
-        ricochetDepth + 1,
-      );
-    }
-    const plasmaMesh = createPlasmaProjectileMesh(
-      explodePos,
-      chargeMultiplier,
-      heatPenalty,
-      isCrit,
-    );
-    explodePlasma(
-      explodePos,
-      directHits,
-      heatPenalty,
-      plasmaMesh,
-      chargeMultiplier,
-      false,
-      isCrit ? 1 : 0,
-    );
-    return true;
-  }
-
-  if (bounced && bouncedVelocity && bouncedPosition) {
-    spawnPlasmaWithVelocity(
-      bouncedPosition,
-      bouncedVelocity,
-      chargeMultiplier,
-      heatPenalty,
-      isCrit,
-      hasGravity,
-      ricochetDepth,
-    );
-    return true;
-  }
-
-  return false;
 }
 
 function shootRifle(): void {
@@ -1331,27 +1175,15 @@ function firePlasma(
   for (const aimRay of aimRays) {
     const barrelDir = g.barrelTip.getDirection(Vector3.Forward()).normalize();
     const plasmaDir = aimProjectileFromMuzzle(aimRay, spawnPos, barrelDir);
-    if (
-      !tryResolveImmediatePlasmaHit(
-        spawnPos,
-        plasmaDir,
-        chargeMultiplier,
-        heatPenalty,
-        isCrit,
-        hasGravity,
-        0,
-      )
-    ) {
-      spawnPlasma(
-        spawnPos,
-        plasmaDir,
-        chargeMultiplier,
-        heatPenalty,
-        isCrit,
-        hasGravity,
-        0,
-      );
-    }
+    spawnPlasma(
+      spawnPos,
+      plasmaDir,
+      chargeMultiplier,
+      heatPenalty,
+      isCrit,
+      hasGravity,
+      0,
+    );
   }
 
   if (g.state.ammo === 0 && g.state.reserve > 0) g.state.autoReloadDelay = 300;
