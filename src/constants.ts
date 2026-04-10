@@ -91,6 +91,14 @@ export const PLAYER = {
     tiltX: -0.9, // weapon pitch when barrel is blocked (radians, negative = up)
     lerpSpeed: 12, // interpolation speed toward blocked / unblocked pose (units/s)
   },
+  WEAPON_SWITCH: {
+    durationMs: 220, // total time for the weapon switch animation (ms)
+    dropY: -0.3, // vertical offset at the deepest point of the switch animation
+    pullBackZ: -0.16, // backward offset while the weapon is lowered
+    pitch: 0.42, // pitch applied while switching (radians)
+    yaw: 0.22, // side-to-side sway applied while switching (radians)
+    roll: 0.18, // roll applied while switching (radians)
+  },
 } as const;
 
 // ─── Blaster — Weapon System ────────────────────────────────────────────────
@@ -164,7 +172,7 @@ export const BLASTER = {
 export const RIFLE = {
   damage: 75, // base damage per bullet
   rateOfFire: 800, // rounds per minute (unscoped full-auto)
-  magSize: 500, // rounds per magazine
+  magSize: 50, // rounds per magazine
   reserveMags: 5, // starting reserve magazines
   maxReserveMags: 7, // cap on reserve mags from supply pickups
   reloadTime: 2200, // reload duration (ms)

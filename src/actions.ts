@@ -15,7 +15,6 @@ import {
   dom,
   cacheActiveWeaponAmmo,
   canSpendStamina,
-  equipWeapon,
   releaseBayonetEmbed,
   spendStamina,
   type Enemy,
@@ -202,6 +201,7 @@ function currentRifleRecoilStats() {
 export function switchWeapon(): void {
   if (
     !g.upgrades.rifleUnlock ||
+    g.weaponSwitchTarget !== null ||
     !g.state.running ||
     g.state.paused ||
     g.isSprinting ||
@@ -239,7 +239,10 @@ export function switchWeapon(): void {
   g.state.shootCooldown = 0;
   g.state.plasmaCooldown = 0;
   const next = g.state.activeWeapon === "blaster" ? "rifle" : "blaster";
-  equipWeapon(next);
+  g.weaponSwitchTarget = next;
+  g.weaponSwitchTime = 0;
+  g.weaponSwitchDuration = PLAYER.WEAPON_SWITCH.durationMs;
+  g.weaponSwitchSwapped = false;
   updateHUD();
 }
 
@@ -268,6 +271,7 @@ export function tryJump(): void {
 // ─── Melee attack ───────────────────────────────────────────────────────────
 export function meleeAttack(): void {
   if (
+    g.weaponSwitchTarget !== null ||
     !g.state.running ||
     g.state.paused ||
     g.isSprinting ||
@@ -354,6 +358,7 @@ export function meleeAttack(): void {
 
 // ─── Laser shooting ─────────────────────────────────────────────────────────
 export function shoot(): void {
+  if (g.weaponSwitchTarget !== null) return;
   if (g.barrelClipping && !g.bayonetEmbed) return;
   if (g.state.activeWeapon === "rifle") {
     shootRifle();
@@ -1021,6 +1026,7 @@ function fireLaserRay(ray: Ray, isCrit: boolean, depth = 0): void {
 // ─── Alt-fire: Plasma ───────────────────────────────────────────────────────
 export function startPlasmaCharge(): void {
   if (
+    g.weaponSwitchTarget !== null ||
     g.state.activeWeapon !== "blaster" ||
     !g.upgrades.plasmaCaster ||
     !g.state.running ||
@@ -1699,6 +1705,7 @@ function hitEnemy(
 export function startReload(): void {
   const maxMag = effectiveMagSize();
   if (
+    g.weaponSwitchTarget !== null ||
     g.state.reloading ||
     g.state.reserve <= 0 ||
     g.state.ammo >= maxMag ||

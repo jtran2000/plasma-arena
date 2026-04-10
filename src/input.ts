@@ -82,6 +82,7 @@ export function bindSceneInput(): void {
       }
     } else if (info.event.button === 2) {
       if (info.type === PointerEventTypes.POINTERDOWN) {
+        if (g.weaponSwitchTarget !== null) return;
         g.mouse2Held = true;
         const movementKeyPressed =
           g.pressedKeys.has("KeyW") ||

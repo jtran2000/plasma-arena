@@ -24,6 +24,7 @@ const { LASER, SPREAD, HEAT, IGNITE, MELEE } = BLASTER;
 import {
   g,
   dom,
+  equipWeapon,
   releaseBayonetEmbed,
   spendStamina,
   disableBayonetEmbedLook,
@@ -119,6 +120,7 @@ function updateRifleScope(dt: number): void {
   let scoped =
     g.rifleScoped &&
     g.upgrades.rifleScope &&
+    g.weaponSwitchTarget === null &&
     g.state.activeWeapon === "rifle" &&
     g.state.running &&
     !g.state.reloading &&
@@ -1562,10 +1564,60 @@ function updateBarrelClip(dt: number): void {
     : Math.max(0, g.barrelClipT - speed);
 }
 
+function updateWeaponSwitchAnimation(dt: number): void {
+  const target = g.weaponSwitchTarget;
+  if (!target) return;
+
+  g.weaponSwitchTime = Math.min(
+    g.weaponSwitchTime + dt,
+    g.weaponSwitchDuration,
+  );
+  const progress =
+    g.weaponSwitchDuration > 0
+      ? g.weaponSwitchTime / g.weaponSwitchDuration
+      : 1;
+  if (!g.weaponSwitchSwapped && progress >= 0.5) {
+    equipWeapon(target);
+    g.weaponSwitchSwapped = true;
+  }
+
+  const switchDir = target === "rifle" ? 1 : -1;
+  const phaseT =
+    progress < 0.5
+      ? smoothstep(progress / 0.5)
+      : smoothstep((progress - 0.5) / 0.5);
+  const hiddenT = progress < 0.5 ? phaseT : 1 - phaseT;
+
+  g.weaponRoot.position.copyFrom(g.weaponRestPosition);
+  g.weaponRoot.position.y += PLAYER.WEAPON_SWITCH.dropY * hiddenT;
+  g.weaponRoot.position.z += PLAYER.WEAPON_SWITCH.pullBackZ * hiddenT;
+  g.weaponRoot.rotation.x = PLAYER.WEAPON_SWITCH.pitch * hiddenT;
+  g.weaponRoot.rotation.y = PLAYER.WEAPON_SWITCH.yaw * switchDir * hiddenT;
+  g.weaponRoot.rotation.z = PLAYER.WEAPON_SWITCH.roll * switchDir * hiddenT;
+  g.weaponCell.isVisible = true;
+  if (g.state.activeWeapon === "rifle") {
+    g.weaponCell.position.copyFrom(new Vector3(0, -0.11, 0.13));
+  } else {
+    g.weaponCell.position.y = 0.09;
+  }
+
+  if (progress >= 1) {
+    g.weaponSwitchTarget = null;
+    g.weaponSwitchTime = 0;
+    g.weaponSwitchDuration = 0;
+    g.weaponSwitchSwapped = false;
+  }
+}
+
 // ─── Weapon animation ─────────────────────────────────────────────────────────
 function updateWeapon(dt: number): void {
   if (!g.weaponRoot) return;
   g.weaponRoot.position.copyFrom(g.weaponRestPosition);
+  if (g.weaponSwitchTarget !== null) {
+    dom.crosshair.style.display = "none";
+    updateWeaponSwitchAnimation(dt);
+    return;
+  }
   updateBarrelClip(dt);
 
   if (g.state.activeWeapon === "rifle" && g.bayonetChargeAnim > 0) {

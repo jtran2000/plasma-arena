@@ -352,6 +352,10 @@ export const g = {
   barrelTip: null as unknown as Mesh,
   weaponCell: null as unknown as Mesh,
   weaponRestPosition: Vector3.Zero(),
+  weaponSwitchTarget: null as WeaponKind | null,
+  weaponSwitchTime: 0,
+  weaponSwitchDuration: 0,
+  weaponSwitchSwapped: false,
   rifleAssemblyBasePosition: Vector3.Zero(),
   rifleAssemblyBasePitch: 0,
   rifleAssemblyBaseYaw: 0,
@@ -422,6 +426,10 @@ export function equipWeapon(kind: WeaponKind): void {
     g.weaponBarrel = g.rifleBarrel;
     g.barrelTip = g.rifleBarrelTip;
     g.weaponCell = g.rifleMag;
+    g.rifleAssembly.position.copyFrom(g.rifleAssemblyBasePosition);
+    g.rifleAssembly.rotation.x = g.rifleAssemblyBasePitch;
+    g.rifleAssembly.rotation.y = g.rifleAssemblyBaseYaw;
+    g.rifleAssembly.rotation.z = 0;
     g.weaponRestPosition = g.weaponRoot.position.clone();
     g.blasterRoot.setEnabled(false);
     g.rifleRoot.setEnabled(true);
