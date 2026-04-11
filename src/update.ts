@@ -58,6 +58,7 @@ import {
   effectiveMagSize,
   effectiveHeatMax,
   effectiveHeatDecay,
+  effectiveHealthRegenPerTick,
   effectiveMoveSpreadRate,
   effectiveRifleSpreadScale,
   effectiveSprintStaminaDrain,
@@ -277,6 +278,34 @@ function updateTimers(dt: number): void {
   } else {
     dom.heatBar.classList.remove("visible");
     barrelMat.emissiveColor = Color3.Black();
+  }
+
+  g.state.timeSinceDamageMs += dt;
+  const healthRegenPerTick = effectiveHealthRegenPerTick();
+  const maxHealth = effectiveMaxHealth();
+  if (
+    healthRegenPerTick > 0 &&
+    g.state.health > 0 &&
+    g.state.health < maxHealth &&
+    g.state.timeSinceDamageMs >= PLAYER.HEALTH_REGEN.delayMs
+  ) {
+    g.state.healthRegenTickTimer += dt;
+    let healed = false;
+    while (
+      g.state.healthRegenTickTimer >= PLAYER.HEALTH_REGEN.tickMs &&
+      g.state.health < maxHealth
+    ) {
+      g.state.health = Math.min(maxHealth, g.state.health + healthRegenPerTick);
+      g.state.healthRegenTickTimer -= PLAYER.HEALTH_REGEN.tickMs;
+      healed = true;
+    }
+    if (healed) updateHUD();
+  } else if (
+    g.state.timeSinceDamageMs < PLAYER.HEALTH_REGEN.delayMs ||
+    g.state.health >= maxHealth ||
+    healthRegenPerTick <= 0
+  ) {
+    g.state.healthRegenTickTimer = 0;
   }
 
   for (const e of g.enemies) {
@@ -1578,6 +1607,7 @@ function updateWeaponSwitchAnimation(dt: number): void {
   if (!g.weaponSwitchSwapped && progress >= 0.5) {
     equipWeapon(target);
     g.weaponSwitchSwapped = true;
+    updateHUD();
   }
 
   const switchDir = target === "rifle" ? 1 : -1;

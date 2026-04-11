@@ -55,6 +55,7 @@ import {
   playRifleShotSound,
 } from "./audio.js";
 import {
+  effectiveMaxHealth,
   effectiveCooldown,
   effectiveHeatMax,
   effectiveBloom,
@@ -71,6 +72,7 @@ import {
   effectiveRicochetChance,
   effectiveLightningChance,
   effectiveIgniteChance,
+  effectiveVampirism,
   updateHUD,
   incrementScore,
 } from "./progression.js";
@@ -99,9 +101,18 @@ export function damageEnemy(
     scoreOverride?: number;
   },
 ): boolean {
+  const appliedDamage = Math.max(0, Math.min(amount, enemy.hp));
   enemy.hp -= amount;
   if (opts?.showNumber !== false) spawnDamageNumber(hitPoint, amount, isCrit);
   updateEnemyHealthBar(enemy);
+  const vampirism = effectiveVampirism();
+  if (appliedDamage > 0 && vampirism > 0 && g.state.health > 0) {
+    g.state.health = Math.min(
+      effectiveMaxHealth(),
+      g.state.health + appliedDamage * vampirism,
+    );
+    updateHUD();
+  }
   if (enemy.hp <= 0) {
     killEnemy(
       enemy,
@@ -1742,7 +1753,10 @@ export function completeReload(): void {
 
 // ─── Player damage ───────────────────────────────────────────────────────────
 export function damagePlayer(amount: number): void {
+  if (amount <= 0) return;
   g.state.health = Math.max(0, g.state.health - amount);
+  g.state.timeSinceDamageMs = 0;
+  g.state.healthRegenTickTimer = 0;
   updateHUD();
   dom.hitFlash.classList.add("active");
   g.state.hitFlashTime = 200;

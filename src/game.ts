@@ -22,6 +22,8 @@ export type WeaponKind = "blaster" | "rifle";
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface GameState {
   health: number;
+  timeSinceDamageMs: number;
+  healthRegenTickTimer: number;
   stamina: number;
   staminaRegenDelay: number;
   staminaDisplayTimer: number;
@@ -99,6 +101,8 @@ export interface BayonetEmbed {
 export interface UpgradeState {
   maxHealth: number;
   speed: number;
+  vampirism: number;
+  healthRegen: number;
   reloadTime: number;
   magSize: number;
   rateOfFire: number;
@@ -175,6 +179,8 @@ export interface Enemy {
 export function makeState(): GameState {
   return {
     health: PLAYER.maxHealth,
+    timeSinceDamageMs: 0,
+    healthRegenTickTimer: 0,
     stamina: PLAYER.STAMINA.max,
     staminaRegenDelay: 0,
     staminaDisplayTimer: 0,
@@ -211,6 +217,8 @@ export function makeUpgradeState(): UpgradeState {
   return {
     maxHealth: 0,
     speed: 0,
+    vampirism: 0,
+    healthRegen: 0,
     reloadTime: 0,
     magSize: 0,
     rateOfFire: 0,

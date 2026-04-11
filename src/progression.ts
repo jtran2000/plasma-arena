@@ -11,6 +11,12 @@ export function effectiveMaxHealth(): number {
 export function effectiveSpeed(): number {
   return PLAYER.speed + g.upgrades.speed * UPGRADE.speed;
 }
+export function effectiveVampirism(): number {
+  return g.upgrades.vampirism * UPGRADE.vampirism;
+}
+export function effectiveHealthRegenPerTick(): number {
+  return g.upgrades.healthRegen * UPGRADE.healthRegen;
+}
 export function effectiveReloadTime(): number {
   if (g.state.activeWeapon === "rifle") return RIFLE.reloadTime;
   return (
@@ -249,6 +255,16 @@ const UPGRADE_DEFS: UpgradeDef[] = [
     oneTime: true,
   },
   {
+    key: "vampirism",
+    label: `+${Math.round(UPGRADE.vampirism * 100)}% Vampirism`,
+    instruction: `Heal for ${Math.round(UPGRADE.vampirism * 100)}% of the damage you deal`,
+  },
+  {
+    key: "healthRegen",
+    label: `+${UPGRADE.healthRegen} Health Regen`,
+    instruction: `After ${PLAYER.HEALTH_REGEN.delayMs / 1000}s without taking damage, heal ${UPGRADE.healthRegen} HP per second`,
+  },
+  {
     key: "reloadTime",
     label: `+${Math.round(UPGRADE.reloadSpeed * 100)}% Reload Speed`,
   },
@@ -289,7 +305,10 @@ const UPGRADE_DEFS: UpgradeDef[] = [
     key: "critChance",
     label: `+${Math.round(UPGRADE.critChance * 100)}% Crit Chance`,
   },
-  { key: "critDamage", label: `+${UPGRADE.critDamage}x Crit Damage` },
+  {
+    key: "critDamage",
+    label: `+${Math.round(UPGRADE.critDamage * 100)}% Crit Damage`,
+  },
   {
     key: "plasmaSelfDamage",
     label: `-${Math.round(UPGRADE.plasmaSelfDamageReduction * 100)}% Plasma Self-Damage`,

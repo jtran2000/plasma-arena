@@ -337,7 +337,10 @@ const RIFLE_WEAPON = {
 };
 
 // Enemy
-const ENEMY_COLOR = new Color3(0.45, 0.45, 0.45);
+const ENEMY_BASE_COLOR = new Color3(0.46, 0.48, 0.34);
+const ENEMY_MOTTLE_GREEN = "#667357";
+const ENEMY_MOTTLE_BROWN = "#5f5441";
+const ENEMY_MOTTLE_DARK = "#4a4637";
 
 const ENEMY_MESH = {
   capsule: { height: 2.5, radius: 0.6 } as const,
@@ -1418,8 +1421,38 @@ export function makePlayerMesh(): { mesh: Mesh; aggregate: PhysicsAggregate } {
 // ─── Enemy material & meshes (exported) ───────────────────────────────────────
 function makeEnemyMat(): StandardMaterial {
   const mat = applyMaterialLightBudget(new StandardMaterial("emat", g.scene));
-  mat.diffuseColor = ENEMY_COLOR.clone();
+  mat.diffuseColor = ENEMY_BASE_COLOR.clone();
   mat.emissiveColor = mat.diffuseColor.scale(0.2);
+  mat.specularColor = new Color3(0.08, 0.08, 0.06);
+  const tex = new DynamicTexture("enemyMottleTex", 128, g.scene, false);
+  const ctx = tex.getContext();
+  const canvasCtx = ctx as unknown as CanvasRenderingContext2D;
+  ctx.fillStyle = "#6d7052";
+  ctx.fillRect(0, 0, 128, 128);
+  for (let i = 0; i < 48; i++) {
+    const size = 8 + Math.random() * 22;
+    ctx.fillStyle =
+      i % 3 === 0
+        ? ENEMY_MOTTLE_DARK
+        : i % 2 === 0
+          ? ENEMY_MOTTLE_BROWN
+          : ENEMY_MOTTLE_GREEN;
+    ctx.globalAlpha = 0.3 + Math.random() * 0.3;
+    ctx.beginPath();
+    canvasCtx.ellipse(
+      Math.random() * 128,
+      Math.random() * 128,
+      size,
+      size * (0.55 + Math.random() * 0.65),
+      Math.random() * Math.PI,
+      0,
+      Math.PI * 2,
+    );
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  tex.update(false);
+  mat.diffuseTexture = tex;
   return mat;
 }
 
@@ -1429,6 +1462,9 @@ export function makeEnemyMats(): {
 } {
   const bodyMat = makeEnemyMat();
   const headMat = bodyMat.clone("emat_head") as StandardMaterial;
+  headMat.diffuseTexture = null;
+  headMat.diffuseColor = new Color3(0.5, 0.51, 0.37);
+  headMat.emissiveColor = headMat.diffuseColor.scale(0.22);
   return { bodyMat, headMat };
 }
 

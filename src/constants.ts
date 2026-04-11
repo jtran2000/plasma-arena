@@ -97,6 +97,10 @@ export const PLAYER = {
     yaw: 0.22, // side-to-side sway applied while switching (radians)
     roll: 0.18, // roll applied while switching (radians)
   },
+  HEALTH_REGEN: {
+    delayMs: 5000, // ms without taking damage before regen starts
+    tickMs: 100, // ms between health regen ticks once active
+  },
 } as const;
 
 // ─── Blaster — Weapon System ────────────────────────────────────────────────
@@ -141,7 +145,7 @@ export const BLASTER = {
     angle: 0.1, // spread angle of extra shots (radians)
   },
   RICOCHET: {
-    chance: 0.1, // base probability for a laser to ricochet on impact
+    chance: 0.2, // base probability for a laser to ricochet on impact
     spread: 0.05, // random deviation added to reflected direction (radians)
     maxDepth: 10, // max number of ricochet bounces per shot
   },
@@ -302,6 +306,8 @@ export const CRIT = {
 export const UPGRADE = {
   maxHealth: 25, // + HP per upgrade
   speed: 0.5, // + m/s walk speed per upgrade
+  vampirism: 0.1, // + fraction of dealt damage returned as health per upgrade
+  healthRegen: 1, // + HP restored per regen tick per upgrade
   reloadSpeed: 0.25, // fraction faster per upgrade (exponential decay: 1 / (1 + n × this))
   magSize: 16, // + rounds per magazine per upgrade
   rateOfFire: 0.25, // + fraction of base RPM per upgrade
@@ -317,7 +323,7 @@ export const UPGRADE = {
   critDamage: 0.25, // + crit multiplier per upgrade (+0.25× each)
   plasmaSelfDamageReduction: 0.5, // fraction less self-damage per upgrade (exponential decay)
   multishotChance: 0.05, // + multishot probability per upgrade
-  ricochetChance: 0.04, // + ricochet probability per upgrade
+  ricochetChance: 0.1, // + ricochet probability per upgrade
   lightningChance: 0.03, // + lightning proc probability per upgrade
   igniteChance: 0.05, // + ignite proc probability per upgrade
 } as const;
