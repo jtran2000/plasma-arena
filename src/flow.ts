@@ -12,7 +12,7 @@ import { buildScene } from "./build.js";
 import { updateHUD } from "./progression.js";
 import { update, showWaveBanner } from "./update.js";
 import { bindSceneInput } from "./input.js";
-import { CAMERA } from "./constants.js";
+import { CAMERA, RIFLE } from "./constants.js";
 
 export function endGame(): void {
   g.state.running = false;
@@ -75,6 +75,8 @@ export async function startGame(sensitivity: number): Promise<void> {
     g.plasmaCharging = false;
   }
   g.plasmaChargeCrit = false;
+  g.rifleLaserCritTimer = 0;
+  g.rifleLaserCritCheckTimer = RIFLE.LASER_SIGHT.critCheckIntervalMs;
   g.mouse2Held = false;
   g.rifleScoped = false;
   g.rifleScopeViewActive = false;

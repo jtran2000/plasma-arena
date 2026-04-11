@@ -21,7 +21,8 @@ constants.ts  <- Grouped config objects (`ARENA`, `LIGHTING`, `ENEMY`, `PLAYER`,
                  `BLASTER`, `RIFLE`, `SCORING`, `SUPPLY`, `WAVE`, `CRIT`,
                  `UPGRADE`, etc.)
 game.ts       <- Central state hub: `GameState`, `Enemy`, `Supply`, `Plasma`
-                 interfaces; shared mutable `g` object and cached `dom` refs
+                 interfaces; queued supply-drop requests; shared mutable `g`
+                 object and cached `dom` refs
 build.ts      <- Scene setup: camera, physics, lighting, arena geometry, weapon
 spawn.ts      <- Mesh/material factories, physics aggregates, and all spawn /
                  visual-effect functions (`spawnEnemy`, `spawnPlasma`,
@@ -49,6 +50,7 @@ main.ts       <- Entry point: bootstrap, pointer-lock lifecycle, render loop
 - **Progression uses effective functions:** `effective*()` helpers in `progression.ts` are the single source of truth for current stat values. If gameplay code needs the current damage, cooldown, heat, spread, or chance values, use those helpers rather than recomputing upgrade math elsewhere.
 - **Weapon progression is upgrade-gated:** The run starts with the basic laser only. `Pulse Laser`, `Plasma Caster`, `Plasma Charger`, and `Plasma Grenadier` are unlocks, not baseline abilities.
 - **Rifle progression is upgrade-gated:** `Rifle` unlocks the alternate weapon; `Muzzle Brake`, `Scope`, and `Laser Sight` require the rifle; and `Bayonet` requires the muzzle brake. Rifle ammo/recoil/tracer/muzzle-flash/melee/bayonet/scope/laser tuning lives under `RIFLE` in `constants.ts`; the unlock state lives in `g.upgrades`.
+- **Laser sight has its own temporary crit state:** the rifle laser can randomly flip into a purple guaranteed-crit window on a timer. Keep the timer/state on `g` and the visual color sync in `update.ts`; do not move that proc roll back into per-shot logic unless explicitly requested.
 - **Scoped rifle shots still use projectiles:** Even while fully scoped, rifle shots spawn the same tracer projectiles from the barrel-tip transform and are re-aimed toward the center-screen ray; do not reintroduce a separate scoped hitscan path unless explicitly requested.
 - **Sprint ramp is gameplay state:** Sprint acceleration is distance-based (`PLAYER.sprintRampDistance`) and turning lowers ramp based on `PLAYER.sprintRampResetTurnAngle`. Keep sprint interruption, ramp direction, and bayonet-charge eligibility in `update.ts` unless you are deliberately refactoring movement.
 - **Bayonet embed is cross-system but update-owned:** Non-lethal bayonet charge impacts embed the bayonet, tether the player/enemy, preserve player yaw while the camera pitch adjusts toward the embed point, and pin the enemy through `update.ts` state processing. Release paths live in `releaseBayonetEmbed()` from `game.ts`; reload, backward movement, weapon switching, enemy death, pause, and end/start lifecycle should all clear the embed consistently.
@@ -56,7 +58,8 @@ main.ts       <- Entry point: bootstrap, pointer-lock lifecycle, render loop
 - **Barrel-clip detection tilts the weapon and blocks shooting:** `update.ts` raycasts from the camera to the untilted rest-pose barrel tip each frame. When geometry is in the way, `g.barrelClipping` is set, the weapon tilts up (lerped via `g.barrelClipT`), the crosshair hides, and `shoot()` is gated. Melee and bayonet embed bypass the barrel-clip gate so combat still works at point blank. The laser sight follows the tilted barrel direction when clipping. Tuning lives in `PLAYER.BARREL_CLIP`.
 - **Proc mechanics are also gated:** `multishotUnlock`, `ricochetUnlock`, `lightningUnlock`, and `igniteUnlock` must be earned before their corresponding scaling upgrades matter.
 - **Laser and plasma share systems:** Both use the same ammo pool and heat system.
-- **Score rewards are queued:** `incrementScore()` lives in `progression.ts` and queues score-threshold supply drops in `g.queuedSupplyDrops`. `update.ts` drains that queue and calls `spawnSupply()`, which keeps `progression.ts` independent from `spawn.ts`.
+- **Score rewards and upgrade-triggered drops are queued:** `incrementScore()` lives in `progression.ts` and queues score-threshold supply drops in `g.queuedSupplyDrops`. Upgrade rewards can also queue specific supply types there. `update.ts` drains that queue and calls `spawnSupply()`, which keeps `progression.ts` independent from `spawn.ts`.
+- **Special supplies are spawn-owned:** regular health/ammo pickups, rifle-ammo pickups, ammo crates, and surgery kits are all supply variants owned by `spawn.ts` and resolved by `update.ts` pickup handling. Keep special full-refill or full-heal pickup behavior centralized through the supply system rather than hardcoding those rewards directly into upgrades.
 - **Special kill scoring is tuned in `SCORING`:** Melee kills and kills on pinned enemies use `SCORING.specialKill`; route any future special-case kill bonuses through the kill pipeline rather than sprinkling ad hoc `incrementScore()` calls around combat code.
 - **All audio is synthesized:** Web Audio oscillators and noise buffers feed through spatial panners. There are no audio files in the repo.
 

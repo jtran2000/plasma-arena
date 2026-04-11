@@ -11,6 +11,9 @@ export function effectiveMaxHealth(): number {
 export function effectiveSpeed(): number {
   return PLAYER.speed + g.upgrades.speed * UPGRADE.speed;
 }
+export function effectiveBlasterMagSize(): number {
+  return LASER.magSize + g.upgrades.magSize * UPGRADE.magSize;
+}
 export function effectiveVampirism(): number {
   return g.upgrades.vampirism * UPGRADE.vampirism;
 }
@@ -25,7 +28,7 @@ export function effectiveReloadTime(): number {
 }
 export function effectiveMagSize(): number {
   if (g.state.activeWeapon === "rifle") return RIFLE.magSize;
-  return LASER.magSize + g.upgrades.magSize * UPGRADE.magSize;
+  return effectiveBlasterMagSize();
 }
 export function effectiveCooldown(): number {
   if (g.state.activeWeapon === "rifle") {
@@ -128,9 +131,37 @@ export function incrementScore(amount: number, hitPoint?: Vector3): void {
   while (g.state.score >= g.state.nextSupplyThreshold) {
     g.state.nextSupplyThreshold += SUPPLY.scoreInterval;
     if (Math.random() < effectiveSupplyDropRate() && hitPoint) {
-      g.queuedSupplyDrops.push(hitPoint.clone());
+      g.queuedSupplyDrops.push({ position: hitPoint.clone() });
     }
   }
+}
+
+function grantBlasterAmmoForMagUpgrade(): void {
+  const newMagSize = effectiveBlasterMagSize();
+  const maxReserve = LASER.maxReserveMags * newMagSize;
+  const grantAmount = newMagSize;
+  const magMissing = Math.max(0, newMagSize - g.weaponAmmo.blaster.ammo);
+  const toMag = Math.min(grantAmount, magMissing);
+  const toReserve = Math.min(
+    grantAmount - toMag,
+    Math.max(0, maxReserve - g.weaponAmmo.blaster.reserve),
+  );
+  g.weaponAmmo.blaster.ammo += toMag;
+  g.weaponAmmo.blaster.reserve += toReserve;
+  if (g.state.activeWeapon === "blaster") {
+    g.state.ammo = g.weaponAmmo.blaster.ammo;
+    g.state.reserve = g.weaponAmmo.blaster.reserve;
+  }
+  updateHUD();
+}
+
+function queueSupplyInFront(
+  type?: "health" | "ammo" | "rifleAmmo" | "ammoCrate" | "surgeryKit",
+): void {
+  if (!g.state.running) return;
+  const frontPos = g.camera.position.add(g.camera.getForwardRay(3).direction);
+  frontPos.y = 0.5;
+  g.queuedSupplyDrops.push({ position: frontPos, type });
 }
 
 function syncWeaponUpgradeVisuals(): void {
@@ -265,10 +296,40 @@ const UPGRADE_DEFS: UpgradeDef[] = [
     instruction: `After ${PLAYER.HEALTH_REGEN.delayMs / 1000}s without taking damage, heal ${UPGRADE.healthRegen} HP per second`,
   },
   {
+    key: "ammoCrate",
+    label: "Ammo Crate",
+    weight: 3,
+    instruction:
+      "Ammo drops have a 50% chance to become ammo crates that fully refill both weapons",
+    oneTime: true,
+    onApply: () => {
+      queueSupplyInFront("ammoCrate");
+    },
+  },
+  {
+    key: "surgeryKit",
+    label: "Surgery Kit",
+    weight: 3,
+    instruction:
+      "Health drops have a 50% chance to become surgery kits that fully restore health",
+    oneTime: true,
+    onApply: () => {
+      queueSupplyInFront("surgeryKit");
+    },
+  },
+  {
     key: "reloadTime",
     label: `+${Math.round(UPGRADE.reloadSpeed * 100)}% Reload Speed`,
   },
-  { key: "magSize", label: `+${UPGRADE.magSize} Mag Size` },
+  {
+    key: "magSize",
+    label: `+${UPGRADE.magSize} Mag Size`,
+    weight: 2,
+    onApply: () => {
+      grantBlasterAmmoForMagUpgrade();
+      queueSupplyInFront("ammo");
+    },
+  },
   { key: "rateOfFire", label: `+${UPGRADE.rateOfFire * 100}% Fire Rate` },
   {
     key: "heatCapacity",
@@ -300,6 +361,9 @@ const UPGRADE_DEFS: UpgradeDef[] = [
   {
     key: "supplyDropRate",
     label: `+${Math.round(UPGRADE.supplyDropRate * 100)}% Supply Drop Rate`,
+    onApply: () => {
+      queueSupplyInFront();
+    },
   },
   {
     key: "critChance",
@@ -370,6 +434,9 @@ const UPGRADE_DEFS: UpgradeDef[] = [
     weight: 10,
     instruction: "Hold LMB to fire continuously",
     oneTime: true,
+    onApply: () => {
+      queueSupplyInFront("ammo");
+    },
   },
   {
     key: "plasmaCaster",
@@ -377,6 +444,9 @@ const UPGRADE_DEFS: UpgradeDef[] = [
     weight: 10,
     instruction: "Press RMB to fire plasma",
     oneTime: true,
+    onApply: () => {
+      queueSupplyInFront("ammo");
+    },
   },
   {
     key: "plasmaCharger",

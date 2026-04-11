@@ -1762,6 +1762,68 @@ export function makeHealthSupply(position: Vector3): {
   return { mesh, aggregate };
 }
 
+export function makeSurgeryKitSupply(position: Vector3): {
+  mesh: Mesh;
+  aggregate: PhysicsAggregate;
+} {
+  const mesh = MeshBuilder.CreateBox(
+    "surgeryKit",
+    { width: 0.72, height: 0.24, depth: 0.46 },
+    g.scene,
+  );
+  mesh.position = position.clone();
+  mesh.position.y = Math.max(mesh.position.y, 0.3);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("surgeryKitMat", g.scene),
+  );
+  mat.diffuseColor = new Color3(0.1, 0.68, 0.22);
+  mat.emissiveColor = new Color3(0.04, 0.22, 0.06);
+  mesh.material = mat;
+  mesh.isPickable = false;
+
+  const crossTex = new DynamicTexture(
+    "surgeryKitCrossTex",
+    { width: 256, height: 256 },
+    g.scene,
+    false,
+  );
+  const crossCtx = crossTex.getContext();
+  crossCtx.clearRect(0, 0, 256, 256);
+  crossCtx.fillStyle = "#14a03a";
+  crossCtx.fillRect(0, 0, 256, 256);
+  crossCtx.fillStyle = "#ffffff";
+  crossCtx.fillRect(98, 42, 60, 172);
+  crossCtx.fillRect(42, 98, 172, 60);
+  crossTex.update(false);
+
+  const crossMat = applyMaterialLightBudget(
+    new StandardMaterial("surgeryKitCrossMat", g.scene),
+  );
+  crossMat.diffuseTexture = crossTex;
+  crossMat.emissiveTexture = crossTex;
+  crossMat.specularColor = Color3.Black();
+  crossMat.disableLighting = true;
+
+  const cross = MeshBuilder.CreatePlane(
+    "surgeryKitCross",
+    { width: 0.54, height: 0.34 },
+    g.scene,
+  );
+  cross.parent = mesh;
+  cross.position.y = 0.121;
+  cross.rotation.x = Math.PI / 2;
+  cross.material = crossMat;
+  cross.isPickable = false;
+
+  const aggregate = new PhysicsAggregate(
+    mesh,
+    PhysicsShapeType.BOX,
+    { mass: 1.3, friction: 0.8, restitution: 0.2 },
+    g.scene,
+  );
+  return { mesh, aggregate };
+}
+
 export function makeAmmoSupply(position: Vector3): {
   mesh: Mesh;
   aggregate: PhysicsAggregate;
@@ -1803,6 +1865,50 @@ export function makeRifleAmmoSupply(position: Vector3): {
     mesh,
     PhysicsShapeType.BOX,
     { mass: 1, friction: 0.8, restitution: 0.2 },
+    g.scene,
+  );
+  return { mesh, aggregate };
+}
+
+export function makeAmmoCrateSupply(position: Vector3): {
+  mesh: Mesh;
+  aggregate: PhysicsAggregate;
+} {
+  const mesh = MeshBuilder.CreateBox(
+    "ammoCrate",
+    { width: 0.55, height: 0.34, depth: 0.42 },
+    g.scene,
+  );
+  mesh.position = position.clone();
+  mesh.position.y = Math.max(mesh.position.y, 0.3);
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("ammoCrateMat", g.scene),
+  );
+  mat.diffuseColor = new Color3(0.34, 0.26, 0.12);
+  mat.emissiveColor = new Color3(0.12, 0.08, 0.02);
+  mesh.material = mat;
+  mesh.isPickable = false;
+
+  const bandMat = applyMaterialLightBudget(
+    new StandardMaterial("ammoCrateBandMat", g.scene),
+  );
+  bandMat.diffuseColor = new Color3(0.9, 0.7, 0.18);
+  bandMat.emissiveColor = new Color3(0.35, 0.26, 0.04);
+
+  const band = MeshBuilder.CreateBox(
+    "ammoCrateBand",
+    { width: 0.58, height: 0.05, depth: 0.14 },
+    g.scene,
+  );
+  band.parent = mesh;
+  band.position.y = 0.085;
+  band.material = bandMat;
+  band.isPickable = false;
+
+  const aggregate = new PhysicsAggregate(
+    mesh,
+    PhysicsShapeType.BOX,
+    { mass: 1.4, friction: 0.8, restitution: 0.2 },
     g.scene,
   );
   return { mesh, aggregate };
@@ -2189,15 +2295,36 @@ export function spawnEnemy(): void {
 
 export function spawnSupply(
   position: Vector3,
-  forceType?: "health" | "ammo" | "rifleAmmo",
+  forceType?: "health" | "ammo" | "rifleAmmo" | "ammoCrate" | "surgeryKit",
 ): void {
-  const type = forceType ?? (Math.random() < 0.5 ? "health" : "ammo");
+  let type = forceType ?? (Math.random() < 0.5 ? "health" : "ammo");
+  if (
+    type === "health" &&
+    forceType !== "surgeryKit" &&
+    g.upgrades.surgeryKit &&
+    Math.random() < 0.5
+  ) {
+    type = "surgeryKit";
+  }
+  if (
+    type !== "health" &&
+    type !== "surgeryKit" &&
+    type !== "ammoCrate" &&
+    g.upgrades.ammoCrate &&
+    Math.random() < 0.5
+  ) {
+    type = "ammoCrate";
+  }
   const { mesh, aggregate } =
     type === "health"
       ? makeHealthSupply(position)
-      : type === "rifleAmmo"
-        ? makeRifleAmmoSupply(position)
-        : makeAmmoSupply(position);
+      : type === "surgeryKit"
+        ? makeSurgeryKitSupply(position)
+        : type === "ammoCrate"
+          ? makeAmmoCrateSupply(position)
+          : type === "rifleAmmo"
+            ? makeRifleAmmoSupply(position)
+            : makeAmmoSupply(position);
   g.supplies.push({ mesh, aggregate, type });
 }
 

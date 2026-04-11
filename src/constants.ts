@@ -21,7 +21,7 @@ export const LIGHTING = {
 
 // ─── Camera ─────────────────────────────────────────────────────────────────
 export const CAMERA = {
-  defaultFov: 1.2, // base field of view (radians, ~69°); scope divides this by zoom
+  defaultFov: Math.PI / 2, // base field of view (radians, 90°); scope divides this by zoom
 } as const;
 
 // ─── Enemy — Base Stats ─────────────────────────────────────────────────────
@@ -37,8 +37,8 @@ export const ENEMY = {
   minSpawnDist: 10, // min distance from player when spawning (m)
   // Per-wave scaling — applied additively starting at wave 2
   hpPerWave: 10, // extra HP per wave
-  speedPerWave: 0.2, // extra m/s per wave
-  meleeDamagePerWave: 2.4, // extra melee damage per wave
+  speedPerWave: 0.15, // extra m/s per wave
+  meleeDamagePerWave: 2, // extra melee damage per wave
   meleeAttacksPerMinPerWave: 3, // extra swings/min per wave
   // Movement AI
   turnSpeed: 3, // how fast enemies rotate toward the player (rad/s)
@@ -150,9 +150,9 @@ export const BLASTER = {
     maxDepth: 10, // max number of ricochet bounces per shot
   },
   LIGHTNING: {
-    chance: 0.05, // base probability per hit to trigger a lightning chain
+    chance: 0.08, // base probability per hit to trigger a lightning chain
     damage: 300, // damage dealt per lightning bolt
-    chainRange: 5, // max distance to arc to the next enemy (m)
+    chainRange: 6, // max distance to arc to the next enemy (m)
     maxChains: 3, // max number of chain jumps per trigger
   },
   IGNITE: {
@@ -198,6 +198,9 @@ export const RIFLE = {
     surfaceOffset: 0.02, // offset along surface normal to prevent z-fighting (m)
     embedOffsetUp: 0.03, // vertical offset of laser dot during bayonet embed (m)
     embedOffsetLeft: 0.03, // horizontal offset of laser dot during bayonet embed (m)
+    critCheckIntervalMs: 1800, // ms between random checks for the purple guaranteed-crit state
+    critCheckChance: 0.08, // chance each interval check turns the laser sight purple
+    critDurationMs: 2200, // ms the laser sight stays purple and grants guaranteed crits
   },
   RECOIL: {
     pitch: 0.05, // upward camera kick per shot (radians)
@@ -282,8 +285,8 @@ export const SCORING = {
 // ─── Supplies ───────────────────────────────────────────────────────────────
 export const SUPPLY = {
   scoreInterval: 500, // every N points scored, roll for a supply drop
-  dropRate: 0.25, // base probability of a drop when threshold is reached
-  healthAmount: 25, // health restored per supply pickup
+  dropRate: 0.3, // base probability of a drop when threshold is reached
+  healthAmount: 50, // health restored per supply pickup
   collectRange: 1.5, // pickup radius around the supply crate (m)
 } as const;
 
@@ -304,7 +307,7 @@ export const CRIT = {
 
 // ─── Upgrades — Amount Gained Per Upgrade ───────────────────────────────────
 export const UPGRADE = {
-  maxHealth: 25, // + HP per upgrade
+  maxHealth: 50, // + HP per upgrade
   speed: 0.5, // + m/s walk speed per upgrade
   vampirism: 0.1, // + fraction of dealt damage returned as health per upgrade
   healthRegen: 1, // + HP restored per regen tick per upgrade
@@ -318,13 +321,13 @@ export const UPGRADE = {
   laserDamage: 5, // + flat laser damage per upgrade
   plasmaDamage: 10, // + flat plasma damage per upgrade
   plasmaVelocity: 0.25, // + fraction of base plasma speed per upgrade
-  supplyDropRate: 0.05, // + absolute drop chance per upgrade
+  supplyDropRate: 0.1, // + absolute drop chance per upgrade
   critChance: 0.03, // + crit probability per upgrade
   critDamage: 0.25, // + crit multiplier per upgrade (+0.25× each)
   plasmaSelfDamageReduction: 0.5, // fraction less self-damage per upgrade (exponential decay)
   multishotChance: 0.05, // + multishot probability per upgrade
   ricochetChance: 0.1, // + ricochet probability per upgrade
-  lightningChance: 0.03, // + lightning proc probability per upgrade
+  lightningChance: 0.04, // + lightning proc probability per upgrade
   igniteChance: 0.05, // + ignite proc probability per upgrade
 } as const;
 

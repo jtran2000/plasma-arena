@@ -56,6 +56,7 @@ import {
   effectiveSpeed,
   effectiveReloadTime,
   effectiveMagSize,
+  effectiveBlasterMagSize,
   effectiveHeatMax,
   effectiveHeatDecay,
   effectiveHealthRegenPerTick,
@@ -94,6 +95,16 @@ const HIDDEN_ZOOMED_SCOPE_PARTS = new Set([
   "rScopeRearRim",
   "rScopeFrontRim",
 ]);
+const RIFLE_LASER_GREEN = {
+  lensDiffuse: new Color3(0.05, 0.75, 0.15),
+  lensEmissive: new Color3(0.0, 0.5, 0.08),
+  dotEmissive: new Color3(0.0, 1.0, 0.12),
+};
+const RIFLE_LASER_PURPLE = {
+  lensDiffuse: new Color3(0.68, 0.2, 1.0),
+  lensEmissive: new Color3(0.45, 0.08, 0.72),
+  dotEmissive: new Color3(0.82, 0.18, 1.0),
+};
 
 // ─── Game loop ────────────────────────────────────────────────────────────────
 export function update(): void {
@@ -181,9 +192,27 @@ function setZoomedScopeBodyVisible(visible: boolean): void {
 }
 
 function updateTimers(dt: number): void {
+  if (g.rifleLaserCritTimer > 0) {
+    g.rifleLaserCritTimer = Math.max(0, g.rifleLaserCritTimer - dt);
+  }
+  if (g.upgrades.rifleLaserSight) {
+    g.rifleLaserCritCheckTimer -= dt;
+    while (g.rifleLaserCritCheckTimer <= 0) {
+      g.rifleLaserCritCheckTimer += RIFLE.LASER_SIGHT.critCheckIntervalMs;
+      if (
+        g.rifleLaserCritTimer <= 0 &&
+        Math.random() < RIFLE.LASER_SIGHT.critCheckChance
+      ) {
+        g.rifleLaserCritTimer = RIFLE.LASER_SIGHT.critDurationMs;
+      }
+    }
+  } else {
+    g.rifleLaserCritTimer = 0;
+    g.rifleLaserCritCheckTimer = RIFLE.LASER_SIGHT.critCheckIntervalMs;
+  }
   while (g.queuedSupplyDrops.length > 0) {
     const dropPos = g.queuedSupplyDrops.shift();
-    if (dropPos) spawnSupply(dropPos);
+    if (dropPos) spawnSupply(dropPos.position, dropPos.type);
   }
 
   if (g.state.autoReloadDelay > 0) {
@@ -519,13 +548,27 @@ function updateTimers(dt: number): void {
     const p = g.supplies[i];
     const dist = Vector3.Distance(g.playerMesh.position, p.mesh.position);
     if (dist < SUPPLY.collectRange) {
+      const blasterMaxMag = effectiveBlasterMagSize();
+      const blasterMaxReserve = LASER.maxReserveMags * blasterMaxMag;
       const activeMaxReserve =
         (g.state.activeWeapon === "rifle"
           ? RIFLE.maxReserveMags
           : LASER.maxReserveMags) * effectiveMagSize();
       const rifleMaxReserve = RIFLE.maxReserveMags * RIFLE.magSize;
-      if (p.type === "health" && g.state.health >= effectiveMaxHealth())
+      if (
+        (p.type === "health" || p.type === "surgeryKit") &&
+        g.state.health >= effectiveMaxHealth()
+      )
         continue;
+      if (
+        p.type === "ammoCrate" &&
+        g.weaponAmmo.blaster.ammo >= blasterMaxMag &&
+        g.weaponAmmo.blaster.reserve >= blasterMaxReserve &&
+        g.weaponAmmo.rifle.ammo >= RIFLE.magSize &&
+        g.weaponAmmo.rifle.reserve >= rifleMaxReserve
+      ) {
+        continue;
+      }
       if (p.type === "ammo" && g.state.reserve >= activeMaxReserve) continue;
       if (
         p.type === "rifleAmmo" &&
@@ -537,6 +580,19 @@ function updateTimers(dt: number): void {
           effectiveMaxHealth(),
           g.state.health + SUPPLY.healthAmount,
         );
+      } else if (p.type === "surgeryKit") {
+        g.state.health = effectiveMaxHealth();
+      } else if (p.type === "ammoCrate") {
+        g.weaponAmmo.blaster.ammo = blasterMaxMag;
+        g.weaponAmmo.blaster.reserve = blasterMaxReserve;
+        g.weaponAmmo.rifle.ammo = RIFLE.magSize;
+        g.weaponAmmo.rifle.reserve = rifleMaxReserve;
+        g.state.ammo = g.weaponAmmo[g.state.activeWeapon].ammo;
+        g.state.reserve = g.weaponAmmo[g.state.activeWeapon].reserve;
+        g.state.reloading = false;
+        g.state.reloadTimeLeft = 0;
+        g.state.autoReloadDelay = 0;
+        dom.reloadMsg.classList.remove("visible");
       } else if (p.type === "rifleAmmo") {
         g.weaponAmmo.rifle.reserve = Math.min(
           rifleMaxReserve,
@@ -553,8 +609,9 @@ function updateTimers(dt: number): void {
       }
       updateHUD();
       const supplyPos = p.mesh.position.clone();
-      if (p.type === "health") playHealthSupplySound(supplyPos);
-      else playAmmoSupplySound(supplyPos);
+      if (p.type === "health" || p.type === "surgeryKit") {
+        playHealthSupplySound(supplyPos);
+      } else playAmmoSupplySound(supplyPos);
       p.aggregate.dispose();
       p.mesh.dispose();
       g.supplies.splice(i, 1);
@@ -573,6 +630,7 @@ function isPlayerGroundedForStaminaRegen(): boolean {
 
 function updateRifleLaserSight(): void {
   if (!g.rifleLaserDot) return;
+  syncRifleLaserSightColors();
   const embed = g.bayonetEmbed;
   const visible =
     g.state.running &&
@@ -677,6 +735,31 @@ function updateRifleLaserSight(): void {
     g.rifleLaserDot.scaling.setAll(scale);
   }
   updateRifleLaserLight();
+}
+
+function syncRifleLaserSightColors(): void {
+  const palette =
+    g.rifleLaserCritTimer > 0 ? RIFLE_LASER_PURPLE : RIFLE_LASER_GREEN;
+  const dotMat = g.rifleLaserDot?.material as StandardMaterial | null;
+  if (dotMat) {
+    dotMat.emissiveColor.copyFrom(palette.dotEmissive);
+  }
+  const lens = g.rifleLaserSight
+    ?.getChildMeshes(false)
+    .find((child) => child.name === "rLaserSightLens");
+  const lensMat = lens?.material as StandardMaterial | undefined;
+  if (lensMat) {
+    lensMat.diffuseColor.copyFrom(palette.lensDiffuse);
+    lensMat.emissiveColor.copyFrom(palette.lensEmissive);
+  }
+  if (g.rifleLaserLight) {
+    g.rifleLaserLight.diffuse.copyFrom(palette.lensDiffuse);
+    g.rifleLaserLight.specular.copyFrom(palette.lensDiffuse);
+  }
+  if (g.rifleLaserGlow) {
+    g.rifleLaserGlow.diffuse.copyFrom(palette.lensDiffuse);
+    g.rifleLaserGlow.specular.copyFrom(palette.lensDiffuse);
+  }
 }
 
 function getRifleLaserOrigin(): Vector3 {

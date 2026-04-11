@@ -410,7 +410,8 @@ export function shoot(): void {
     ray.direction.normalize();
   }
   g.shootSpread = Math.min(g.shootSpread + effectiveBloom(), SPREAD.max);
-  const isCrit = Math.random() < effectiveCritChance();
+  const isCrit =
+    g.rifleLaserCritTimer > 0 || Math.random() < effectiveCritChance();
   const multishot = Math.random() < effectiveMultishotChance();
 
   const directions = [ray.direction.clone()];
@@ -550,7 +551,8 @@ function shootRifle(): void {
     );
   }
 
-  const isCrit = Math.random() < effectiveCritChance();
+  const isCrit =
+    g.rifleLaserCritTimer > 0 || Math.random() < effectiveCritChance();
   const critMult = isCrit ? effectiveCritDamage() : 1;
   const damage = Math.round(
     RIFLE.damage * (0.9 + Math.random() * 0.2) * critMult,
@@ -1051,7 +1053,8 @@ export function startPlasmaCharge(): void {
     return;
   }
 
-  const isCrit = Math.random() < effectiveCritChance();
+  const isCrit =
+    g.rifleLaserCritTimer > 0 || Math.random() < effectiveCritChance();
 
   // Consume base ammo and apply heat
   g.state.ammo -= PLASMA.ammoCost;

@@ -58,7 +58,12 @@ export interface GameState {
 export interface Supply {
   mesh: Mesh;
   aggregate: PhysicsAggregate;
-  type: "health" | "ammo" | "rifleAmmo";
+  type: "health" | "ammo" | "rifleAmmo" | "ammoCrate" | "surgeryKit";
+}
+
+export interface QueuedSupplyDrop {
+  position: Vector3;
+  type?: Supply["type"];
 }
 
 export interface Plasma {
@@ -103,6 +108,8 @@ export interface UpgradeState {
   speed: number;
   vampirism: number;
   healthRegen: number;
+  ammoCrate: boolean;
+  surgeryKit: boolean;
   reloadTime: number;
   magSize: number;
   rateOfFire: number;
@@ -219,6 +226,8 @@ export function makeUpgradeState(): UpgradeState {
     speed: 0,
     vampirism: 0,
     healthRegen: 0,
+    ammoCrate: false,
+    surgeryKit: false,
     reloadTime: 0,
     magSize: 0,
     rateOfFire: 0,
@@ -332,7 +341,7 @@ export const g = {
   plasmas: [] as Plasma[],
   rifleBullets: [] as RifleBullet[],
   supplies: [] as Supply[],
-  queuedSupplyDrops: [] as Vector3[],
+  queuedSupplyDrops: [] as QueuedSupplyDrop[],
   bulletHoles: [] as Mesh[],
   bulletHoleTimes: [] as number[],
   glowingHoles: [] as { mesh: Mesh; time: number }[],
@@ -392,6 +401,8 @@ export const g = {
   plasmaChargeGain: null as GainNode | null,
   plasmaChargeCrit: false,
   plasmaMaxChargeTimer: 0,
+  rifleLaserCritTimer: 0,
+  rifleLaserCritCheckTimer: RIFLE.LASER_SIGHT.critCheckIntervalMs,
   shootSpread: 0,
   moveSpread: 0,
   isSprinting: false,

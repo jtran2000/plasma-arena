@@ -4,7 +4,7 @@ A browser-based first-person arena shooter built with [Babylon.js](https://www.b
 
 ## Overview
 
-The game starts with a basic semi-auto laser blaster and unfolds through randomized between-wave upgrades. As runs progress, you can unlock continuous-fire pulse shots, plasma casting and charging, grenade-style dump fire, a fully automatic rifle path, proc-based damage systems, and a stack of stat upgrades that all feed back into the wave loop.
+The game starts with a basic semi-auto laser blaster and unfolds through randomized between-wave upgrades. As runs progress, you can unlock continuous-fire pulse shots, plasma casting and charging, grenade-style dump fire, a fully automatic rifle path, proc-based damage systems, special supply conversions, and a stack of stat upgrades that all feed back into the wave loop.
 
 ## Features
 
@@ -24,9 +24,11 @@ The game starts with a basic semi-auto laser blaster and unfolds through randomi
 - Upgrade-gated rifle with a separate ammo pool, no overheat, gravity-affected tracer bullets, distinct reload/melee animations, and mouse-wheel weapon switching
 - Rifle `Muzzle Brake` upgrade that adds a visible barrel attachment, reduces the rifle's aggressive recoil, and shrinks its muzzle flash
 - Rifle `Scope` upgrade that adds a scoped aim animation, fade-in zoomed reticle view, scoped tracer fire from the barrel tip toward screen center, and stronger camera-only scoped recoil
-- Rifle `Laser Sight` upgrade that mounts a visible side laser, projects a green aiming dot, and sharply reduces unscoped rifle spread
+- Rifle `Laser Sight` upgrade that mounts a visible side laser, projects a green aiming dot, sharply reduces unscoped rifle spread, and can randomly flip into a temporary purple guaranteed-crit state
 - Rifle `Bayonet` upgrade that extends melee range, enables bayonet charge at full sprint, and can embed enemies on non-lethal charge impacts
 - `Combat Boots` upgrade that reduces stamina drain from sprinting and jumping
+- Repeatable survivability upgrades including `Vampirism` and delayed `Health Regen`
+- `Ammo Crate` and `Surgery Kit` upgrades that can convert normal ammo/health supplies into rare full-refill special pickups
 - Sprint ramp is affected by movement: straight-line travel builds speed, collisions/impacts break sprint, and sharp turns reduce or reset the ramp
 - Critical hit system for laser, plasma, and rifle shots, including laser-on-plasma interactions
 - Unlockable proc systems for multishot, ricochet, lightning, and ignite, each with follow-up chance upgrades
@@ -34,7 +36,7 @@ The game starts with a basic semi-auto laser blaster and unfolds through randomi
 - Wave system with between-wave downtime, randomized upgrade picks, supply rewards, and escalating enemy stats
 - Enemy spawning from the ceiling, chase/patrol behavior, zigzag movement, melee attacks, and world-space health bars
 - Ragdoll enemy death with shootable intact corpses, detachable limbs, split kill meshes, shootable debris, and bonus score for cleanup shots
-- Score-based health/ammo supply drops plus guaranteed wave-complete reward pickups in front of the player
+- Score-based health/ammo supply drops plus guaranteed wave-complete reward pickups in front of the player, with upgrade-triggered instant supply spawns and special full-refill crate variants
 - Babylon GUI overlay flow for start, pause, options, and game-over screens
 - DOM HUD for health, weapon label, ammo, score, kills, wave status, heat, crosshair, and upgrade selection
 - Synthesized audio only: Web Audio oscillators/noise buffers, no sound asset files
