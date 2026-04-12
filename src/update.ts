@@ -148,6 +148,8 @@ function updateRifleScope(dt: number): void {
     if (g.state.stamina <= 0) scoped = false;
   }
   g.rifleScoped = scoped;
+  // Keep the rifle in its centered aim pose until the first scope-out phase
+  // finishes, so unscoping visually reverses the two-part scope-in motion.
   const aimTarget =
     scoped || (!scoped && g.rifleScopeZoomT > RIFLE_SCOPE_EXIT_RELEASE_T)
       ? 1
@@ -172,6 +174,8 @@ function updateRifleScope(dt: number): void {
     ? CAMERA.defaultFov / RIFLE.SCOPE.zoom
     : CAMERA.defaultFov;
   const lerpT = Math.min(1, (RIFLE.SCOPE.zoomRate * dt) / 1000);
+  // Aim centering and optical zoom are intentionally split: the weapon reaches
+  // center first, then the scope picture/FOV take over for the second half.
   const zoomTarget = scopeViewActive ? 1 : 0;
   g.rifleScopeZoomT += (zoomTarget - g.rifleScopeZoomT) * lerpT;
   g.scopeOverlay.isVisible =
@@ -208,6 +212,8 @@ function updateRifleFrontScopeHandoff(): void {
     Math.min(1, (g.rifleScopeZoomT - fadeStart) / (1 - fadeStart)),
   );
   const fadeT = smoothstep(fadeProgress);
+  // During the last part of scope-in, fake the front assembly receding into
+  // the tube so the muzzle package stops popping when the full rifle hides.
   const scale = 1 - 0.55 * fadeT;
   const visibility = 1 - 0.9 * fadeT;
   const pullback = 0.14 * fadeT;
@@ -1740,6 +1746,8 @@ function updateWeaponSwitchAnimation(dt: number): void {
   }
 
   const switchDir = target === "rifle" ? 1 : -1;
+  // Lower and cant the current weapon out, swap at the hidden midpoint, then
+  // reverse the same motion so switching feels like a single continuous beat.
   const phaseT =
     progress < 0.5
       ? smoothstep(progress / 0.5)
@@ -1865,6 +1873,8 @@ function updateRifleBayonetChargeWeapon(): void {
   const t =
     g.bayonetChargeAnim * g.bayonetChargeAnim * (3 - 2 * g.bayonetChargeAnim);
   const embedT = g.bayonetEmbed ? smoothstep(g.bayonetEmbed.progress) : 0;
+  // Bayonet charge recenters the rifle so the thrust reads straight ahead; the
+  // embed blend then pushes it deeper to sell the spear-stuck follow-through.
   const chargePos = new Vector3(
     0,
     RIFLE.BAYONET.chargeCenteredY - 0.14 * embedT,
@@ -1883,6 +1893,8 @@ function updateRifleWeapon(): void {
   const mag = g.weaponCell;
   const exitZoomPhase =
     !g.rifleScoped && g.rifleScopeZoomT > RIFLE_SCOPE_EXIT_RELEASE_T;
+  // First align the rifle assembly itself with the optic so the later root
+  // translation can move a centered rifle instead of dragging in an angled one.
   const scopeAlignT = smoothstep(exitZoomPhase ? 1 : g.rifleScopeAimT);
   g.rifleAssembly.position.copyFrom(g.rifleAssemblyBasePosition);
   g.rifleAssembly.position.x *= 1 - scopeAlignT;
@@ -1893,6 +1905,8 @@ function updateRifleWeapon(): void {
   if (g.state.meleeAnimTime > 0) {
     const t = 1 - g.state.meleeAnimTime / RIFLE.MELEE.animDurationMs;
     if (g.upgrades.bayonet) {
+      // Bayonet melee is a forward stab, so keep the rifle mostly level and
+      // emphasize reach instead of the wider buttstock swing used without it.
       const thrust = t < 0.25 ? t / 0.25 : 1 - (t - 0.25) / 0.75;
       g.weaponRoot.position.z =
         g.weaponRestPosition.z + RIFLE.MELEE.thrustDistance * thrust;
@@ -1912,6 +1926,8 @@ function updateRifleWeapon(): void {
 
   if (!g.state.reloading) {
     if (g.rifleScoped) {
+      // Scope-in happens in two parts: move into the centered aim pose first,
+      // then translate deeper as the optical zoom and overlay ramp up.
       const centerT = smoothstep(
         Math.min(1, g.rifleScopeAimT / RIFLE.SCOPE.inwardPullStart),
       );
@@ -1937,6 +1953,8 @@ function updateRifleWeapon(): void {
       );
       g.weaponRoot.rotation.x = -0.08 * (1 - centerT) - g.recoilPitch;
     } else if (exitZoomPhase) {
+      // Scope-out mirrors that structure: the overlay disappears while the
+      // rifle stays centered, then the second phase returns to the rest pose.
       const exitT = smoothstep(g.rifleScopeZoomT);
       const exitZ =
         RIFLE.SCOPE.aimRootZ +
@@ -1973,6 +1991,8 @@ function updateRifleWeapon(): void {
   let tilt = 0;
   let yaw = 0;
 
+  // Rifle reload is staged to expose the mag well clearly: cant the weapon,
+  // hold that presentation during the mag swap, then ease back to firing pose.
   if (progress < 0.2) {
     const t = progress / 0.2;
     tilt = anim.tilt * t;
