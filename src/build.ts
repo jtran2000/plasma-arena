@@ -17,6 +17,7 @@ import { g } from "./game.js";
 import { CAMERA, LIGHTING, RIFLE } from "./constants.js";
 import {
   makePlayerMesh,
+  getRifleScopeOpeningRadius,
   setupArenaFloor,
   setupArenaCeil,
   setupArenaWalls,
@@ -33,6 +34,39 @@ import {
 function smoothstep(t: number): number {
   const clamped = Math.max(0, Math.min(1, t));
   return clamped * clamped * (3 - 2 * clamped);
+}
+
+function getScopePictureRadiusPxForFov(
+  measure: {
+    width: number;
+    height: number;
+  },
+  fov: number,
+): number {
+  const fallback =
+    Math.min(measure.width, measure.height) * RIFLE.SCOPE.pictureRadiusScale;
+  if (!g.rifleScope || !g.camera) return fallback;
+
+  const frontRim = g.rifleScope
+    .getChildMeshes(false)
+    .find((child) => child.name === "rScopeFrontRim");
+  if (!frontRim) return fallback;
+
+  const center = frontRim.getAbsolutePosition();
+  const toCenter = center.subtract(g.camera.position);
+  const depth = Vector3.Dot(toCenter, g.camera.getForwardRay().direction);
+  if (depth <= Number.EPSILON) return fallback;
+
+  const pixelsPerMeter =
+    g.engine.getRenderHeight() / (2 * Math.tan(fov / 2) * depth);
+  return getRifleScopeOpeningRadius() * pixelsPerMeter;
+}
+
+function getScopePictureTargetRadiusPx(measure: {
+  width: number;
+  height: number;
+}): number {
+  return getScopePictureRadiusPxForFov(measure, g.camera.fov);
 }
 
 class ScopeOverlayControl extends Control {
@@ -52,10 +86,12 @@ class ScopeOverlayControl extends Control {
     const cy = measure.top + measure.height / 2 - g.crosshairRecoil;
     const overlayAlpha = smoothstep(g.rifleScopeZoomT);
     if (overlayAlpha <= Number.EPSILON) return;
-    const radius =
-      Math.min(measure.width, measure.height) *
-      RIFLE.SCOPE.pictureRadiusScale *
-      smoothstep(g.rifleScopeZoomT);
+    const startRadius = getScopePictureRadiusPxForFov(
+      measure,
+      CAMERA.defaultFov,
+    );
+    const targetRadius = getScopePictureTargetRadiusPx(measure);
+    const radius = startRadius + (targetRadius - startRadius) * overlayAlpha;
 
     context.save();
     (context as unknown as CanvasRenderingContext2D).globalAlpha = overlayAlpha;
@@ -113,9 +149,9 @@ export async function buildScene(): Promise<void> {
   g.scene.fogDensity = LIGHTING.fogDensity;
 
   // Camera must exist before the first render — create before the async Havok await
-  g.camera = new UniversalCamera("fps", new Vector3(0, 1.6, 0), g.scene);
-  g.camera.setTarget(new Vector3(1, 1.6, 0));
-  g.camera.minZ = 0.1;
+  g.camera = new UniversalCamera("fps", new Vector3(0, 1.66, 0), g.scene);
+  g.camera.setTarget(new Vector3(1, 1.66, 0));
+  g.camera.minZ = CAMERA.nearZ;
   g.camera.fov = CAMERA.defaultFov;
   g.baseCameraAngularSensibility = 800;
   g.camera.angularSensibility = g.baseCameraAngularSensibility;
@@ -209,14 +245,22 @@ function buildWeapon(): void {
   g.rifleAssemblyBaseYaw = rifle.assembly.rotation.y;
   g.rifleMag = rifle.mag;
   g.rifleBarrel = rifle.barrel;
+  g.rifleBarrelBasePosition = rifle.barrel.position.clone();
+  g.rifleBarrelBaseScaling = rifle.barrel.scaling.clone();
   g.rifleBarrelTip = rifle.barrelTip;
   g.rifleBrake = rifle.brake;
+  g.rifleBrakeBasePosition = rifle.brake.position.clone();
+  g.rifleBrakeBaseScaling = rifle.brake.scaling.clone();
   g.rifleScope = rifle.scope;
   g.rifleLaserSight = rifle.laserSight;
+  g.rifleLaserSightBasePosition = rifle.laserSight.position.clone();
+  g.rifleLaserSightBaseScaling = rifle.laserSight.scaling.clone();
   g.rifleLaserLight = rifle.laserLight;
   g.rifleLaserGlow = rifle.laserGlow;
   g.rifleLaserDot = rifle.laserDot;
   g.rifleBayonet = rifle.bayonet;
+  g.rifleBayonetBasePosition = rifle.bayonet.position.clone();
+  g.rifleBayonetBaseScaling = rifle.bayonet.scaling.clone();
   g.rifleBrake.isVisible = g.upgrades.muzzleBrake;
   g.rifleScope.setEnabled(g.upgrades.rifleScope);
   g.rifleLaserSight.setEnabled(g.upgrades.rifleLaserSight);

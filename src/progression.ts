@@ -21,9 +21,10 @@ export function effectiveHealthRegenPerTick(): number {
   return g.upgrades.healthRegen * UPGRADE.healthRegen;
 }
 export function effectiveReloadTime(): number {
-  if (g.state.activeWeapon === "rifle") return RIFLE.reloadTime;
+  const baseReloadTime =
+    g.state.activeWeapon === "rifle" ? RIFLE.reloadTime : LASER.reloadTime;
   return (
-    LASER.reloadTime * Math.pow(1 - UPGRADE.reloadSpeed, g.upgrades.reloadTime)
+    baseReloadTime * Math.pow(1 - UPGRADE.reloadSpeed, g.upgrades.reloadTime)
   );
 }
 export function effectiveMagSize(): number {

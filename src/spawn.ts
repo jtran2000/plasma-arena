@@ -56,7 +56,7 @@ import {
 
 // Player
 const PLAYER_MESH = {
-  capsule: { height: 1.8, radius: 0.4 },
+  capsule: { height: 1.92, radius: 0.4 },
 };
 
 // Arena
@@ -187,26 +187,26 @@ const WEAPON = {
 };
 
 const RIFLE_WEAPON = {
-  rootPos: new Vector3(0.24, -0.22, 0.58),
+  rootPos: new Vector3(0.22, -0.205, 0.46),
   alignPos: new Vector3(-0.012, 0, 0),
-  alignPitch: 0.05,
-  alignYaw: -0.03,
+  alignPitch: 0.065,
+  alignYaw: -0.004,
   body: {
-    size: { width: 0.09, height: 0.09, depth: 0.58 } as const,
-    pos: new Vector3(0, 0, 0.08),
+    size: { width: 0.09, height: 0.09, depth: 0.48 } as const,
+    pos: new Vector3(0, 0, 0.03),
     diffuse: new Color3(0.12, 0.13, 0.16),
     specular: new Color3(0.25, 0.25, 0.3),
     emissive: Color3.Black(),
   },
   barrel: {
-    size: { diameter: 0.028, height: 0.78, tessellation: 14 } as const,
-    pos: new Vector3(0, 0.015, 0.68),
+    size: { diameter: 0.028, height: 0.68, tessellation: 14 } as const,
+    pos: new Vector3(0, 0.015, 0.53),
     rotX: Math.PI / 2,
     diffuse: new Color3(0.18, 0.18, 0.2),
     emissive: new Color3(0.04, 0.03, 0.02),
   },
   stock: {
-    size: { width: 0.07, height: 0.07, depth: 0.22 } as const,
+    size: { width: 0.055, height: 0.07, depth: 0.22 } as const,
     pos: new Vector3(0, -0.01, -0.18),
     diffuse: new Color3(0.3, 0.18, 0.08),
   },
@@ -223,7 +223,7 @@ const RIFLE_WEAPON = {
   },
   brake: {
     size: { width: 0.05, height: 0.05, depth: 0.08 } as const,
-    pos: new Vector3(0, 0.015, 1.08),
+    pos: new Vector3(0, 0.015, 0.88),
     diffuse: new Color3(0.16, 0.16, 0.18),
     emissive: new Color3(0.04, 0.04, 0.05),
   },
@@ -231,7 +231,7 @@ const RIFLE_WEAPON = {
     body: {
       size: { diameter: 0.03, height: 0.11, tessellation: 12 } as const,
       // Mounted tight to the left side of the frame without clipping into it.
-      pos: new Vector3(-0.03, 0.01, 0.4),
+      pos: new Vector3(-0.03, 0.01, 0.3),
       rotX: Math.PI / 2,
       diffuse: new Color3(0.62, 0.52, 0.34),
       emissive: new Color3(0.08, 0.05, 0.015),
@@ -239,7 +239,7 @@ const RIFLE_WEAPON = {
     lens: {
       size: { diameter: 0.026, height: 0.008, tessellation: 12 } as const,
       // Slightly proud of the housing so the emitter reads clearly in first person.
-      pos: new Vector3(-0.03, 0.01, 0.46),
+      pos: new Vector3(-0.03, 0.01, 0.36),
       rotX: Math.PI / 2,
       diffuse: new Color3(0.05, 0.75, 0.15),
       emissive: new Color3(0.0, 0.5, 0.08),
@@ -250,18 +250,18 @@ const RIFLE_WEAPON = {
       size: {
         diameter: 0.066,
         height: 0.28,
-        tessellation: 18,
+        tessellation: 32,
         cap: Mesh.NO_CAP,
       } as const,
       // Shared centerline for the whole scope stack so the scope-in animation
       // can align the rear lens cleanly to screen center.
-      pos: new Vector3(0, 0.1375, -0.02),
+      pos: new Vector3(0, 0.1375, -0.07),
       rotX: Math.PI / 2,
     },
     rearLens: {
       radius: 0.026,
       tessellation: 32,
-      pos: new Vector3(0, 0.1375, -0.148),
+      pos: new Vector3(0, 0.1375, -0.198),
       diffuse: new Color3(0.42, 0.42, 0.44),
       emissive: new Color3(0.03, 0.03, 0.035),
       specular: new Color3(0.35, 0.35, 0.38),
@@ -270,26 +270,26 @@ const RIFLE_WEAPON = {
       size: {
         diameter: 0.068,
         height: 0.036,
-        tessellation: 24,
+        tessellation: 32,
         cap: Mesh.NO_CAP,
         sideOrientation: Mesh.DOUBLESIDE,
       } as const,
-      pos: new Vector3(0, 0.1375, -0.157),
+      pos: new Vector3(0, 0.1375, -0.207),
       rotX: Math.PI / 2,
     },
     rearRim: {
-      size: { diameter: 0.076, thickness: 0.017, tessellation: 24 } as const,
-      pos: new Vector3(0, 0.1375, -0.164),
+      size: { diameter: 0.076, thickness: 0.017, tessellation: 32 } as const,
+      pos: new Vector3(0, 0.1375, -0.214),
       rotX: Math.PI / 2,
     },
     frontRim: {
-      size: { diameter: 0.08, thickness: 0.017, tessellation: 24 } as const,
-      pos: new Vector3(0, 0.1375, 0.12),
+      size: { diameter: 0.08, thickness: 0.017, tessellation: 32 } as const,
+      pos: new Vector3(0, 0.1375, 0.07),
       rotX: Math.PI / 2,
     },
     mount: {
       size: { width: 0.075, height: 0.02, depth: 0.2 } as const,
-      pos: new Vector3(0, 0.06, -0.02),
+      pos: new Vector3(0, 0.06, -0.07),
     },
     bracket: {
       postSize: { width: 0.04, height: 0.026, depth: 0.025 } as const,
@@ -303,8 +303,8 @@ const RIFLE_WEAPON = {
       collarOuterRadius: 0.043,
       collarDepth: 0.028,
       collarArcSegments: 24,
-      rearPos: new Vector3(0, 0.083, -0.075),
-      frontPos: new Vector3(0, 0.083, 0.035),
+      rearPos: new Vector3(0, 0.083, -0.125),
+      frontPos: new Vector3(0, 0.083, -0.015),
       capYOffset: 0.018,
       diffuse: new Color3(0.68, 0.43, 0.16),
       emissive: new Color3(0.12, 0.07, 0.02),
@@ -321,11 +321,11 @@ const RIFLE_WEAPON = {
       thickness: 0.012,
       // Sits low enough under the barrel to read as a separate attachment while
       // still lining up with the bayonet pinning/impact setup in gameplay.
-      pos: new Vector3(0, -0.04, 1.305),
+      pos: new Vector3(0, -0.04, 1.105),
     },
     hilt: {
       size: { width: 0.016, height: 0.06, depth: 0.045 } as const,
-      pos: new Vector3(0, -0.04, 1.095),
+      pos: new Vector3(0, -0.04, 0.895),
       diffuse: new Color3(0.08, 0.07, 0.055),
       emissive: new Color3(0.02, 0.015, 0.01),
     },
@@ -333,8 +333,16 @@ const RIFLE_WEAPON = {
     emissive: new Color3(0.02, 0.025, 0.03),
     specular: new Color3(0.92, 0.95, 1.0),
   },
-  barrelTipPos: new Vector3(0, 0.015, 1.13),
+  barrelTipPos: new Vector3(0, 0.015, 0.93),
 };
+
+export function getRifleScopeOpeningRadius(): number {
+  return (
+    (RIFLE_WEAPON.scope.frontRim.size.diameter -
+      RIFLE_WEAPON.scope.frontRim.size.thickness) /
+    2
+  );
+}
 
 // Enemy
 const ENEMY_BASE_COLOR = new Color3(0.46, 0.48, 0.34);
@@ -1021,6 +1029,7 @@ function makeRifleBodyMat(): StandardMaterial {
   mat.diffuseColor = RIFLE_WEAPON.body.diffuse;
   mat.specularColor = new Color3(0.35, 0.35, 0.38);
   mat.emissiveColor = RIFLE_WEAPON.body.emissive;
+  mat.backFaceCulling = false;
   return mat;
 }
 
@@ -1031,6 +1040,7 @@ function makeRifleBarrelMat(): StandardMaterial {
   );
   mat.diffuseColor = RIFLE_WEAPON.barrel.diffuse;
   mat.emissiveColor = RIFLE_WEAPON.barrel.emissive;
+  mat.backFaceCulling = false;
   return mat;
 }
 
@@ -1040,6 +1050,7 @@ function makeRifleGripMat(): StandardMaterial {
     VIEWMODEL_EXTRA_LIGHTS,
   );
   mat.diffuseColor = RIFLE_WEAPON.grip.diffuse;
+  mat.backFaceCulling = false;
   return mat;
 }
 
@@ -1049,6 +1060,7 @@ function makeRifleStockMat(): StandardMaterial {
     VIEWMODEL_EXTRA_LIGHTS,
   );
   mat.diffuseColor = RIFLE_WEAPON.stock.diffuse;
+  mat.specularColor = new Color3(0.06, 0.035, 0.015);
   mat.backFaceCulling = false;
   return mat;
 }
@@ -1060,6 +1072,7 @@ function makeRifleMagMat(): StandardMaterial {
   );
   mat.diffuseColor = RIFLE_WEAPON.mag.diffuse;
   mat.emissiveColor = RIFLE_WEAPON.mag.emissive;
+  mat.backFaceCulling = false;
   return mat;
 }
 
@@ -1070,6 +1083,7 @@ function makeRifleBrakeMat(): StandardMaterial {
   );
   mat.diffuseColor = RIFLE_WEAPON.brake.diffuse;
   mat.emissiveColor = RIFLE_WEAPON.brake.emissive;
+  mat.backFaceCulling = false;
   return mat;
 }
 

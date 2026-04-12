@@ -14,6 +14,7 @@ The game starts with a basic semi-auto laser blaster and unfolds through randomi
 - Melee kills and kills on pinned enemies award a 200-point special kill bonus
 - Semi-auto laser by default, with `Pulse Laser` unlock enabling hold-to-fire continuous shooting
 - Shared ammo magazine, reserve ammo, auto-reload on empty, and manual reload on `R`
+- `Reload Speed` upgrades reduce reload time for both the blaster and the rifle
 - Heat and overheat system shared by laser and plasma; critical heat weakens shots and max heat locks the weapon until it cools
 - Spread/bloom system driven by sustained fire and movement, with the crosshair widening to match current inaccuracy
 - Plasma weapon path gated through upgrades:
@@ -21,9 +22,9 @@ The game starts with a basic semi-auto laser blaster and unfolds through randomi
   - `Plasma Charger` unlocks hold-to-charge plasma
   - `Plasma Grenadier` unlocks left-click dump fire while charging
 - Plasma shots are physics-simulated projectiles with splash damage, crit support, ricochet support, and optional gravity on grenade-style shots
-- Upgrade-gated rifle with a separate ammo pool, no overheat, gravity-affected tracer bullets, distinct reload/melee animations, and mouse-wheel weapon switching
+- Upgrade-gated rifle with a separate ammo pool, no overheat, gravity-affected tracer bullets, distinct reload/melee animations, and a short mouse-wheel weapon-switch animation
 - Rifle `Muzzle Brake` upgrade that adds a visible barrel attachment, reduces the rifle's aggressive recoil, and shrinks its muzzle flash
-- Rifle `Scope` upgrade that adds a scoped aim animation, fade-in zoomed reticle view, scoped tracer fire from the barrel tip toward screen center, and stronger camera-only scoped recoil
+- Rifle `Scope` upgrade that adds a scoped aim animation, a scope picture that grows from the visible tube opening into the full zoomed view, scoped tracer fire from the barrel tip toward screen center, and stronger camera-only scoped recoil
 - Rifle `Laser Sight` upgrade that mounts a visible side laser, projects a green aiming dot, sharply reduces unscoped rifle spread, and can randomly flip into a temporary purple guaranteed-crit state
 - Rifle `Bayonet` upgrade that extends melee range, enables bayonet charge at full sprint, and can embed enemies on non-lethal charge impacts
 - `Combat Boots` upgrade that reduces stamina drain from sprinting and jumping
@@ -55,22 +56,22 @@ Then open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ## Controls
 
-| Input                                  | Action                                                                                                                    |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `W A S D`                              | Move                                                                                                                      |
-| Mouse                                  | Look                                                                                                                      |
-| `Space`                                | Jump                                                                                                                      |
-| Left Click                             | Fire laser                                                                                                                |
-| Left Click (hold, after `Pulse Laser`) | Continuous laser fire                                                                                                     |
-| Right Click                            | Fire plasma after `Plasma Caster`; hold to charge after `Plasma Charger`; scope while still after unlocking `Rifle Scope` |
-| Left Click while charging              | Dump-fire plasma grenade after `Plasma Grenadier`                                                                         |
-| Mouse Wheel                            | Switch between blaster and rifle after unlocking the rifle                                                                |
-| Middle Click                           | Melee attack                                                                                                              |
-| Middle Click while fully sprinting     | Bayonet charge after `Bayonet`; release to abort the charge                                                               |
-| `R`                                    | Reload                                                                                                                    |
-| `Shift`                                | Sprint; full speed requires ramping up through forward travel                                                             |
-| `1` `2` `3`                            | Pick one of the current upgrade options                                                                                   |
-| `Esc` / pointer lock loss              | Pause                                                                                                                     |
+| Input                                  | Action                                                                                                                                   |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `W A S D`                              | Move                                                                                                                                     |
+| Mouse                                  | Look                                                                                                                                     |
+| `Space`                                | Jump                                                                                                                                     |
+| Left Click                             | Fire laser                                                                                                                               |
+| Left Click (hold, after `Pulse Laser`) | Continuous laser fire                                                                                                                    |
+| Right Click                            | Fire plasma after `Plasma Caster`; hold to charge after `Plasma Charger`; scope while still after unlocking `Scope`                      |
+| Left Click while charging              | Dump-fire plasma grenade after `Plasma Grenadier`                                                                                        |
+| Mouse Wheel                            | Switch between blaster and rifle after unlocking the rifle; switching briefly lowers the current weapon before the new one rises back in |
+| Middle Click                           | Melee attack                                                                                                                             |
+| Middle Click while fully sprinting     | Bayonet charge after `Bayonet`; release to abort the charge                                                                              |
+| `R`                                    | Reload                                                                                                                                   |
+| `Shift`                                | Sprint; full speed requires ramping up through forward travel                                                                            |
+| `1` `2` `3`                            | Pick one of the current upgrade options                                                                                                  |
+| `Esc` / pointer lock loss              | Pause                                                                                                                                    |
 
 ## Scripts
 

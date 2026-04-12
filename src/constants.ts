@@ -22,26 +22,27 @@ export const LIGHTING = {
 // ─── Camera ─────────────────────────────────────────────────────────────────
 export const CAMERA = {
   defaultFov: Math.PI / 2, // base field of view (radians, 90°); scope divides this by zoom
+  nearZ: 0.03, // reduced near clip so the close first-person weapon does not clip during scope transitions
 } as const;
 
 // ─── Enemy — Base Stats ─────────────────────────────────────────────────────
 export const ENEMY = {
-  hp: 50, // base hit points at wave 1
+  hp: 40, // base hit points at wave 1
   mass: 120, // physics mass (kg); higher = harder to knock back
   speed: 2, // base move speed (m/s)
-  meleeRange: 1.8, // distance at which enemy can hit player (m)
+  meleeRange: 1.6, // distance at which enemy can hit player (m)
   meleeFacingDot: Math.PI / 4, // melee allowed only when facing within 45 degrees of the player
   meleeDamage: 10, // base damage per melee swing
   meleeAttacksPerMin: 50, // base swings per minute
   chaseRange: 25, // detection radius (m); beyond this enemies idle
   minSpawnDist: 10, // min distance from player when spawning (m)
   // Per-wave scaling — applied additively starting at wave 2
-  hpPerWave: 10, // extra HP per wave
-  speedPerWave: 0.15, // extra m/s per wave
+  hpPerWave: 8, // extra HP per wave
+  speedPerWave: 0.1, // extra m/s per wave
   meleeDamagePerWave: 2, // extra melee damage per wave
   meleeAttacksPerMinPerWave: 3, // extra swings/min per wave
   // Movement AI
-  turnSpeed: 3, // how fast enemies rotate toward the player (rad/s)
+  turnSpeed: 2.8, // how fast enemies rotate toward the player (rad/s)
   zigzagFreq: 0.5, // full lateral zigzag cycles per second
   zigzagAmplitude: 0.8, // lateral offset strength (0–1); higher = wider strafes
 } as const;
@@ -62,7 +63,7 @@ export const PLAYER = {
   maxHealth: 100, // starting and max health
   mass: 35, // physics mass (kg)
   spawnY: 0.9, // camera height above floor (m)
-  speed: 5, // base walk speed (m/s)
+  speed: 6, // base walk speed (m/s)
   sprintMultiplier: 2, // top sprint speed = walk speed × this
   sprintRampDistance: 5, // m of straight-line travel to reach full sprint
   sprintTurnSpeed: Math.PI / 2, // max turn rate while sprinting (rad/s)
@@ -228,11 +229,11 @@ export const RIFLE = {
     recoilExitPitch: 0.35, // cumulative recoil pitch that kicks player out of scope (radians)
     recoilReenterPitch: 0.16, // recoil must recover below this to re-enter scope (radians)
     aimRootX: 0, // weapon X offset when fully scoped
-    aimRootY: -0.145, // weapon Y offset when fully scoped (lower = more centered)
-    aimRootZ: 0.5, // weapon Z offset when fully scoped (forward toward camera)
+    aimRootY: -0.138, // weapon Y offset when fully scoped (lower = more centered)
+    aimRootZ: 0.42, // weapon Z offset when fully scoped (forward toward camera)
     inwardPullStart: 0.72, // aim progress (0–1) at which weapon begins pulling inward
-    inwardRootZ: 0.34, // final Z position during the inward-pull phase
-    zoomRootZ: -0.5, // camera Z shift during zoom (negative = pull back)
+    inwardRootZ: 0.28, // final Z position during the inward-pull phase
+    zoomRootZ: 0.26, // final viewmodel Z during the zoom handoff; kept in front of the camera plane to avoid clipping
   },
   MUZZLE_FLASH: {
     baseScale: 1.5, // initial muzzle flash sprite scale
@@ -241,7 +242,7 @@ export const RIFLE = {
     scopedCameraOffsetZ: 0.8, // Z offset for flash position when scoped
   },
   MELEE: {
-    damage: 24, // base rifle butt strike damage
+    damage: 2, // base rifle butt strike damage
     range: 2.2, // melee raycast distance (m)
     cooldownMs: 600, // minimum time between melee attacks (ms)
     animDurationMs: 320, // butt stroke animation duration (ms)
@@ -286,7 +287,7 @@ export const SCORING = {
 export const SUPPLY = {
   scoreInterval: 500, // every N points scored, roll for a supply drop
   dropRate: 0.3, // base probability of a drop when threshold is reached
-  healthAmount: 50, // health restored per supply pickup
+  healthAmount: 25, // health restored per supply pickup
   collectRange: 1.5, // pickup radius around the supply crate (m)
 } as const;
 
