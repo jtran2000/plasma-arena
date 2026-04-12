@@ -485,7 +485,8 @@ const UPGRADE_DEFS: UpgradeDef[] = [
     key: "rifleScope",
     label: "Rifle Scope",
     weight: 5,
-    instruction: "Hold RMB with the rifle to zoom and fire precise shots",
+    instruction:
+      "Hold RMB with the rifle to zoom and fire precise shots with 4x headshot damage",
     oneTime: true,
     requires: "rifleUnlock",
     onApply: syncWeaponUpgradeVisuals,

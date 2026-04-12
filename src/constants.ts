@@ -187,7 +187,7 @@ export const RIFLE = {
   SPREAD: {
     base: 0.024, // minimum bloom even on first shot (radians)
     perShot: 0.01, // bloom added per shot (radians)
-    max: 0, // maximum bloom cap (radians)
+    max: 0.1, // maximum bloom cap (radians)
     decay: 0.12, // bloom recovery while idle (radians/s)
     moveRate: 0.11, // bloom added while moving (radians/s)
     scopedScale: 0.12, // scoped shots keep a tiny fraction of rifle spread instead of becoming perfectly accurate
@@ -220,6 +220,7 @@ export const RIFLE = {
   },
   SCOPE: {
     rateOfFire: 400, // scoped fire rate (RPM); halved from unscoped for precision
+    headshotDamageMultiplier: 4, // scoped rifle headshots deal quadruple damage
     zoom: 4, // FOV divisor while scoped (4× magnification)
     sensitivityScale: 0.45, // mouse sensitivity multiplier while scoped
     zoomRate: 8, // FOV lerp speed when entering/exiting scope (units/s)

@@ -569,6 +569,7 @@ function shootRifle(): void {
       age: 0,
       damage,
       isCrit,
+      scoped,
     });
   }
   playRifleShotSound();
@@ -720,6 +721,7 @@ function handleRifleHit(
   dir: Vector3,
   damage: number,
   isCrit: boolean,
+  scoped: boolean,
 ): boolean {
   if (!hit?.hit || !hit.pickedMesh || !hit.pickedPoint) return false;
 
@@ -728,12 +730,14 @@ function handleRifleHit(
     const result = findEnemyByMesh(hit.pickedMesh);
     if (result) {
       const headshot = result.hitMesh.name === "enemyHead";
+      const headshotMultiplier =
+        headshot && scoped ? RIFLE.SCOPE.headshotDamageMultiplier : 2;
       const bayonetDamageScale =
         g.bayonetEmbed?.enemy === result.enemy
           ? RIFLE.BAYONET.damageMultiplier
           : 1;
       const hitDamage = Math.round(
-        damage * (headshot ? 2 : 1) * bayonetDamageScale,
+        damage * (headshot ? headshotMultiplier : 1) * bayonetDamageScale,
       );
       (result.hitMesh.material as StandardMaterial).emissiveColor = new Color3(
         1,
@@ -818,7 +822,7 @@ export function updateRifleBullets(dt: number): void {
       step.lengthSquared() > 0.0001 ? step.normalizeToNew() : Vector3.Forward();
     const hit = g.scene.pickWithRay(new Ray(prevPos, dir, step.length()));
 
-    if (handleRifleHit(hit, dir, bullet.damage, bullet.isCrit)) {
+    if (handleRifleHit(hit, dir, bullet.damage, bullet.isCrit, bullet.scoped)) {
       bullet.mesh.dispose();
       g.rifleBullets.splice(i, 1);
       continue;

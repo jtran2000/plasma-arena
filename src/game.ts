@@ -83,6 +83,7 @@ export interface RifleBullet {
   age: number;
   damage: number;
   isCrit: boolean;
+  scoped: boolean;
 }
 
 export interface BayonetEmbed {
@@ -255,7 +256,7 @@ export function makeUpgradeState(): UpgradeState {
     plasmaCaster: false,
     plasmaCharger: false,
     plasmaGrenadier: false,
-    rifleUnlock: false,
+    rifleUnlock: true,
     muzzleBrake: false,
     rifleScope: false,
     rifleLaserSight: false,
