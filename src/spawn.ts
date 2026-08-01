@@ -2,6 +2,7 @@ import {
   Vector3,
   MeshBuilder,
   StandardMaterial,
+  PBRMaterial,
   Mesh,
   AbstractMesh,
   Color3,
@@ -14,6 +15,7 @@ import {
   SpotLight,
   VertexData,
   DynamicTexture,
+  Texture,
 } from "@babylonjs/core";
 import {
   BallAndSocketConstraint,
@@ -443,37 +445,87 @@ function applyMaterialLightBudget(
   return mat;
 }
 
+// ─── Texture helpers ──────────────────────────────────────────────────────────
+function loadTex(path: string, uScale: number, vScale: number): Texture {
+  const t = new Texture(path, g.scene);
+  t.uScale = uScale;
+  t.vScale = vScale;
+  return t;
+}
+
+function makePBR(
+  name: string,
+  folder: string,
+  uScale: number,
+  vScale: number,
+): PBRMaterial {
+  const base = `textures/${folder}/${folder}_1K-JPG`;
+  const mat = new PBRMaterial(name, g.scene);
+  mat.albedoTexture = loadTex(`${base}_Color.jpg`, uScale, vScale);
+  mat.bumpTexture = loadTex(`${base}_NormalGL.jpg`, uScale, vScale);
+  mat.metallic = 0;
+  mat.roughness = 1;
+  mat.maxSimultaneousLights = LIGHTING.baseMaxSimultaneousLights;
+  return mat;
+}
+
 // ─── Arena materials (private) ────────────────────────────────────────────────
-function makeFloorMat(): StandardMaterial {
-  const mat = applyMaterialLightBudget(new StandardMaterial("floor", g.scene));
-  mat.diffuseColor = ARENA_STYLE.floor.diffuse;
-  mat.specularColor = ARENA_STYLE.floor.specular;
+function makeFloorMat(): PBRMaterial {
+  const mat = makePBR("floor", "DiamondPlate004", 12, 12);
+  mat.metallic = 0.7;
+  mat.roughness = 0.5;
+  mat.albedoColor = new Color3(0.5, 0.5, 0.55);
   return mat;
 }
 
-function makeWallMat(): StandardMaterial {
-  const mat = applyMaterialLightBudget(new StandardMaterial("wall", g.scene));
-  mat.diffuseColor = ARENA_STYLE.wall.diffuse;
-  mat.specularColor = ARENA_STYLE.wall.specular;
+function makeWallMat(): PBRMaterial {
+  const mat = makePBR("wall", "MetalPlates006", 6, 3);
+  mat.metallic = 0.6;
+  mat.roughness = 0.6;
+  mat.albedoColor = new Color3(0.45, 0.43, 0.48);
   return mat;
 }
 
-function makeCeilMat(): StandardMaterial {
-  const mat = applyMaterialLightBudget(new StandardMaterial("ceil", g.scene));
-  mat.diffuseColor = ARENA_STYLE.ceiling.diffuse;
+function makeCeilMat(): PBRMaterial {
+  const mat = makePBR("ceil", "MetalPlates009", 8, 8);
+  mat.metallic = 0.5;
+  mat.roughness = 0.7;
+  mat.albedoColor = new Color3(0.35, 0.35, 0.4);
   return mat;
 }
 
-function makeAccentMat(): StandardMaterial {
-  const mat = applyMaterialLightBudget(new StandardMaterial("accent", g.scene));
-  mat.diffuseColor = ARENA_STYLE.accentStrip.diffuse;
-  mat.emissiveColor = ARENA_STYLE.accentStrip.emissive;
+function makeAccentMat(): PBRMaterial {
+  const mat = new PBRMaterial("accent", g.scene);
+  mat.albedoColor = new Color3(1, 0.6, 0.15);
+  mat.emissiveColor = new Color3(2, 1, 0.25);
+  mat.emissiveIntensity = 1;
+  mat.metallic = 0;
+  mat.roughness = 1;
+  mat.maxSimultaneousLights = LIGHTING.baseMaxSimultaneousLights;
   return mat;
 }
 
-function makeCrateMat(): StandardMaterial {
-  const mat = applyMaterialLightBudget(new StandardMaterial("crate", g.scene));
-  mat.diffuseColor = ARENA_STYLE.crate.diffuse;
+function makeAccentGlowMat(): PBRMaterial {
+  const mat = new PBRMaterial("accentGlow", g.scene);
+  mat.albedoColor = new Color3(1, 0.7, 0.2);
+  mat.emissiveColor = new Color3(3, 1.5, 0.4);
+  mat.emissiveIntensity = 1;
+  mat.metallic = 0;
+  mat.roughness = 1;
+  mat.alpha = 0.5;
+  mat.maxSimultaneousLights = LIGHTING.baseMaxSimultaneousLights;
+  return mat;
+}
+
+function makeCrateMat(): PBRMaterial {
+  const mat = makePBR("crate", "Planks012", 1, 1);
+  return mat;
+}
+
+function makePillarMat(): PBRMaterial {
+  const mat = makePBR("pillar", "Concrete027", 1, 3);
+  mat.roughness = 0.95;
+  mat.albedoColor = new Color3(0.6, 0.6, 0.62);
   return mat;
 }
 
@@ -582,7 +634,7 @@ export function setupArenaWalls(): Mesh[] {
 }
 
 export function setupArenaPillars(): Mesh[] {
-  const mat = makeWallMat();
+  const mat = makePillarMat();
   return ARENA_STYLE.pillar.positions.map(([x, z]) => {
     const m = makePillar();
     m.position = new Vector3(x, ARENA_STYLE.ceil / 2, z);
@@ -607,17 +659,34 @@ export function setupArenaCrates(): Mesh[] {
 
 export function setupArenaAccentStrips(): Mesh[] {
   const mat = makeAccentMat();
+  const glowMat = makeAccentGlowMat();
   const half = ARENA_STYLE.room / 2;
   const stripInset = half - ARENA_STYLE.accentStrip.wallInset;
-  return [0, Math.PI / 2, Math.PI, -Math.PI / 2].map((rot) => {
+  const stripY = ARENA_STYLE.accentStrip.yPos;
+
+  return [0, Math.PI / 2, Math.PI, -Math.PI / 2].map((rot, i) => {
     const m = makeAccentStrip();
     m.rotation.y = rot;
-    m.position = new Vector3(
-      rot === 0 || rot === Math.PI ? 0 : rot > 0 ? stripInset : -stripInset,
-      ARENA_STYLE.accentStrip.yPos,
-      rot === 0 ? -stripInset : rot === Math.PI ? stripInset : 0,
-    );
+    const x =
+      rot === 0 || rot === Math.PI ? 0 : rot > 0 ? stripInset : -stripInset;
+    const z = rot === 0 ? -stripInset : rot === Math.PI ? stripInset : 0;
+    m.position = new Vector3(x, stripY, z);
     m.material = mat;
+
+    const glow = MeshBuilder.CreateBox(
+      `stripGlow${i}`,
+      {
+        width: ARENA_STYLE.room - 1,
+        height: ARENA_STYLE.accentStrip.height * 3,
+        depth: ARENA_STYLE.accentStrip.depth * 0.5,
+      },
+      g.scene,
+    );
+    glow.rotation.y = rot;
+    glow.position = new Vector3(x, stripY, z);
+    glow.material = glowMat;
+    glow.isPickable = false;
+
     return m;
   });
 }
@@ -1936,11 +2005,11 @@ export function makeLegSplitHalves(
 export function setupLamppost(): { pole: Mesh; lightY: number } {
   const lampY = LIGHTING.lampHeight;
 
-  const poleMat = applyMaterialLightBudget(
-    new StandardMaterial("poleMat", g.scene),
-  );
-  poleMat.diffuseColor = new Color3(0.2, 0.2, 0.22);
-  poleMat.specularColor = new Color3(0.4, 0.4, 0.4);
+  const poleMat = new PBRMaterial("poleMat", g.scene);
+  poleMat.albedoColor = new Color3(0.18, 0.18, 0.2);
+  poleMat.metallic = 0.5;
+  poleMat.roughness = 0.6;
+  poleMat.maxSimultaneousLights = LIGHTING.baseMaxSimultaneousLights;
 
   const pole = MeshBuilder.CreateCylinder(
     "pole",

@@ -1,4 +1,4 @@
-# Babylon FPS
+# Plasma Arena
 
 A browser-based first-person arena shooter built with [Babylon.js](https://www.babylonjs.com/), Havok physics, and [Vite](https://vitejs.dev/).
 
@@ -24,9 +24,11 @@ The game starts with a basic semi-auto laser blaster and unfolds through randomi
 - Plasma shots are physics-simulated projectiles with splash damage, crit support, ricochet support, and optional gravity on grenade-style shots
 - Upgrade-gated rifle with a separate ammo pool, no overheat, gravity-affected tracer bullets, distinct reload/melee animations, and a short mouse-wheel weapon-switch animation
 - Rifle `Muzzle Brake` upgrade that adds a visible barrel attachment, reduces the rifle's aggressive recoil, and shrinks its muzzle flash
-- Rifle `Scope` upgrade that adds a scoped aim animation, a scope picture that grows from the visible tube opening into the full zoomed view, scoped tracer fire from the barrel tip toward screen center, and stronger camera-only scoped recoil
+- Rifle `Scope` upgrade that adds a scoped aim animation, a scope picture that grows from the visible tube opening into the full zoomed view, scoped tracer fire from the barrel tip toward screen center, stronger camera-only scoped recoil, and quadruple headshot damage while scoped
 - Rifle `Laser Sight` upgrade that mounts a visible side laser, projects a green aiming dot, sharply reduces unscoped rifle spread, and can randomly flip into a temporary purple guaranteed-crit state
 - Rifle `Bayonet` upgrade that extends melee range, enables bayonet charge at full sprint, and can embed enemies on non-lethal charge impacts
+- Upgrade-gated pump-action shotgun with hitscan pellets, per-pellet raycasts, distance-based damage falloff, a pump animation that blocks the next shot, a separate ammo pool, and its own melee/reload animations
+- Shotgun `Buckshot Damage` upgrade that increases per-pellet damage and `Wide Spread` upgrade that adds extra pellets and widens the cone
 - `Combat Boots` upgrade that reduces stamina drain from sprinting and jumping
 - Repeatable survivability upgrades including `Vampirism` and delayed `Health Regen`
 - `Ammo Crate` and `Surgery Kit` upgrades that can convert normal ammo/health supplies into rare full-refill special pickups
@@ -35,8 +37,10 @@ The game starts with a basic semi-auto laser blaster and unfolds through randomi
 - Unlockable proc systems for multishot, ricochet, lightning, and ignite, each with follow-up chance upgrades
 - Ignite applies DOT, particle/fire audio, and fire spread to nearby enemies
 - Wave system with between-wave downtime, randomized upgrade picks, supply rewards, and escalating enemy stats
+- Elite enemies that start appearing at wave 5 with increasing probability, featuring larger size, multiplied stats, and ranged orb projectile attacks
 - Enemy spawning from the ceiling, chase/patrol behavior, zigzag movement, melee attacks, and world-space health bars
 - Ragdoll enemy death with shootable intact corpses, detachable limbs, split kill meshes, shootable debris, and bonus score for cleanup shots
+- Barrel-clip detection that tilts the weapon and blocks firing when the barrel intersects geometry, while allowing melee and bayonet actions at point blank
 - Score-based health/ammo supply drops plus guaranteed wave-complete reward pickups in front of the player, with upgrade-triggered instant supply spawns and special full-refill crate variants
 - Babylon GUI overlay flow for start, pause, options, and game-over screens
 - DOM HUD for health, weapon label, ammo, score, kills, wave status, heat, crosshair, and upgrade selection
@@ -65,12 +69,12 @@ Then open [http://localhost:5173](http://localhost:5173) in your browser.
 | Left Click (hold, after `Pulse Laser`) | Continuous laser fire                                                                                                                    |
 | Right Click                            | Fire plasma after `Plasma Caster`; hold to charge after `Plasma Charger`; scope while still after unlocking `Scope`                      |
 | Left Click while charging              | Dump-fire plasma grenade after `Plasma Grenadier`                                                                                        |
-| Mouse Wheel                            | Switch between blaster and rifle after unlocking the rifle; switching briefly lowers the current weapon before the new one rises back in |
+| Mouse Wheel                            | Cycle through unlocked weapons (blaster → rifle → shotgun); switching briefly lowers the current weapon before the new one rises back in |
 | Middle Click                           | Melee attack                                                                                                                             |
 | Middle Click while fully sprinting     | Bayonet charge after `Bayonet`; release to abort the charge                                                                              |
 | `R`                                    | Reload                                                                                                                                   |
 | `Shift`                                | Sprint; full speed requires ramping up through forward travel                                                                            |
-| `1` `2` `3`                            | Pick one of the current upgrade options                                                                                                  |
+| `1` `2` `3`                            | Pick upgrade options when the menu is showing; otherwise switch weapons directly                                                         |
 | `Esc` / pointer lock loss              | Pause                                                                                                                                    |
 
 ## Scripts
@@ -93,20 +97,20 @@ Then open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ## Source Files
 
-| File                 | Responsibility                                                                                                                                                                                            |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/constants.ts`   | Tunable gameplay constants grouped into exported `as const` objects such as `ARENA`, `LIGHTING`, `ENEMY`, `PLAYER`, `BLASTER`, `RIFLE`, `SCORING`, `SUPPLY`, `WAVE`, `CRIT`, `UPGRADE`, and `BULLET_HOLE` |
-| `src/game.ts`        | Core shared types (`GameState`, `Enemy`, `Supply`, `Plasma`), cached DOM refs, state factories, and the mutable `g` game context                                                                          |
-| `src/build.ts`       | Scene/bootstrap assembly: Babylon scene creation, Havok setup, camera, lights, particle texture, arena construction, and weapon construction                                                              |
-| `src/spawn.ts`       | Arena mesh factories, weapon/enemy/supply creation, plasma spawning, bullet holes, particles, lightning, fire effects, damage numbers, health bars, ragdolls, and other mesh lifecycle work               |
-| `src/audio.ts`       | Procedural audio generation and spatial playback helpers                                                                                                                                                  |
-| `src/progression.ts` | Effective stat calculations, score progression, queued score-reward supply drops, weighted upgrade definitions/unlocks, HUD updates, and upgrade menu selection flow                                      |
-| `src/actions.ts`     | Player actions and combat logic: jump, melee, laser hitscan, plasma charge/fire, reload, damage resolution, scoring, crit/proc interactions                                                               |
-| `src/update.ts`      | Main per-frame update loop, timers, player movement, sprint ramp, bayonet charge/embed behavior, enemy AI, wave progression, heat/spread decay, supply pickup handling, and HUD/crosshair updates         |
-| `src/flow.ts`        | Run lifecycle orchestration: start/reset, end, pause, resume, scene rebuild, run-state reset, and registering the update loop                                                                             |
-| `src/input.ts`       | Global keyboard/mouse bindings plus per-scene Babylon pointer/action bindings                                                                                                                             |
-| `src/ui.ts`          | Babylon GUI overlay screens for start, pause, options, and game-over flow                                                                                                                                 |
-| `src/main.ts`        | App bootstrap, pointer-lock lifecycle, game-over transition detection, and render loop                                                                                                                    |
+| File                 | Responsibility                                                                                                                                                                                                                          |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/constants.ts`   | Tunable gameplay constants grouped into exported `as const` objects such as `ARENA`, `LIGHTING`, `CAMERA`, `ENEMY`, `ELITE`, `PLAYER`, `BLASTER`, `RIFLE`, `SHOTGUN`, `SCORING`, `SUPPLY`, `WAVE`, `CRIT`, `UPGRADE`, and `BULLET_HOLE` |
+| `src/game.ts`        | Core shared types (`GameState`, `Enemy`, `Supply`, `Plasma`), cached DOM refs, state factories, and the mutable `g` game context                                                                                                        |
+| `src/build.ts`       | Scene/bootstrap assembly: Babylon scene creation, Havok setup, camera, lights, particle texture, arena construction, and weapon construction                                                                                            |
+| `src/spawn.ts`       | Arena mesh factories, weapon/enemy/supply creation, plasma spawning, bullet holes, particles, lightning, fire effects, damage numbers, health bars, ragdolls, and other mesh lifecycle work                                             |
+| `src/audio.ts`       | Procedural audio generation and spatial playback helpers                                                                                                                                                                                |
+| `src/progression.ts` | Effective stat calculations, score progression, queued score-reward supply drops, weighted upgrade definitions/unlocks, HUD updates, and upgrade menu selection flow                                                                    |
+| `src/actions.ts`     | Player actions and combat logic: jump, melee, laser hitscan, plasma charge/fire, reload, damage resolution, scoring, crit/proc interactions                                                                                             |
+| `src/update.ts`      | Main per-frame update loop, timers, player movement, sprint ramp, bayonet charge/embed behavior, enemy AI, wave progression, heat/spread decay, supply pickup handling, and HUD/crosshair updates                                       |
+| `src/flow.ts`        | Run lifecycle orchestration: start/reset, end, pause, resume, exit to start screen, scene rebuild, run-state reset, and registering the update loop                                                                                     |
+| `src/input.ts`       | Global keyboard/mouse bindings plus per-scene Babylon pointer/action bindings                                                                                                                                                           |
+| `src/ui.ts`          | Babylon GUI overlay screens for start, pause, options, and game-over flow                                                                                                                                                               |
+| `src/main.ts`        | App bootstrap, pointer-lock lifecycle, game-over transition detection, and render loop                                                                                                                                                  |
 
 ## Architecture Notes
 

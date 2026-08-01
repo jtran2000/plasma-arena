@@ -17,6 +17,10 @@ export const LIGHTING = {
   spotIntensity: 2.5, // lamp brightness
   spotRange: 25, // lamp reach (m); beyond this the light contributes nothing
   fogDensity: 0.03, // exponential fog density; raise for thicker atmosphere
+  headlampAngle: Math.PI / 4, // cone half-angle (radians, 45°)
+  headlampExponent: 3, // falloff sharpness — higher = tighter center hotspot
+  headlampIntensity: 1.5, // brightness of the player-attached headlamp
+  headlampRange: 30, // reach (m) before the headlamp contributes nothing
 } as const;
 
 // ─── Camera ─────────────────────────────────────────────────────────────────

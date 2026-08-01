@@ -12,7 +12,7 @@ This file provides guidance to coding agents working in this repository, includi
 
 ## Architecture
 
-Babylon.js FPS arena shooter with Havok physics, wave-based enemies, and an upgrade system. All source is in `src/`, bundled by Vite, with strict TypeScript (`noUnusedLocals`, `noUnusedParameters`).
+Plasma Arena — a Babylon.js FPS arena shooter with Havok physics, wave-based enemies, and an upgrade system. All source is in `src/`, bundled by Vite, with strict TypeScript (`noUnusedLocals`, `noUnusedParameters`).
 
 ### Module graph
 
@@ -35,7 +35,8 @@ actions.ts    <- Player actions: jumping, melee, laser shooting, plasma
                  charging/firing, reloading, damage, scoring, proc logic
 update.ts     <- Game loop: player movement, enemy AI, waves, timers, HUD
 ui.ts         <- Babylon GUI overlay screens (start, pause, options, game over)
-flow.ts       <- Run lifecycle orchestration: start/reset, end, pause, resume
+flow.ts       <- Run lifecycle orchestration: start/reset, end, pause, resume,
+                 exit to start screen
 input.ts      <- Global and per-scene input binding
 main.ts       <- Entry point: bootstrap, pointer-lock lifecycle, render loop
 ```
@@ -44,7 +45,7 @@ main.ts       <- Entry point: bootstrap, pointer-lock lifecycle, render loop
 
 ### Key patterns
 
-- **Constants are grouped objects:** All game-tuning values live in `constants.ts` as exported `as const` objects. The main groups are `ARENA`, `LIGHTING`, `ENEMY`, `ELITE`, `ENEMY_HEALTH_BAR`, `PLAYER` (includes `STAMINA` and `BARREL_CLIP`), `BLASTER`, `RIFLE`, `SHOTGUN`, `SCORING`, `SUPPLY`, `WAVE`, `CRIT`, `UPGRADE`, `AUDIO`, and `BULLET_HOLE`.
+- **Constants are grouped objects:** All game-tuning values live in `constants.ts` as exported `as const` objects. The main groups are `ARENA`, `LIGHTING`, `CAMERA`, `ENEMY`, `ELITE`, `ENEMY_HEALTH_BAR`, `PLAYER` (includes `STAMINA`, `BARREL_CLIP`, `WEAPON_SWITCH`, and `HEALTH_REGEN`), `BLASTER`, `RIFLE`, `SHOTGUN`, `SCORING`, `SUPPLY`, `WAVE`, `CRIT`, `UPGRADE`, `AUDIO`, and `BULLET_HOLE`.
 - **`BLASTER` is nested:** Laser, plasma, spread, heat, multishot, ricochet, lightning, ignite, and melee tuning all live under `BLASTER`. Do not document or reintroduce the older split `LASER` / `PLASMA` constant pattern.
 - **Spawning and mesh creation belong in `spawn.ts`:** All functions that create meshes, spawn entities, create visual effects, or handle enemy death / ragdoll cleanup belong there. The game loop in `update.ts` should orchestrate, not create/dispose scene content directly.
 - **Progression uses effective functions:** `effective*()` helpers in `progression.ts` are the single source of truth for current stat values. If gameplay code needs the current damage, cooldown, heat, spread, or chance values, use those helpers rather than recomputing upgrade math elsewhere.
@@ -56,6 +57,7 @@ main.ts       <- Entry point: bootstrap, pointer-lock lifecycle, render loop
 - **Pump animation blocks the next shot:** After each shotgun shot, `g.state.pumpAnimTime` is set and counts down each frame. The pump mesh animates via smoothstep in `updateShotgunWeapon()`. Firing is blocked while `pumpAnimTime > 0`.
 - **Laser sight has its own temporary crit state:** the rifle laser can randomly flip into a purple guaranteed-crit window on a timer. Keep the timer/state on `g` and the visual color sync in `update.ts`; do not move that proc roll back into per-shot logic unless explicitly requested.
 - **Scoped rifle shots still use projectiles:** Even while fully scoped, rifle shots spawn the same tracer projectiles from the barrel-tip transform and are re-aimed toward the center-screen ray; do not reintroduce a separate scoped hitscan path unless explicitly requested.
+- **Scoped headshots deal extra damage:** While fully scoped, rifle headshots use `RIFLE.SCOPE.headshotDamageMultiplier` (4x) instead of the normal 2x headshot multiplier. This stacks with crit damage.
 - **Scoped rifle presentation is split between aim and zoom state:** `g.rifleScopeAimT` drives weapon centering/translation, while `g.rifleScopeZoomT` drives FOV, the overlay, and the two-phase scope exit. The overlay radius in `build.ts` is derived from the projected scope opening via `getRifleScopeOpeningRadius()` rather than a fixed screen fraction.
 - **Late scope handoff is update-owned:** `updateRifleFrontScopeHandoff()` in `update.ts` shrinks, fades, and pulls back the barrel/brake/laser/bayonet package during the last part of scope-in before the rifle root hides. The corresponding base transforms live on `g`; keep that cache in sync if you rename or restructure those meshes.
 - **Sprint ramp is gameplay state:** Sprint acceleration is distance-based (`PLAYER.sprintRampDistance`) and turning lowers ramp based on `PLAYER.sprintRampResetTurnAngle`. Keep sprint interruption, ramp direction, and bayonet-charge eligibility in `update.ts` unless you are deliberately refactoring movement.
@@ -78,7 +80,7 @@ main.ts       <- Entry point: bootstrap, pointer-lock lifecycle, render loop
 - Do not add callback setters like `setFooCallback()` just to avoid an import cycle. Instead, move shared logic into a lower-level module, split orchestration from state, or queue data through `g` for the main loop to process.
 - `updateHUD`, `incrementScore`, and the `effective*()` helpers live in `progression.ts` so `actions.ts`, `spawn.ts`, and `update.ts` can import them directly.
 - Avoid importing `actions.ts` from `spawn.ts` or `spawn.ts` from `progression.ts`; that is what the queued supply-drop path is designed to prevent.
-- `startGame()` and `endGame()` both live in `flow.ts`. `actions.ts` should not import `flow.ts`; it only mutates player health, and `main.ts` observes `g.state.health <= 0` in the render loop before calling `endGame()`.
+- `startGame()`, `endGame()`, and `exitToStartScreen()` all live in `flow.ts`. `actions.ts` should not import `flow.ts`; it only mutates player health, and `main.ts` observes `g.state.health <= 0` in the render loop before calling `endGame()`.
 - `main.ts` detects the `running -> false` transition in the render loop and calls the game-over UI, avoiding a game-over callback bridge.
 - `flow.ts` owns run lifecycle actions, while `main.ts` owns top-level bootstrap/pointer-lock/render-loop concerns. Keep that split when changing start, restart, pause, or resume behavior.
 - `ui.ts` may import `flow.ts` for start/restart button handlers, but `flow.ts` must not import `ui.ts`; UI overlay recreation and show/hide behavior belongs on the UI/main side of that boundary.

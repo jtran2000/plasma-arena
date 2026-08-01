@@ -9,6 +9,7 @@ import {
   ShadowGenerator,
   DynamicTexture,
   HavokPlugin,
+  DefaultRenderingPipeline,
 } from "@babylonjs/core";
 import type { ICanvasRenderingContext } from "@babylonjs/core/Engines/ICanvas.js";
 import { AdvancedDynamicTexture, Control } from "@babylonjs/gui";
@@ -196,6 +197,19 @@ export async function buildScene(): Promise<void> {
   g.shadowGenerator = new ShadowGenerator(1024, lamp);
   g.shadowGenerator.useBlurExponentialShadowMap = true;
 
+  const headlamp = new SpotLight(
+    "headlamp",
+    Vector3.Zero(),
+    Vector3.Forward(),
+    LIGHTING.headlampAngle,
+    LIGHTING.headlampExponent,
+    g.scene,
+  );
+  headlamp.intensity = LIGHTING.headlampIntensity;
+  headlamp.diffuse = new Color3(0.95, 0.95, 1);
+  headlamp.range = LIGHTING.headlampRange;
+  headlamp.parent = g.camera;
+
   g.particleTex = new DynamicTexture(
     "ptex",
     { width: 32, height: 32 },
@@ -212,6 +226,7 @@ export async function buildScene(): Promise<void> {
   buildArena();
   buildWeapon();
   setupScopeOverlay();
+  setupPostProcessing();
 }
 
 // ─── Arena ────────────────────────────────────────────────────────────────────
@@ -310,4 +325,18 @@ function setupScopeOverlay(): void {
   );
   g.scopeOverlay = new ScopeOverlayControl();
   g.scopeOverlayGui.addControl(g.scopeOverlay);
+}
+
+function setupPostProcessing(): void {
+  const pipeline = new DefaultRenderingPipeline(
+    "defaultPipeline",
+    true,
+    g.scene,
+    [g.camera],
+  );
+  pipeline.bloomEnabled = true;
+  pipeline.bloomThreshold = 0.8;
+  pipeline.bloomWeight = 0.4;
+  pipeline.bloomKernel = 64;
+  pipeline.bloomScale = 0.5;
 }

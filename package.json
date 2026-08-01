@@ -1,5 +1,5 @@
 {
-  "name": "babylon-fps",
+  "name": "plasma-arena",
   "version": "1.0.0",
   "type": "module",
   "scripts": {
@@ -12,7 +12,9 @@
   "dependencies": {
     "@babylonjs/core": "^8.55.1",
     "@babylonjs/gui": "^8.55.1",
-    "@babylonjs/havok": "^1.3.12"
+    "@babylonjs/havok": "^1.3.12",
+    "@babylonjs/materials": "^8.56.2",
+    "@babylonjs/procedural-textures": "^8.56.2"
   },
   "devDependencies": {
     "prettier": "^3.8.1",

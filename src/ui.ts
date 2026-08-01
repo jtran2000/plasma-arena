@@ -116,7 +116,7 @@ function buildStartScreen(): void {
   panel.spacing = 16;
   startScreen.addControl(panel);
 
-  panel.addControl(makeTitle("FPS", 48, DARK_ORANGE));
+  panel.addControl(makeTitle("PLASMA ARENA", 48, DARK_ORANGE));
 
   const instructions = makeLabel(
     "WASD to move \u2022 Mouse to look\nLeft click to shoot \u2022 R to reload\nShift to sprint",
