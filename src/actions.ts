@@ -8,7 +8,14 @@ import {
   Ray,
   PickingInfo,
 } from "@babylonjs/core";
-import { ARENA, PLAYER, BLASTER, RIFLE, SCORING } from "./constants.js";
+import {
+  ARENA,
+  PLAYER,
+  BLASTER,
+  RIFLE,
+  SHOTGUN,
+  SCORING,
+} from "./constants.js";
 const { HEAT, PLASMA, SPREAD, MULTISHOT, RICOCHET, LIGHTNING, MELEE } = BLASTER;
 import {
   g,
@@ -17,6 +24,7 @@ import {
   canSpendStamina,
   releaseBayonetEmbed,
   spendStamina,
+  type WeaponKind,
   type Enemy,
   type Plasma,
 } from "./game.js";
@@ -36,6 +44,7 @@ import {
   spawnBulletHole,
   spawnFireEffect,
   spawnDamageNumber,
+  spawnShotgunMuzzleFlash,
   updateEnemyHealthBar,
   killEnemy,
   splitRagdoll,
@@ -53,6 +62,9 @@ import {
   playLightningSound,
   playMeleeSound,
   playRifleShotSound,
+  playShotgunShotSound,
+  playShotgunPumpSound,
+  playShotgunReloadSounds,
 } from "./audio.js";
 import {
   effectiveMaxHealth,
@@ -73,6 +85,10 @@ import {
   effectiveLightningChance,
   effectiveIgniteChance,
   effectiveVampirism,
+  effectiveShotgunDamage,
+  effectiveShotgunPelletCount,
+  effectiveShotgunSpread,
+  shotgunFalloffScale,
   updateHUD,
   incrementScore,
 } from "./progression.js";
@@ -176,9 +192,11 @@ function cancelReloadAndCharge(): void {
     g.plasmaCharging = false;
     g.plasmaChargeCrit = false;
   }
+  g.state.pumpAnimTime = 0;
 }
 
 function currentMeleeStats() {
+  if (g.state.activeWeapon === "shotgun") return SHOTGUN.MELEE;
   if (g.state.activeWeapon !== "rifle") return MELEE;
   return {
     ...RIFLE.MELEE,
@@ -205,16 +223,17 @@ function currentRifleRecoilStats() {
   };
 }
 
-export function switchWeapon(): void {
-  if (
-    !g.upgrades.rifleUnlock ||
-    g.weaponSwitchTarget !== null ||
-    !g.state.running ||
-    g.state.paused ||
-    g.isSprinting ||
-    g.state.meleeCooldown > 0
-  )
-    return;
+function canSwitchWeapon(): boolean {
+  return (
+    g.weaponSwitchTarget === null &&
+    g.state.running &&
+    !g.state.paused &&
+    !g.isSprinting &&
+    g.state.meleeCooldown <= 0
+  );
+}
+
+function resetWeaponSwitchState(): void {
   releaseBayonetEmbed();
   cancelReloadAndCharge();
   if (g.bayonetCharging || g.bayonetChargeCooldownPending) {
@@ -245,8 +264,31 @@ export function switchWeapon(): void {
   g.crosshairRecoil = 0;
   g.state.shootCooldown = 0;
   g.state.plasmaCooldown = 0;
-  const next = g.state.activeWeapon === "blaster" ? "rifle" : "blaster";
+  g.state.pumpAnimTime = 0;
+}
+
+export function switchWeapon(direction: 1 | -1 = 1): void {
+  const order: WeaponKind[] = ["blaster"];
+  if (g.upgrades.rifleUnlock) order.push("rifle");
+  if (g.upgrades.shotgunUnlock) order.push("shotgun");
+  if (order.length < 2 || !canSwitchWeapon()) return;
+  resetWeaponSwitchState();
+  const currentIdx = order.indexOf(g.state.activeWeapon);
+  const next = order[(currentIdx + direction + order.length) % order.length];
   g.weaponSwitchTarget = next;
+  g.weaponSwitchTime = 0;
+  g.weaponSwitchDuration = PLAYER.WEAPON_SWITCH.durationMs;
+  g.weaponSwitchSwapped = false;
+  updateHUD();
+}
+
+export function switchToWeapon(kind: WeaponKind): void {
+  if (kind === g.state.activeWeapon) return;
+  if (kind === "rifle" && !g.upgrades.rifleUnlock) return;
+  if (kind === "shotgun" && !g.upgrades.shotgunUnlock) return;
+  if (!canSwitchWeapon()) return;
+  resetWeaponSwitchState();
+  g.weaponSwitchTarget = kind;
   g.weaponSwitchTime = 0;
   g.weaponSwitchDuration = PLAYER.WEAPON_SWITCH.durationMs;
   g.weaponSwitchSwapped = false;
@@ -371,6 +413,10 @@ export function shoot(): void {
     shootRifle();
     return;
   }
+  if (g.state.activeWeapon === "shotgun") {
+    shootShotgun();
+    return;
+  }
   if (
     !g.state.running ||
     g.state.reloading ||
@@ -443,6 +489,144 @@ function addRandomSpread(dir: Vector3, spread: number): Vector3 {
     .add(right.scale(Math.cos(angle) * magnitude))
     .add(up.scale(Math.sin(angle) * magnitude))
     .normalize();
+}
+
+function spreadInCone(dir: Vector3, halfAngle: number): Vector3 {
+  const angle = Math.random() * Math.PI * 2;
+  const magnitude = Math.sqrt(Math.random()) * halfAngle;
+  const up = Vector3.Cross(dir, new Vector3(1, 0, 0));
+  if (up.lengthSquared() < 0.01)
+    up.copyFrom(Vector3.Cross(dir, new Vector3(0, 0, 1)));
+  up.normalize();
+  const right = Vector3.Cross(dir, up).normalize();
+  return dir
+    .add(right.scale(Math.cos(angle) * magnitude))
+    .add(up.scale(Math.sin(angle) * magnitude))
+    .normalize();
+}
+
+function shootShotgun(): void {
+  if (
+    !g.upgrades.shotgunUnlock ||
+    !g.state.running ||
+    g.state.reloading ||
+    g.isSprinting ||
+    g.pendingUpgrades.length > 0
+  )
+    return;
+  if (g.state.shootCooldown > 0 || g.state.pumpAnimTime > 0) return;
+  if (g.state.ammo <= 0) {
+    startReload();
+    return;
+  }
+
+  g.state.ammo--;
+  g.state.shootCooldown = effectiveCooldown();
+  g.state.pumpAnimTime = SHOTGUN.PUMP_ANIM.durationMs;
+
+  const isCrit = Math.random() < effectiveCritChance();
+  const baseRay = g.camera.getForwardRay(SHOTGUN.range);
+  const shotSpread = g.shootSpread + g.moveSpread;
+  const pelletCount = effectiveShotgunPelletCount();
+  const coneSpread = effectiveShotgunSpread() + shotSpread;
+
+  for (let i = 0; i < pelletCount; i++) {
+    const pelletDir = spreadInCone(baseRay.direction, coneSpread);
+    const pelletRay = new Ray(baseRay.origin, pelletDir, SHOTGUN.range);
+    fireShotgunPellet(pelletRay, isCrit);
+  }
+
+  g.shootSpread = Math.min(
+    g.shootSpread + effectiveBloom(),
+    SHOTGUN.SPREAD.max,
+  );
+
+  playShotgunShotSound();
+  spawnShotgunMuzzleFlash(isCrit);
+  setTimeout(() => playShotgunPumpSound(), SHOTGUN.PUMP_ANIM.durationMs * 0.4);
+
+  if (g.state.ammo === 0 && g.state.reserve > 0) g.state.autoReloadDelay = 300;
+  updateHUD();
+}
+
+function fireShotgunPellet(ray: Ray, isCrit: boolean): void {
+  const hit = g.scene.pickWithRay(ray, (m) => isRaycastPickable(m));
+  if (!hit?.hit || !hit.pickedMesh || !hit.pickedPoint) return;
+
+  if (isEnemyPart(hit.pickedMesh.name)) {
+    const result = findEnemyByMesh(hit.pickedMesh);
+    if (result) {
+      const headshot = result.hitMesh.name === "enemyHead";
+      const dist = Vector3.Distance(g.camera.position, hit.pickedPoint);
+      const falloff = shotgunFalloffScale(dist);
+      const critMult = isCrit ? effectiveCritDamage() : 1;
+      const dmg = Math.round(
+        effectiveShotgunDamage() *
+          (0.85 + Math.random() * 0.3) *
+          falloff *
+          (headshot ? 2 : 1) *
+          critMult,
+      );
+      if (dmg > 0) {
+        damageEnemy(
+          result.enemy,
+          dmg,
+          result.hitMesh,
+          hit.pickedPoint,
+          isCrit,
+          {
+            canIgnite: false,
+            canLightning: false,
+          },
+        );
+      }
+      if (dist < SHOTGUN.knockbackRange) {
+        const knockbackScale = 1 - dist / SHOTGUN.knockbackRange;
+        const away = result.enemy.physMesh
+          .getAbsolutePosition()
+          .subtract(g.camera.position);
+        if (away.lengthSquared() > 0.01) {
+          result.enemy.aggregate.body.applyImpulse(
+            away.normalize().scale(SHOTGUN.knockbackForce * knockbackScale),
+            result.enemy.physMesh.getAbsolutePosition(),
+          );
+        }
+      }
+      spawnBulletHole(
+        hit.pickedPoint,
+        hit.getNormal(true),
+        hit.pickedMesh as Mesh,
+      );
+      spawnHitParticle(
+        hit.pickedPoint,
+        new Color4(0.8, 0.0, 0.0, 1),
+        hit.getNormal(true) ?? ray.direction.negate(),
+      );
+    }
+  } else if (
+    hit.pickedMesh.name === "bodyHalf" ||
+    hit.pickedMesh.name === "headHalf" ||
+    hit.pickedMesh.name === "armHalf" ||
+    hit.pickedMesh.name === "legHalf"
+  ) {
+    spawnBulletHole(
+      hit.pickedPoint,
+      hit.getNormal(true),
+      hit.pickedMesh as Mesh,
+    );
+    hitDebris(hit.pickedMesh as Mesh, ray.direction, hit.pickedPoint);
+    spawnHitParticle(
+      hit.pickedPoint,
+      new Color4(0.8, 0.0, 0.0, 1),
+      hit.getNormal(true) ?? ray.direction.negate(),
+    );
+  } else {
+    spawnBulletHole(
+      hit.pickedPoint,
+      hit.getNormal(true),
+      hit.pickedMesh as Mesh,
+    );
+  }
 }
 
 export function applyRifleCrosshairRecoil(ray: Ray): Ray {
@@ -1740,7 +1924,9 @@ export function startReload(): void {
   g.state.reloadTimeLeft = reloadTime;
   dom.reloadMsg.classList.add("visible");
   const barrelPos = () => g.barrelTip.getAbsolutePosition();
-  if (g.state.activeWeapon === "rifle") {
+  if (g.state.activeWeapon === "shotgun") {
+    playShotgunReloadSounds(reloadTime, barrelPos);
+  } else if (g.state.activeWeapon === "rifle") {
     playRifleReloadSounds(reloadTime, barrelPos);
   } else {
     playReloadSounds(reloadTime, barrelPos);

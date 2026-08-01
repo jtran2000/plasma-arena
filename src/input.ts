@@ -12,6 +12,7 @@ import {
   startPlasmaCharge,
   startReload,
   switchWeapon,
+  switchToWeapon,
   tryJump,
 } from "./actions.js";
 import { selectUpgrade } from "./progression.js";
@@ -39,9 +40,18 @@ export function initializeInput(): void {
       e.preventDefault();
       tryJump();
     }
-    if (e.code === "Digit1") selectUpgrade(0);
-    if (e.code === "Digit2") selectUpgrade(1);
-    if (e.code === "Digit3") selectUpgrade(2);
+    if (e.code === "Digit1") {
+      if (g.pendingUpgrades.length > 0) selectUpgrade(0);
+      else switchToWeapon("blaster");
+    }
+    if (e.code === "Digit2") {
+      if (g.pendingUpgrades.length > 0) selectUpgrade(1);
+      else switchToWeapon("rifle");
+    }
+    if (e.code === "Digit3") {
+      if (g.pendingUpgrades.length > 0) selectUpgrade(2);
+      else switchToWeapon("shotgun");
+    }
   });
 
   for (const btn of dom.upgradeButtons) {
@@ -54,7 +64,7 @@ export function initializeInput(): void {
   dom.canvas.addEventListener("wheel", (e) => {
     if (Math.abs(e.deltaY) < 1) return;
     e.preventDefault();
-    switchWeapon();
+    switchWeapon(e.deltaY > 0 ? 1 : -1);
   });
 }
 
@@ -97,6 +107,7 @@ export function bindSceneInput(): void {
             !movementKeyPressed;
           return;
         }
+        if (g.state.activeWeapon === "shotgun") return;
         startPlasmaCharge();
       } else if (info.type === PointerEventTypes.POINTERUP) {
         g.mouse2Held = false;

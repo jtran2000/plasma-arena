@@ -14,10 +14,10 @@ import {
   Quaternion,
 } from "@babylonjs/core";
 import { AdvancedDynamicTexture, Control, Rectangle } from "@babylonjs/gui";
-import { PLAYER, BLASTER, RIFLE, SUPPLY, WAVE } from "./constants.js";
+import { PLAYER, BLASTER, RIFLE, SHOTGUN, SUPPLY, WAVE } from "./constants.js";
 const { LASER } = BLASTER;
 
-export type WeaponKind = "blaster" | "rifle";
+export type WeaponKind = "blaster" | "rifle" | "shotgun";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface GameState {
@@ -48,6 +48,7 @@ export interface GameState {
   nextSupplyThreshold: number;
   meleeCooldown: number;
   meleeAnimTime: number;
+  pumpAnimTime: number;
   wave: number;
   waveEnemiesLeft: number;
   waveSpawnTimer: number;
@@ -58,7 +59,13 @@ export interface GameState {
 export interface Supply {
   mesh: Mesh;
   aggregate: PhysicsAggregate;
-  type: "health" | "ammo" | "rifleAmmo" | "ammoCrate" | "surgeryKit";
+  type:
+    | "health"
+    | "ammo"
+    | "rifleAmmo"
+    | "shotgunAmmo"
+    | "ammoCrate"
+    | "surgeryKit";
 }
 
 export interface QueuedSupplyDrop {
@@ -75,6 +82,13 @@ export interface Plasma {
   isCrit: boolean;
   hasGravity: boolean;
   ricochetDepth: number;
+}
+
+export interface EnemyOrb {
+  mesh: Mesh;
+  velocity: Vector3;
+  age: number;
+  damage: number;
 }
 
 export interface RifleBullet {
@@ -143,6 +157,9 @@ export interface UpgradeState {
   rifleScope: boolean;
   rifleLaserSight: boolean;
   bayonet: boolean;
+  shotgunUnlock: boolean;
+  shotgunDamage: number;
+  shotgunWideSpread: number;
 }
 
 export interface Enemy {
@@ -179,6 +196,8 @@ export interface Enemy {
   fireAudioGain: GainNode | null;
   fireSpreadTimer: number;
   fireDmgAccum: number;
+  isElite: boolean;
+  orbCooldown: number;
   healthBarPlane: Mesh | null;
   healthBarTexture: AdvancedDynamicTexture | null;
   healthBarFill: Rectangle | null;
@@ -212,6 +231,7 @@ export function makeState(): GameState {
     paused: false,
     meleeCooldown: 0,
     meleeAnimTime: 0,
+    pumpAnimTime: 0,
     nextSupplyThreshold: SUPPLY.scoreInterval,
     wave: 1,
     waveEnemiesLeft: WAVE.baseEnemies,
@@ -256,11 +276,14 @@ export function makeUpgradeState(): UpgradeState {
     plasmaCaster: false,
     plasmaCharger: false,
     plasmaGrenadier: false,
-    rifleUnlock: true,
+    rifleUnlock: false,
     muzzleBrake: false,
     rifleScope: false,
     rifleLaserSight: false,
     bayonet: false,
+    shotgunUnlock: false,
+    shotgunDamage: 0,
+    shotgunWideSpread: 0,
   };
 }
 
@@ -276,6 +299,10 @@ export function makeWeaponAmmoState(): Record<
     rifle: {
       ammo: RIFLE.magSize,
       reserve: RIFLE.magSize * RIFLE.reserveMags,
+    },
+    shotgun: {
+      ammo: SHOTGUN.magSize,
+      reserve: SHOTGUN.magSize * SHOTGUN.reserveMags,
     },
   };
 }
@@ -339,6 +366,7 @@ export const g = {
   playerAggregate: null as unknown as PhysicsAggregate,
   playerVelocityXZ: Vector3.Zero(),
   enemies: [] as Enemy[],
+  enemyOrbs: [] as EnemyOrb[],
   plasmas: [] as Plasma[],
   rifleBullets: [] as RifleBullet[],
   supplies: [] as Supply[],
@@ -365,6 +393,12 @@ export const g = {
   scopeOverlayGui: null as unknown as AdvancedDynamicTexture,
   scopeOverlay: null as unknown as Control,
   rifleMag: null as unknown as Mesh,
+  shotgunRoot: null as unknown as Mesh,
+  shotgunBarrel: null as unknown as Mesh,
+  shotgunBarrelTip: null as unknown as Mesh,
+  shotgunPump: null as unknown as Mesh,
+  shotgunMag: null as unknown as Mesh,
+  shotgunPumpBasePosition: Vector3.Zero(),
   weaponRoot: null as unknown as Mesh,
   weaponBarrel: null as unknown as Mesh,
   barrelTip: null as unknown as Mesh,
@@ -422,6 +456,7 @@ export const g = {
   guiTexture: null as unknown as AdvancedDynamicTexture,
   audioCtx: null as AudioContext | null,
   masterGain: null as GainNode | null,
+  masterCompressor: null as DynamicsCompressorNode | null,
   sprintBobTime: 0,
   recoilPitch: 0,
   recoilRoll: 0,
@@ -450,6 +485,10 @@ export function equipWeapon(kind: WeaponKind): void {
   g.state.ammo = g.weaponAmmo[kind].ammo;
   g.state.reserve = g.weaponAmmo[kind].reserve;
 
+  g.blasterRoot.setEnabled(false);
+  g.rifleRoot.setEnabled(false);
+  g.shotgunRoot.setEnabled(false);
+
   if (kind === "rifle") {
     g.weaponRoot = g.rifleRoot;
     g.weaponBarrel = g.rifleBarrel;
@@ -459,18 +498,19 @@ export function equipWeapon(kind: WeaponKind): void {
     g.rifleAssembly.rotation.x = g.rifleAssemblyBasePitch;
     g.rifleAssembly.rotation.y = g.rifleAssemblyBaseYaw;
     g.rifleAssembly.rotation.z = 0;
-    g.weaponRestPosition = g.weaponRoot.position.clone();
-    g.blasterRoot.setEnabled(false);
-    g.rifleRoot.setEnabled(true);
+  } else if (kind === "shotgun") {
+    g.weaponRoot = g.shotgunRoot;
+    g.weaponBarrel = g.shotgunBarrel;
+    g.barrelTip = g.shotgunBarrelTip;
+    g.weaponCell = g.shotgunMag;
   } else {
     g.weaponRoot = g.blasterRoot;
     g.weaponBarrel = g.blasterBarrel;
     g.barrelTip = g.blasterBarrelTip;
     g.weaponCell = g.blasterCell;
-    g.weaponRestPosition = g.weaponRoot.position.clone();
-    g.blasterRoot.setEnabled(true);
-    g.rifleRoot.setEnabled(false);
   }
+  g.weaponRoot.setEnabled(true);
+  g.weaponRestPosition = g.weaponRoot.position.clone();
 }
 
 export function canSpendStamina(cost: number): boolean {

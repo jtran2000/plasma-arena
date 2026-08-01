@@ -28,6 +28,8 @@ import {
   setupWeaponParts,
   setupRifleParts,
   setupRifleRoot,
+  setupShotgunRoot,
+  setupShotgunParts,
   setupLamppost,
 } from "./spawn.js";
 
@@ -267,24 +269,37 @@ function buildWeapon(): void {
   g.rifleLaserDot.setEnabled(false);
   g.rifleBayonet.setEnabled(g.upgrades.bayonet);
 
-  if (g.state.activeWeapon === "rifle" && g.upgrades.rifleUnlock) {
+  g.shotgunRoot = setupShotgunRoot();
+  const shotgun = setupShotgunParts(g.shotgunRoot);
+  g.shotgunBarrel = shotgun.barrel;
+  g.shotgunBarrelTip = shotgun.barrelTip;
+  g.shotgunPump = shotgun.pump;
+  g.shotgunPumpBasePosition = shotgun.pump.position.clone();
+  g.shotgunMag = shotgun.mag;
+
+  g.blasterRoot.setEnabled(false);
+  g.rifleRoot.setEnabled(false);
+  g.shotgunRoot.setEnabled(false);
+
+  if (g.state.activeWeapon === "shotgun" && g.upgrades.shotgunUnlock) {
+    g.weaponRoot = g.shotgunRoot;
+    g.weaponCell = g.shotgunMag;
+    g.weaponBarrel = g.shotgunBarrel;
+    g.barrelTip = g.shotgunBarrelTip;
+  } else if (g.state.activeWeapon === "rifle" && g.upgrades.rifleUnlock) {
     g.weaponRoot = g.rifleRoot;
     g.weaponCell = g.rifleMag;
     g.weaponBarrel = g.rifleBarrel;
     g.barrelTip = g.rifleBarrelTip;
-    g.weaponRestPosition = g.weaponRoot.position.clone();
-    g.blasterRoot.setEnabled(false);
-    g.rifleRoot.setEnabled(true);
   } else {
     g.state.activeWeapon = "blaster";
     g.weaponRoot = g.blasterRoot;
     g.weaponCell = g.blasterCell;
     g.weaponBarrel = g.blasterBarrel;
     g.barrelTip = g.blasterBarrelTip;
-    g.weaponRestPosition = g.weaponRoot.position.clone();
-    g.blasterRoot.setEnabled(true);
-    g.rifleRoot.setEnabled(false);
   }
+  g.weaponRoot.setEnabled(true);
+  g.weaponRestPosition = g.weaponRoot.position.clone();
 }
 
 function setupScopeOverlay(): void {

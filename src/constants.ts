@@ -47,6 +47,30 @@ export const ENEMY = {
   zigzagAmplitude: 0.8, // lateral offset strength (0–1); higher = wider strafes
 } as const;
 
+// ─── Elite Enemies ─────────────────────────────────────────────────────────
+export const ELITE = {
+  startWave: 5, // first wave at which elite enemies can spawn
+  chance: 0.1, // base probability each spawn is elite (at startWave)
+  chancePerWave: 0.05, // additional elite probability per wave past startWave
+  maxChance: 0.4, // cap on elite spawn probability
+  // Stat multipliers — applied on top of per-wave scaled base stats
+  hpMultiplier: 2.5, // elite HP = base HP × this
+  speedMultiplier: 1.4, // elite speed = base speed × this
+  meleeDamageMultiplier: 1.5, // elite melee damage = base damage × this
+  meleeRateMultiplier: 1.3, // elite attacks/min = base rate × this
+  scaleMultiplier: 1.35, // visual mesh scale factor (proportional size increase)
+  // Ranged orb attack
+  orbDamage: 15, // damage per orb hit
+  orbSpeed: 12, // orb projectile speed (m/s)
+  orbRadius: 0.15, // orb visual/collision radius (m)
+  orbLifetimeMs: 4000, // orb max age before despawn (ms)
+  orbCooldownMs: 2500, // minimum ms between orb shots
+  orbMinRange: 4, // min distance to player to fire orb (m); inside this elites melee
+  orbMaxRange: 20, // max distance to fire orb (m)
+  // Score
+  killScore: 250, // points awarded per elite kill (2.5× regular)
+} as const;
+
 // ─── Health Bar ─────────────────────────────────────────────────────────────
 export const ENEMY_HEALTH_BAR = {
   width: 0.8, // world-space plane width (m)
@@ -180,7 +204,7 @@ export const RIFLE = {
   maxReserveMags: 7, // cap on reserve mags from supply pickups
   reloadTime: 2200, // reload duration (ms)
   bulletSpeed: 400, // muzzle velocity (m/s)
-  gravity: 0, // bullet drop acceleration (m/s²)
+  gravity: 5, // bullet drop acceleration (m/s²)
   tracerLifeMs: 1800, // how long tracer lines persist (ms)
   tracerLength: 0.42, // visual tracer length (m)
   tracerWidth: 0.026, // visual tracer thickness (m)
@@ -243,7 +267,7 @@ export const RIFLE = {
     scopedCameraOffsetZ: 0.8, // Z offset for flash position when scoped
   },
   MELEE: {
-    damage: 2, // base rifle butt strike damage
+    damage: 24, // base rifle butt strike damage
     range: 2.2, // melee raycast distance (m)
     cooldownMs: 600, // minimum time between melee attacks (ms)
     animDurationMs: 320, // butt stroke animation duration (ms)
@@ -274,6 +298,46 @@ export const RIFLE = {
     yaw: 0.18, // weapon yaw during reload (radians)
     magDrop: 0.2, // how far the magazine drops visually during reload (m)
     magPullBack: 0.08, // how far the magazine pulls back before dropping (m)
+  },
+} as const;
+
+// ─── Shotgun ───────────────────────────────────────────────────────────────
+export const SHOTGUN = {
+  damage: 12, // base damage per pellet; 8 pellets = 96 max at point blank
+  pelletCount: 8, // buckshot pellets per shell
+  spread: 0.12, // cone half-angle (radians); wider than blaster max bloom for a true shotgun pattern
+  rateOfFire: 60, // rounds per minute; 1 shot per second — pump action
+  magSize: 6, // tube magazine capacity (shells)
+  reserveMags: 4, // starting reserve magazines (= 24 shells)
+  maxReserveMags: 6, // cap on reserve mags from supply pickups (= 36 shells)
+  reloadTime: 2800, // reload duration (ms)
+  range: 20, // max pellet raycast range (m); pellets beyond this deal no damage
+  knockbackForce: 25, // impulse applied to enemies per pellet hit at close range
+  knockbackRange: 6, // distance (m) within which knockback is applied at full strength
+  FALLOFF: {
+    startRange: 5, // distance (m) where damage falloff begins; full damage inside this
+    endRange: 18, // distance (m) where damage reaches minimum; no damage beyond SHOTGUN.range
+    minDamageScale: 0.2, // minimum damage multiplier at endRange (20% of base)
+  },
+  MELEE: {
+    damage: 22, // butt-strike damage; between blaster pistol-whip and rifle butt-stroke
+    range: 2.1, // melee raycast distance (m)
+    cooldownMs: 550, // minimum time between melee swings (ms)
+    animDurationMs: 280, // butt-stroke animation duration (ms)
+  },
+  PUMP_ANIM: {
+    durationMs: 600, // pump-action animation time after each shot (ms); blocks next shot
+    pullBackZ: -0.08, // pump handle slides backward this far (m)
+  },
+  SPREAD: {
+    perShot: 0.008, // bloom added per shot (radians); minimal since pump is slow
+    max: 0.14, // maximum bloom cap (radians)
+    decay: 0.15, // bloom recovery while idle (radians/s)
+    moveRate: 0.09, // bloom added while moving (radians/s)
+  },
+  RELOAD_ANIM: {
+    tilt: -0.6, // weapon tilt during reload (radians; negative = roll left)
+    yaw: 0.15, // weapon yaw during reload (radians)
   },
 } as const;
 
@@ -331,6 +395,9 @@ export const UPGRADE = {
   ricochetChance: 0.1, // + ricochet probability per upgrade
   lightningChance: 0.04, // + lightning proc probability per upgrade
   igniteChance: 0.05, // + ignite proc probability per upgrade
+  shotgunDamage: 3, // + flat damage per pellet per upgrade
+  shotgunWideSpread: 0.02, // + cone half-angle per Extra Pellets upgrade (radians)
+  shotgunExtraPellets: 3, // + pellets per Extra Pellets upgrade
 } as const;
 
 // ─── Audio ──────────────────────────────────────────────────────────────────

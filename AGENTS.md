@@ -17,9 +17,9 @@ Babylon.js FPS arena shooter with Havok physics, wave-based enemies, and an upgr
 ### Module graph
 
 ```text
-constants.ts  <- Grouped config objects (`ARENA`, `LIGHTING`, `ENEMY`, `PLAYER`,
-                 `BLASTER`, `RIFLE`, `SCORING`, `SUPPLY`, `WAVE`, `CRIT`,
-                 `UPGRADE`, etc.)
+constants.ts  <- Grouped config objects (`ARENA`, `LIGHTING`, `ENEMY`, `ELITE`,
+                 `PLAYER`, `BLASTER`, `RIFLE`, `SHOTGUN`, `SCORING`, `SUPPLY`,
+                 `WAVE`, `CRIT`, `UPGRADE`, etc.)
 game.ts       <- Central state hub: `GameState`, `Enemy`, `Supply`, `Plasma`
                  interfaces; queued supply-drop requests; shared mutable `g`
                  object and cached `dom` refs
@@ -44,26 +44,30 @@ main.ts       <- Entry point: bootstrap, pointer-lock lifecycle, render loop
 
 ### Key patterns
 
-- **Constants are grouped objects:** All game-tuning values live in `constants.ts` as exported `as const` objects. The main groups are `ARENA`, `LIGHTING`, `ENEMY`, `ENEMY_HEALTH_BAR`, `PLAYER` (includes `STAMINA` and `BARREL_CLIP`), `BLASTER`, `RIFLE`, `SCORING`, `SUPPLY`, `WAVE`, `CRIT`, `UPGRADE`, `AUDIO`, and `BULLET_HOLE`.
+- **Constants are grouped objects:** All game-tuning values live in `constants.ts` as exported `as const` objects. The main groups are `ARENA`, `LIGHTING`, `ENEMY`, `ELITE`, `ENEMY_HEALTH_BAR`, `PLAYER` (includes `STAMINA` and `BARREL_CLIP`), `BLASTER`, `RIFLE`, `SHOTGUN`, `SCORING`, `SUPPLY`, `WAVE`, `CRIT`, `UPGRADE`, `AUDIO`, and `BULLET_HOLE`.
 - **`BLASTER` is nested:** Laser, plasma, spread, heat, multishot, ricochet, lightning, ignite, and melee tuning all live under `BLASTER`. Do not document or reintroduce the older split `LASER` / `PLASMA` constant pattern.
 - **Spawning and mesh creation belong in `spawn.ts`:** All functions that create meshes, spawn entities, create visual effects, or handle enemy death / ragdoll cleanup belong there. The game loop in `update.ts` should orchestrate, not create/dispose scene content directly.
 - **Progression uses effective functions:** `effective*()` helpers in `progression.ts` are the single source of truth for current stat values. If gameplay code needs the current damage, cooldown, heat, spread, or chance values, use those helpers rather than recomputing upgrade math elsewhere.
-- **Reload speed upgrades apply to both weapons:** `effectiveReloadTime()` in `progression.ts` scales the active weapon's base reload time for both the blaster and the rifle. Do not reintroduce a rifle-only fixed reload path when touching reload logic or UI timing.
+- **Reload speed upgrades apply to all weapons:** `effectiveReloadTime()` in `progression.ts` scales the active weapon's base reload time for the blaster, rifle, and shotgun. Do not reintroduce a weapon-specific fixed reload path when touching reload logic or UI timing.
 - **Weapon progression is upgrade-gated:** The run starts with the basic laser only. `Pulse Laser`, `Plasma Caster`, `Plasma Charger`, and `Plasma Grenadier` are unlocks, not baseline abilities.
 - **Rifle progression is upgrade-gated:** `Rifle` unlocks the alternate weapon; `Muzzle Brake`, `Scope`, and `Laser Sight` require the rifle; and `Bayonet` requires the muzzle brake. Rifle ammo/recoil/tracer/muzzle-flash/melee/bayonet/scope/laser tuning lives under `RIFLE` in `constants.ts`; the unlock state lives in `g.upgrades`.
+- **Shotgun progression is upgrade-gated:** `Shotgun` unlocks the third weapon slot (no prerequisite). `Buckshot Damage` and `Wide Spread` (extra pellets + wider cone) require `shotgunUnlock`. Shotgun tuning — including `FALLOFF`, `MELEE`, `PUMP_ANIM`, and `SPREAD` — lives under `SHOTGUN` in `constants.ts`. The shotgun fires hitscan pellets via `spreadInCone()` with per-pellet raycasts and distance-based damage falloff (`shotgunFalloffScale()`). It has no alt-fire (right-click is a no-op) and no blaster proc triggers (no ignite/lightning/ricochet/multishot).
+- **Weapon switching supports N weapons:** `switchWeapon(direction)` builds an ordered array of unlocked weapons and cycles with modular arithmetic. `switchToWeapon(kind)` allows direct selection via number keys (1/2/3). Both share the same animation and action-blocking path. Number keys are context-dependent: they select upgrades when the upgrade menu is showing, otherwise they switch weapons.
+- **Pump animation blocks the next shot:** After each shotgun shot, `g.state.pumpAnimTime` is set and counts down each frame. The pump mesh animates via smoothstep in `updateShotgunWeapon()`. Firing is blocked while `pumpAnimTime > 0`.
 - **Laser sight has its own temporary crit state:** the rifle laser can randomly flip into a purple guaranteed-crit window on a timer. Keep the timer/state on `g` and the visual color sync in `update.ts`; do not move that proc roll back into per-shot logic unless explicitly requested.
 - **Scoped rifle shots still use projectiles:** Even while fully scoped, rifle shots spawn the same tracer projectiles from the barrel-tip transform and are re-aimed toward the center-screen ray; do not reintroduce a separate scoped hitscan path unless explicitly requested.
 - **Scoped rifle presentation is split between aim and zoom state:** `g.rifleScopeAimT` drives weapon centering/translation, while `g.rifleScopeZoomT` drives FOV, the overlay, and the two-phase scope exit. The overlay radius in `build.ts` is derived from the projected scope opening via `getRifleScopeOpeningRadius()` rather than a fixed screen fraction.
 - **Late scope handoff is update-owned:** `updateRifleFrontScopeHandoff()` in `update.ts` shrinks, fades, and pulls back the barrel/brake/laser/bayonet package during the last part of scope-in before the rifle root hides. The corresponding base transforms live on `g`; keep that cache in sync if you rename or restructure those meshes.
 - **Sprint ramp is gameplay state:** Sprint acceleration is distance-based (`PLAYER.sprintRampDistance`) and turning lowers ramp based on `PLAYER.sprintRampResetTurnAngle`. Keep sprint interruption, ramp direction, and bayonet-charge eligibility in `update.ts` unless you are deliberately refactoring movement.
 - **Bayonet embed is cross-system but update-owned:** Non-lethal bayonet charge impacts embed the bayonet, tether the player/enemy, preserve player yaw while the camera pitch adjusts toward the embed point, and pin the enemy through `update.ts` state processing. Release paths live in `releaseBayonetEmbed()` from `game.ts`; reload, backward movement, weapon switching, enemy death, pause, and end/start lifecycle should all clear the embed consistently.
+- **Elite enemies scale with waves:** Elites start spawning at `ELITE.startWave` with increasing probability per wave (capped at `ELITE.maxChance`). They are visually larger (`scaleMultiplier`), have multiplied HP/speed/melee stats, and can fire ranged orb projectiles when outside melee range. Elite state lives on `Enemy.isElite` in `game.ts`; tuning lives in the `ELITE` constant block. Elite kills award `ELITE.killScore` (2.5x regular). Enemy orb projectiles are tracked in `g.enemyOrbs` and updated/disposed by `update.ts`.
 - **Visible intact corpses are shootable:** Dead intact ragdoll visuals should remain raycast-pickable so laser/rifle/melee impacts can still register on corpses; only the hidden physics proxy meshes should stay non-pickable.
-- **Weapon switching is animated and action-blocking:** `switchWeapon()` starts a short lower/swap/raise animation owned by `update.ts`; the actual `equipWeapon()` call happens mid-animation, and firing/reload/scope/plasma charge should stay blocked until the switch finishes.
+- **Weapon switching is animated and action-blocking:** `switchWeapon(direction)` starts a short lower/swap/raise animation owned by `update.ts`; the actual `equipWeapon()` call happens mid-animation, and firing/reload/scope/plasma charge should stay blocked until the switch finishes. `switchToWeapon(kind)` provides direct selection via number keys.
 - **Barrel-clip detection tilts the weapon and blocks shooting:** `update.ts` raycasts from the camera to the untilted rest-pose barrel tip each frame. When geometry is in the way, `g.barrelClipping` is set, the weapon tilts up (lerped via `g.barrelClipT`), the crosshair hides, and `shoot()` is gated. Melee and bayonet embed bypass the barrel-clip gate so combat still works at point blank. The laser sight follows the tilted barrel direction when clipping. Tuning lives in `PLAYER.BARREL_CLIP`.
 - **Proc mechanics are also gated:** `multishotUnlock`, `ricochetUnlock`, `lightningUnlock`, and `igniteUnlock` must be earned before their corresponding scaling upgrades matter.
 - **Laser and plasma share systems:** Both use the same ammo pool and heat system.
 - **Score rewards and upgrade-triggered drops are queued:** `incrementScore()` lives in `progression.ts` and queues score-threshold supply drops in `g.queuedSupplyDrops`. Upgrade rewards can also queue specific supply types there. `update.ts` drains that queue and calls `spawnSupply()`, which keeps `progression.ts` independent from `spawn.ts`.
-- **Special supplies are spawn-owned:** regular health/ammo pickups, rifle-ammo pickups, ammo crates, and surgery kits are all supply variants owned by `spawn.ts` and resolved by `update.ts` pickup handling. Keep special full-refill or full-heal pickup behavior centralized through the supply system rather than hardcoding those rewards directly into upgrades.
+- **Special supplies are spawn-owned:** regular health/ammo pickups, rifle-ammo pickups, shotgun-ammo pickups, ammo crates, and surgery kits are all supply variants owned by `spawn.ts` and resolved by `update.ts` pickup handling. Keep special full-refill or full-heal pickup behavior centralized through the supply system rather than hardcoding those rewards directly into upgrades.
 - **Special kill scoring is tuned in `SCORING`:** Melee kills and kills on pinned enemies use `SCORING.specialKill`; route any future special-case kill bonuses through the kill pipeline rather than sprinkling ad hoc `incrementScore()` calls around combat code.
 - **All audio is synthesized:** Web Audio oscillators and noise buffers feed through spatial panners. There are no audio files in the repo.
 
@@ -90,8 +94,8 @@ main.ts       <- Entry point: bootstrap, pointer-lock lifecycle, render loop
 - Pointer lock is part of the normal game flow. Be careful changing pause, options, or overlay button behavior because the current setup is designed to reacquire pointer lock from canvas-originated UI events.
 - `Esc` pauses the run and exits pointer lock.
 - Middle mouse is bound to melee.
-- Mouse wheel switches between blaster and rifle after the rifle is unlocked; the switch now plays a short animation and temporarily blocks weapon actions.
-- Right mouse scopes only when the rifle scope is unlocked, the rifle is active, and the player is standing still; otherwise it remains part of the blaster plasma path.
+- Mouse wheel cycles through unlocked weapons (blaster → rifle → shotgun); number keys 1/2/3 directly select each weapon when the upgrade menu is closed. The switch plays a short animation and temporarily blocks weapon actions.
+- Right mouse scopes only when the rifle scope is unlocked, the rifle is active, and the player is standing still; otherwise it remains part of the blaster plasma path. Right-click is a no-op with the shotgun equipped.
 - Options persist volume and sensitivity in `localStorage` under `fps_volume` and `fps_sensitivity`.
 - Pausing suspends audio and physics; resuming restores both.
 

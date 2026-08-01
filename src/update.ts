@@ -11,12 +11,14 @@ import {
 } from "@babylonjs/core";
 import {
   ENEMY,
+  ELITE,
   SUPPLY,
   PLAYER,
   BLASTER,
   RIFLE,
   SCORING,
   WAVE,
+  SHOTGUN,
   BULLET_HOLE,
   CAMERA,
 } from "./constants.js";
@@ -35,6 +37,7 @@ import {
 } from "./game.js";
 import {
   spawnEnemy,
+  spawnEnemyOrb,
   spawnSupply,
   spawnFireEffect,
   spawnBayonetGash,
@@ -46,6 +49,8 @@ import {
   updateAudioListener,
   playEnemyFootstep,
   playEnemyAttackSound,
+  playEnemyOrbFireSound,
+  playEnemyOrbHitSound,
   playHealthSupplySound,
   playAmmoSupplySound,
   startBayonetChargeWindSound,
@@ -119,6 +124,7 @@ export function update(): void {
   updateRifleScope(dt);
   updatePlayer(dt);
   updateEnemies();
+  updateEnemyOrbs(dt);
   updateBayonetCharge(dt);
   updateEmbeddedBayonet(dt);
   updateWeapon(dt);
@@ -457,11 +463,18 @@ function updateTimers(dt: number): void {
     !(g.state.activeWeapon === "rifle" && rifleBloomRecoilHoldActive)
   ) {
     const spreadDecay =
-      g.state.activeWeapon === "rifle" ? RIFLE.SPREAD.decay : SPREAD.decay;
+      g.state.activeWeapon === "shotgun"
+        ? SHOTGUN.SPREAD.decay
+        : g.state.activeWeapon === "rifle"
+          ? RIFLE.SPREAD.decay
+          : SPREAD.decay;
     g.shootSpread = Math.max(0, g.shootSpread - (spreadDecay * dt) / 1000);
   }
   if (!g.mouseHeld && g.state.shootCooldown > 0) {
     g.state.shootCooldown -= dt;
+  }
+  if (g.state.pumpAnimTime > 0) {
+    g.state.pumpAnimTime = Math.max(0, g.state.pumpAnimTime - dt);
   }
   if (g.rifleBloomRecoilHoldTimer > 0) {
     g.rifleBloomRecoilHoldTimer = Math.max(0, g.rifleBloomRecoilHoldTimer - dt);
@@ -603,10 +616,13 @@ function updateTimers(dt: number): void {
       const blasterMaxMag = effectiveBlasterMagSize();
       const blasterMaxReserve = LASER.maxReserveMags * blasterMaxMag;
       const activeMaxReserve =
-        (g.state.activeWeapon === "rifle"
-          ? RIFLE.maxReserveMags
-          : LASER.maxReserveMags) * effectiveMagSize();
+        (g.state.activeWeapon === "shotgun"
+          ? SHOTGUN.maxReserveMags
+          : g.state.activeWeapon === "rifle"
+            ? RIFLE.maxReserveMags
+            : LASER.maxReserveMags) * effectiveMagSize();
       const rifleMaxReserve = RIFLE.maxReserveMags * RIFLE.magSize;
+      const shotgunMaxReserve = SHOTGUN.maxReserveMags * SHOTGUN.magSize;
       if (
         (p.type === "health" || p.type === "surgeryKit") &&
         g.state.health >= effectiveMaxHealth()
@@ -617,10 +633,17 @@ function updateTimers(dt: number): void {
         g.weaponAmmo.blaster.ammo >= blasterMaxMag &&
         g.weaponAmmo.blaster.reserve >= blasterMaxReserve &&
         g.weaponAmmo.rifle.ammo >= RIFLE.magSize &&
-        g.weaponAmmo.rifle.reserve >= rifleMaxReserve
+        g.weaponAmmo.rifle.reserve >= rifleMaxReserve &&
+        g.weaponAmmo.shotgun.ammo >= SHOTGUN.magSize &&
+        g.weaponAmmo.shotgun.reserve >= shotgunMaxReserve
       ) {
         continue;
       }
+      if (
+        p.type === "shotgunAmmo" &&
+        g.weaponAmmo.shotgun.reserve >= shotgunMaxReserve
+      )
+        continue;
       if (p.type === "ammo" && g.state.reserve >= activeMaxReserve) continue;
       if (
         p.type === "rifleAmmo" &&
@@ -639,6 +662,8 @@ function updateTimers(dt: number): void {
         g.weaponAmmo.blaster.reserve = blasterMaxReserve;
         g.weaponAmmo.rifle.ammo = RIFLE.magSize;
         g.weaponAmmo.rifle.reserve = rifleMaxReserve;
+        g.weaponAmmo.shotgun.ammo = SHOTGUN.magSize;
+        g.weaponAmmo.shotgun.reserve = shotgunMaxReserve;
         g.state.ammo = g.weaponAmmo[g.state.activeWeapon].ammo;
         g.state.reserve = g.weaponAmmo[g.state.activeWeapon].reserve;
         g.state.reloading = false;
@@ -652,6 +677,14 @@ function updateTimers(dt: number): void {
         );
         if (g.state.activeWeapon === "rifle") {
           g.state.reserve = g.weaponAmmo.rifle.reserve;
+        }
+      } else if (p.type === "shotgunAmmo") {
+        g.weaponAmmo.shotgun.reserve = Math.min(
+          shotgunMaxReserve,
+          g.weaponAmmo.shotgun.reserve + SHOTGUN.magSize,
+        );
+        if (g.state.activeWeapon === "shotgun") {
+          g.state.reserve = g.weaponAmmo.shotgun.reserve;
         }
       } else {
         g.state.reserve = Math.min(
@@ -1745,7 +1778,7 @@ function updateWeaponSwitchAnimation(dt: number): void {
     updateHUD();
   }
 
-  const switchDir = target === "rifle" ? 1 : -1;
+  const switchDir = target === "blaster" ? -1 : 1;
   // Lower and cant the current weapon out, swap at the hidden midpoint, then
   // reverse the same motion so switching feels like a single continuous beat.
   const phaseT =
@@ -1763,7 +1796,7 @@ function updateWeaponSwitchAnimation(dt: number): void {
   g.weaponCell.isVisible = true;
   if (g.state.activeWeapon === "rifle") {
     g.weaponCell.position.copyFrom(new Vector3(0, -0.11, 0.13));
-  } else {
+  } else if (g.state.activeWeapon !== "shotgun") {
     g.weaponCell.position.y = 0.09;
   }
 
@@ -1812,6 +1845,11 @@ function updateWeapon(dt: number): void {
 
   if (g.state.activeWeapon === "rifle") {
     updateRifleWeapon();
+    return;
+  }
+
+  if (g.state.activeWeapon === "shotgun") {
+    updateShotgunWeapon();
     return;
   }
 
@@ -1887,6 +1925,65 @@ function updateRifleBayonetChargeWeapon(): void {
   g.weaponRoot.rotation.y = 0;
   g.weaponRoot.rotation.z = -0.04 * Math.sin(embedT * Math.PI);
   g.weaponCell.position.copyFrom(new Vector3(0, -0.11, 0.13));
+}
+
+function updateShotgunWeapon(): void {
+  // Melee (butt-strike)
+  if (g.state.meleeAnimTime > 0) {
+    const t = 1 - g.state.meleeAnimTime / SHOTGUN.MELEE.animDurationMs;
+    const swing = t < 0.4 ? t / 0.4 : 1 - (t - 0.4) / 0.6;
+    g.weaponRoot.rotation.x = -0.7 * swing;
+    g.weaponRoot.rotation.z = 0.25 * swing;
+    g.weaponCell.isVisible = true;
+    return;
+  }
+
+  // Pump animation
+  if (g.state.pumpAnimTime > 0 && !g.state.reloading) {
+    const progress = 1 - g.state.pumpAnimTime / SHOTGUN.PUMP_ANIM.durationMs;
+    const pumpT =
+      progress < 0.5
+        ? smoothstep(progress / 0.5)
+        : smoothstep(1 - (progress - 0.5) / 0.5);
+    g.shotgunPump.position.z =
+      g.shotgunPumpBasePosition.z + SHOTGUN.PUMP_ANIM.pullBackZ * pumpT;
+    g.weaponRoot.position.z = g.weaponRestPosition.z - 0.02 * pumpT;
+    g.weaponRoot.rotation.x = -g.recoilPitch - 0.03 * pumpT;
+    g.weaponRoot.rotation.z = g.recoilRoll;
+    return;
+  }
+
+  g.shotgunPump.position.z = g.shotgunPumpBasePosition.z;
+
+  // Reload animation
+  if (g.state.reloading) {
+    const progress = 1 - g.state.reloadTimeLeft / effectiveReloadTime();
+    const anim = SHOTGUN.RELOAD_ANIM;
+    let tilt = 0;
+    let yaw = 0;
+    if (progress < 0.2) {
+      tilt = anim.tilt * smoothstep(progress / 0.2);
+      yaw = anim.yaw * smoothstep(progress / 0.2);
+    } else if (progress < 0.8) {
+      tilt = anim.tilt;
+      yaw = anim.yaw;
+    } else {
+      const t = smoothstep(1 - (progress - 0.8) / 0.2);
+      tilt = anim.tilt * t;
+      yaw = anim.yaw * t;
+    }
+    g.weaponRoot.rotation.x = tilt - g.recoilPitch;
+    g.weaponRoot.rotation.y = yaw;
+    g.weaponRoot.rotation.z = g.recoilRoll;
+    g.weaponCell.isVisible = progress < 0.35 || progress > 0.65;
+    return;
+  }
+
+  // Idle
+  g.weaponRoot.rotation.x = -g.recoilPitch;
+  g.weaponRoot.rotation.y = 0;
+  g.weaponRoot.rotation.z = g.recoilRoll;
+  g.weaponCell.isVisible = true;
 }
 
 function updateRifleWeapon(): void {
@@ -2131,6 +2228,23 @@ function updateEnemies(): void {
       }
     }
 
+    // Elite ranged attack — fire orb when in range but outside melee
+    if (e.isElite && e.state === "chase") {
+      e.orbCooldown = Math.max(0, e.orbCooldown - g.engine.getDeltaTime());
+      if (
+        e.orbCooldown <= 0 &&
+        dist >= ELITE.orbMinRange &&
+        dist <= ELITE.orbMaxRange
+      ) {
+        const orbDir = toPlayer.normalizeToNew();
+        const orbSpawnPos = pos.add(orbDir.scale(1.0));
+        orbSpawnPos.y += 0.5;
+        spawnEnemyOrb(orbSpawnPos, orbDir);
+        playEnemyOrbFireSound(pos.clone());
+        e.orbCooldown = ELITE.orbCooldownMs;
+      }
+    }
+
     // Walk animation — phase advances proportional to actual speed
     const actualSpeed = e.state === "chase" ? e.speed : e.speed * 0.5;
     const strideRate = actualSpeed * 1.8; // radians per second (scaled for leg length)
@@ -2164,6 +2278,53 @@ function updateEnemies(): void {
     } else if (prevSin <= 0 && currSin > 0) {
       playEnemyFootstep(pos.clone());
       e.lastFootLeft = false;
+    }
+  }
+}
+
+function updateEnemyOrbs(dt: number): void {
+  const dtSec = dt / 1000;
+  const playerPos = g.camera.position;
+
+  for (let i = g.enemyOrbs.length - 1; i >= 0; i--) {
+    const orb = g.enemyOrbs[i];
+    orb.age += dt;
+
+    const step = orb.velocity.scale(dtSec);
+    orb.mesh.position.addInPlace(step);
+
+    const dist = Vector3.Distance(orb.mesh.position, playerPos);
+    if (dist < ELITE.orbRadius + 0.5) {
+      damagePlayer(orb.damage);
+      playEnemyOrbHitSound(orb.mesh.position.clone());
+      orb.mesh.dispose();
+      g.enemyOrbs.splice(i, 1);
+      continue;
+    }
+
+    const dir = orb.velocity.normalizeToNew();
+    const ray = new Ray(
+      orb.mesh.position,
+      dir,
+      step.length() + ELITE.orbRadius,
+    );
+    const hit = g.scene.pickWithRay(
+      ray,
+      (m) =>
+        !m.name.startsWith("enemyOrb") &&
+        !m.name.startsWith("enemy") &&
+        !m.name.startsWith("hpBar") &&
+        m !== g.playerMesh,
+    );
+    if (hit?.hit && hit.distance < step.length() + ELITE.orbRadius) {
+      orb.mesh.dispose();
+      g.enemyOrbs.splice(i, 1);
+      continue;
+    }
+
+    if (orb.age >= ELITE.orbLifetimeMs) {
+      orb.mesh.dispose();
+      g.enemyOrbs.splice(i, 1);
     }
   }
 }
@@ -2210,6 +2371,9 @@ function updateWaves(dt: number): void {
 
   // All enemies spawned and killed — wave complete
   if (g.state.waveEnemiesLeft <= 0 && g.enemies.length === 0) {
+    for (const orb of g.enemyOrbs) orb.mesh.dispose();
+    g.enemyOrbs = [];
+
     g.state.waveActive = false;
     g.state.wavePauseTimer = WAVE.pauseMs;
     showWaveBanner(`Wave ${g.state.wave} Complete`);
@@ -2223,6 +2387,9 @@ function updateWaves(dt: number): void {
     spawnSupply(frontPos.add(right.scale(0.7)), "ammo");
     if (g.upgrades.rifleUnlock) {
       spawnSupply(frontPos.add(right.scale(-0.7)), "rifleAmmo");
+    }
+    if (g.upgrades.shotgunUnlock) {
+      spawnSupply(frontPos.add(right.scale(-1.4)), "shotgunAmmo");
     }
     incrementScore(SCORING.waveComplete, frontPos);
     showUpgradeMenu();

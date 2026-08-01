@@ -1,5 +1,13 @@
 import { Vector3 } from "@babylonjs/core";
-import { PLAYER, BLASTER, RIFLE, SUPPLY, CRIT, UPGRADE } from "./constants.js";
+import {
+  PLAYER,
+  BLASTER,
+  RIFLE,
+  SHOTGUN,
+  SUPPLY,
+  CRIT,
+  UPGRADE,
+} from "./constants.js";
 const { LASER, SPREAD, HEAT, PLASMA, MULTISHOT, RICOCHET, LIGHTNING, IGNITE } =
   BLASTER;
 import { g, dom, equipWeapon } from "./game.js";
@@ -22,16 +30,24 @@ export function effectiveHealthRegenPerTick(): number {
 }
 export function effectiveReloadTime(): number {
   const baseReloadTime =
-    g.state.activeWeapon === "rifle" ? RIFLE.reloadTime : LASER.reloadTime;
+    g.state.activeWeapon === "shotgun"
+      ? SHOTGUN.reloadTime
+      : g.state.activeWeapon === "rifle"
+        ? RIFLE.reloadTime
+        : LASER.reloadTime;
   return (
     baseReloadTime * Math.pow(1 - UPGRADE.reloadSpeed, g.upgrades.reloadTime)
   );
 }
 export function effectiveMagSize(): number {
+  if (g.state.activeWeapon === "shotgun") return SHOTGUN.magSize;
   if (g.state.activeWeapon === "rifle") return RIFLE.magSize;
   return effectiveBlasterMagSize();
 }
 export function effectiveCooldown(): number {
+  if (g.state.activeWeapon === "shotgun") {
+    return 60000 / SHOTGUN.rateOfFire;
+  }
   if (g.state.activeWeapon === "rifle") {
     const rateOfFire =
       g.rifleScoped && g.upgrades.rifleScope
@@ -54,6 +70,7 @@ export function effectiveHeatDecay(): number {
   return HEAT.decay * (1 + g.upgrades.heatDecay * UPGRADE.heatDecay);
 }
 export function effectiveBloom(): number {
+  if (g.state.activeWeapon === "shotgun") return SHOTGUN.SPREAD.perShot;
   if (g.state.activeWeapon === "rifle") return RIFLE.SPREAD.perShot;
   return (
     SPREAD.perShot * Math.pow(1 - UPGRADE.bloomReduction, g.upgrades.bloom)
@@ -65,11 +82,36 @@ export function effectiveRifleSpreadScale(): number {
     : 1;
 }
 export function effectiveMoveSpreadRate(): number {
+  if (g.state.activeWeapon === "shotgun") return SHOTGUN.SPREAD.moveRate;
   if (g.state.activeWeapon === "rifle") return RIFLE.SPREAD.moveRate;
   return (
     SPREAD.moveRate *
     Math.pow(1 - UPGRADE.moveSpreadReduction, g.upgrades.moveSpread)
   );
+}
+export function effectiveShotgunDamage(): number {
+  return SHOTGUN.damage + g.upgrades.shotgunDamage * UPGRADE.shotgunDamage;
+}
+export function effectiveShotgunPelletCount(): number {
+  return (
+    SHOTGUN.pelletCount +
+    g.upgrades.shotgunWideSpread * UPGRADE.shotgunExtraPellets
+  );
+}
+export function effectiveShotgunSpread(): number {
+  return (
+    SHOTGUN.spread + g.upgrades.shotgunWideSpread * UPGRADE.shotgunWideSpread
+  );
+}
+export function shotgunFalloffScale(distance: number): number {
+  if (distance <= SHOTGUN.FALLOFF.startRange) return 1;
+  if (distance >= SHOTGUN.range) return 0;
+  if (distance >= SHOTGUN.FALLOFF.endRange)
+    return SHOTGUN.FALLOFF.minDamageScale;
+  const t =
+    (distance - SHOTGUN.FALLOFF.startRange) /
+    (SHOTGUN.FALLOFF.endRange - SHOTGUN.FALLOFF.startRange);
+  return 1 - t * (1 - SHOTGUN.FALLOFF.minDamageScale);
 }
 export function effectiveLaserDamage(): number {
   return LASER.damage + g.upgrades.laserDamage * UPGRADE.laserDamage;
@@ -186,7 +228,11 @@ export function updateHUD(): void {
   dom.healthText.textContent = `${Math.ceil(g.state.health)} / ${maxHp}`;
   updateStaminaHUD();
   dom.weaponEl.textContent =
-    g.state.activeWeapon === "rifle" ? "RIFLE" : "BLASTER";
+    g.state.activeWeapon === "shotgun"
+      ? "SHOTGUN"
+      : g.state.activeWeapon === "rifle"
+        ? "RIFLE"
+        : "BLASTER";
   dom.ammoEl.textContent = `${g.state.ammo} / ${g.state.reserve}`;
   dom.scoreEl.textContent = String(g.state.score);
   dom.killsEl.textContent = String(g.state.kills);
@@ -227,7 +273,7 @@ interface UpgradeDef {
 
 function preferredWeaponForUpgrade(
   key: keyof typeof g.upgrades,
-): "blaster" | "rifle" | null {
+): "blaster" | "rifle" | "shotgun" | null {
   if (
     key === "rifleUnlock" ||
     key === "muzzleBrake" ||
@@ -236,6 +282,14 @@ function preferredWeaponForUpgrade(
     key === "bayonet"
   ) {
     return "rifle";
+  }
+
+  if (
+    key === "shotgunUnlock" ||
+    key === "shotgunDamage" ||
+    key === "shotgunWideSpread"
+  ) {
+    return "shotgun";
   }
 
   if (
@@ -510,6 +564,26 @@ const UPGRADE_DEFS: UpgradeDef[] = [
     oneTime: true,
     requires: "muzzleBrake",
     onApply: syncWeaponUpgradeVisuals,
+  },
+  {
+    key: "shotgunUnlock",
+    label: "Shotgun",
+    weight: 1000,
+    instruction: "Scroll or press 3 to switch to the pump-action shotgun",
+    oneTime: true,
+  },
+  {
+    key: "shotgunDamage",
+    label: `+${UPGRADE.shotgunDamage} Buckshot Damage`,
+    weight: 3,
+    requires: "shotgunUnlock",
+  },
+  {
+    key: "shotgunWideSpread",
+    label: "Extra Pellets",
+    weight: 3,
+    instruction: `+${UPGRADE.shotgunExtraPellets} pellets, wider cone`,
+    requires: "shotgunUnlock",
   },
 ];
 

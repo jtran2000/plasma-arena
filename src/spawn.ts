@@ -32,6 +32,7 @@ import {
   BLASTER,
   SCORING,
   ENEMY,
+  ELITE,
   BULLET_HOLE,
   ENEMY_HEALTH_BAR,
   RIFLE,
@@ -336,6 +337,49 @@ const RIFLE_WEAPON = {
   barrelTipPos: new Vector3(0, 0.015, 0.93),
 };
 
+const SHOTGUN_WEAPON = {
+  rootPos: new Vector3(0.22, -0.2, 0.48),
+  body: {
+    size: { width: 0.1, height: 0.09, depth: 0.36 } as const,
+    pos: new Vector3(0, 0, 0.02),
+    diffuse: new Color3(0.14, 0.14, 0.16),
+    specular: new Color3(0.2, 0.2, 0.25),
+    emissive: new Color3(0.02, 0.02, 0.02),
+  },
+  barrel: {
+    size: { diameter: 0.036, height: 0.52, tessellation: 12 } as const,
+    pos: new Vector3(0, 0.015, 0.44),
+    rotX: Math.PI / 2,
+    diffuse: new Color3(0.15, 0.15, 0.18),
+    specular: new Color3(0.7, 0.7, 0.75),
+  },
+  stock: {
+    size: { width: 0.06, height: 0.08, depth: 0.2 } as const,
+    pos: new Vector3(0, -0.005, -0.16),
+    diffuse: new Color3(0.35, 0.22, 0.1),
+    emissive: new Color3(0.06, 0.03, 0.01),
+  },
+  grip: {
+    size: { width: 0.05, height: 0.13, depth: 0.04 } as const,
+    pos: new Vector3(0, -0.1, 0.02),
+    diffuse: new Color3(0.08, 0.08, 0.09),
+  },
+  pump: {
+    size: { width: 0.065, height: 0.055, depth: 0.1 } as const,
+    pos: new Vector3(0, -0.025, 0.38),
+    diffuse: new Color3(0.3, 0.2, 0.1),
+    emissive: new Color3(0.04, 0.02, 0.005),
+  },
+  tubeMag: {
+    size: { diameter: 0.024, height: 0.36, tessellation: 10 } as const,
+    pos: new Vector3(0, -0.025, 0.42),
+    rotX: Math.PI / 2,
+    diffuse: new Color3(0.14, 0.14, 0.16),
+    emissive: new Color3(0.01, 0.01, 0.01),
+  },
+  barrelTipPos: new Vector3(0, 0.015, 0.72),
+};
+
 export function getRifleScopeOpeningRadius(): number {
   return (
     (RIFLE_WEAPON.scope.frontRim.size.diameter -
@@ -349,6 +393,11 @@ const ENEMY_BASE_COLOR = new Color3(0.46, 0.48, 0.34);
 const ENEMY_MOTTLE_GREEN = "#667357";
 const ENEMY_MOTTLE_BROWN = "#5f5441";
 const ENEMY_MOTTLE_DARK = "#4a4637";
+
+const ELITE_BASE_COLOR = new Color3(0.52, 0.5, 0.46);
+const ELITE_MOTTLE_ORANGE = "#b87333";
+const ELITE_MOTTLE_GREY = "#6b6b6b";
+const ELITE_MOTTLE_DARK = "#4a4a4a";
 
 const ENEMY_MESH = {
   capsule: { height: 2.5, radius: 0.6 } as const,
@@ -1408,6 +1457,164 @@ export function setupRifleParts(root: Mesh): {
   };
 }
 
+// ─── Shotgun meshes/materials (private) ──────────────────────────────────────
+function makeShotgunBodyMat(): StandardMaterial {
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("sgBodyMat", g.scene),
+    WEAPON_EFFECT_EXTRA_LIGHTS,
+  );
+  mat.diffuseColor = SHOTGUN_WEAPON.body.diffuse;
+  mat.specularColor = SHOTGUN_WEAPON.body.specular;
+  mat.emissiveColor = SHOTGUN_WEAPON.body.emissive;
+  return mat;
+}
+function makeShotgunBarrelMat(): StandardMaterial {
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("sgBarrelMat", g.scene),
+    WEAPON_EFFECT_EXTRA_LIGHTS,
+  );
+  mat.diffuseColor = SHOTGUN_WEAPON.barrel.diffuse;
+  mat.specularColor = SHOTGUN_WEAPON.barrel.specular;
+  return mat;
+}
+function makeShotgunStockMat(): StandardMaterial {
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("sgStockMat", g.scene),
+    WEAPON_EFFECT_EXTRA_LIGHTS,
+  );
+  mat.diffuseColor = SHOTGUN_WEAPON.stock.diffuse;
+  mat.emissiveColor = SHOTGUN_WEAPON.stock.emissive;
+  return mat;
+}
+function makeShotgunGripMat(): StandardMaterial {
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("sgGripMat", g.scene),
+    WEAPON_EFFECT_EXTRA_LIGHTS,
+  );
+  mat.diffuseColor = SHOTGUN_WEAPON.grip.diffuse;
+  return mat;
+}
+function makeShotgunPumpMat(): StandardMaterial {
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("sgPumpMat", g.scene),
+    WEAPON_EFFECT_EXTRA_LIGHTS,
+  );
+  mat.diffuseColor = SHOTGUN_WEAPON.pump.diffuse;
+  mat.emissiveColor = SHOTGUN_WEAPON.pump.emissive;
+  return mat;
+}
+function makeShotgunTubeMagMat(): StandardMaterial {
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("sgTubeMagMat", g.scene),
+    WEAPON_EFFECT_EXTRA_LIGHTS,
+  );
+  mat.diffuseColor = SHOTGUN_WEAPON.tubeMag.diffuse;
+  mat.emissiveColor = SHOTGUN_WEAPON.tubeMag.emissive;
+  return mat;
+}
+
+export function setupShotgunRoot(): Mesh {
+  const root = new Mesh("shotgunRoot", g.scene);
+  root.parent = g.camera;
+  root.position = SHOTGUN_WEAPON.rootPos.clone();
+  root.isPickable = false;
+  return root;
+}
+
+export function setupShotgunParts(root: Mesh): {
+  barrel: Mesh;
+  barrelTip: Mesh;
+  pump: Mesh;
+  mag: Mesh;
+} {
+  function wp(
+    mesh: Mesh,
+    mat: StandardMaterial,
+    localPos: Vector3,
+    localRotX = 0,
+  ): Mesh {
+    mesh.parent = root;
+    mesh.position = localPos;
+    mesh.rotation.x = localRotX;
+    mesh.material = mat;
+    mesh.isPickable = false;
+    mesh.renderingGroupId = 1;
+    return mesh;
+  }
+
+  wp(
+    MeshBuilder.CreateBox("sgBody", SHOTGUN_WEAPON.body.size, g.scene),
+    makeShotgunBodyMat(),
+    SHOTGUN_WEAPON.body.pos.clone(),
+  );
+  const barrel = wp(
+    MeshBuilder.CreateCylinder("sgBarrel", SHOTGUN_WEAPON.barrel.size, g.scene),
+    makeShotgunBarrelMat(),
+    SHOTGUN_WEAPON.barrel.pos.clone(),
+    SHOTGUN_WEAPON.barrel.rotX,
+  );
+  wp(
+    MeshBuilder.CreateBox("sgStock", SHOTGUN_WEAPON.stock.size, g.scene),
+    makeShotgunStockMat(),
+    SHOTGUN_WEAPON.stock.pos.clone(),
+  );
+  wp(
+    MeshBuilder.CreateBox("sgGrip", SHOTGUN_WEAPON.grip.size, g.scene),
+    makeShotgunGripMat(),
+    SHOTGUN_WEAPON.grip.pos.clone(),
+  );
+  const pump = wp(
+    MeshBuilder.CreateBox("sgPump", SHOTGUN_WEAPON.pump.size, g.scene),
+    makeShotgunPumpMat(),
+    SHOTGUN_WEAPON.pump.pos.clone(),
+  );
+  const mag = wp(
+    MeshBuilder.CreateCylinder(
+      "sgTubeMag",
+      SHOTGUN_WEAPON.tubeMag.size,
+      g.scene,
+    ),
+    makeShotgunTubeMagMat(),
+    SHOTGUN_WEAPON.tubeMag.pos.clone(),
+    SHOTGUN_WEAPON.tubeMag.rotX,
+  );
+
+  const barrelTip = new Mesh("sgBarrelTip", g.scene);
+  barrelTip.parent = root;
+  barrelTip.position = SHOTGUN_WEAPON.barrelTipPos.clone();
+  barrelTip.isVisible = false;
+  barrelTip.isPickable = false;
+
+  return { barrel, barrelTip, pump, mag };
+}
+
+export function makeShotgunAmmoSupply(position: Vector3): {
+  mesh: Mesh;
+  aggregate: PhysicsAggregate;
+} {
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("sgAmmoSupplyMat", g.scene),
+  );
+  mat.diffuseColor = new Color3(0.6, 0.35, 0.1);
+  mat.emissiveColor = new Color3(0.15, 0.08, 0.02);
+  const mesh = MeshBuilder.CreateBox(
+    "sgAmmoSupply",
+    { width: 0.22, height: 0.12, depth: 0.16 },
+    g.scene,
+  );
+  mesh.position = position.clone();
+  mesh.position.y = Math.max(mesh.position.y, 0.3);
+  mesh.material = mat;
+  mesh.isPickable = false;
+  const aggregate = new PhysicsAggregate(
+    mesh,
+    PhysicsShapeType.BOX,
+    { mass: 1, friction: 0.8, restitution: 0.2 },
+    g.scene,
+  );
+  return { mesh, aggregate };
+}
+
 // ─── Player mesh (exported) ───────────────────────────────────────────────────
 export function makePlayerMesh(): { mesh: Mesh; aggregate: PhysicsAggregate } {
   const mesh = MeshBuilder.CreateCapsule(
@@ -1478,6 +1685,57 @@ export function makeEnemyMats(): {
   const headMat = bodyMat.clone("emat_head") as StandardMaterial;
   headMat.diffuseTexture = null;
   headMat.diffuseColor = new Color3(0.5, 0.51, 0.37);
+  headMat.emissiveColor = headMat.diffuseColor.scale(0.22);
+  return { bodyMat, headMat };
+}
+
+function makeEliteEnemyMat(): StandardMaterial {
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("eliteMat", g.scene),
+  );
+  mat.diffuseColor = ELITE_BASE_COLOR.clone();
+  mat.emissiveColor = mat.diffuseColor.scale(0.2);
+  mat.specularColor = new Color3(0.12, 0.1, 0.08);
+  const tex = new DynamicTexture("eliteMottleTex", 128, g.scene, false);
+  const ctx = tex.getContext();
+  const canvasCtx = ctx as unknown as CanvasRenderingContext2D;
+  ctx.fillStyle = "#707070";
+  ctx.fillRect(0, 0, 128, 128);
+  for (let i = 0; i < 48; i++) {
+    const size = 8 + Math.random() * 22;
+    ctx.fillStyle =
+      i % 3 === 0
+        ? ELITE_MOTTLE_DARK
+        : i % 2 === 0
+          ? ELITE_MOTTLE_GREY
+          : ELITE_MOTTLE_ORANGE;
+    ctx.globalAlpha = 0.3 + Math.random() * 0.3;
+    ctx.beginPath();
+    canvasCtx.ellipse(
+      Math.random() * 128,
+      Math.random() * 128,
+      size,
+      size * (0.55 + Math.random() * 0.65),
+      Math.random() * Math.PI,
+      0,
+      Math.PI * 2,
+    );
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  tex.update(false);
+  mat.diffuseTexture = tex;
+  return mat;
+}
+
+function makeEliteEnemyMats(): {
+  bodyMat: StandardMaterial;
+  headMat: StandardMaterial;
+} {
+  const bodyMat = makeEliteEnemyMat();
+  const headMat = bodyMat.clone("eliteMat_head") as StandardMaterial;
+  headMat.diffuseTexture = null;
+  headMat.diffuseColor = new Color3(0.55, 0.5, 0.42);
   headMat.emissiveColor = headMat.diffuseColor.scale(0.22);
   return { bodyMat, headMat };
 }
@@ -2201,6 +2459,59 @@ export function spawnRifleMuzzleFlash(isCrit: boolean): void {
   });
 }
 
+export function spawnShotgunMuzzleFlash(isCrit: boolean): void {
+  const flashColor = isCrit
+    ? new Color3(0.7, 0.2, 1)
+    : new Color3(1, 0.65, 0.1);
+  const flashEmissive = isCrit
+    ? new Color3(0.6, 0.1, 0.95)
+    : new Color3(1, 0.5, 0.05);
+
+  const flash = MeshBuilder.CreateSphere(
+    "sgMuzzleFlash",
+    { diameter: 0.4, segments: 6 },
+    g.scene,
+  );
+  const mat = applyMaterialLightBudget(
+    new StandardMaterial("sgMuzzleFlashMat", g.scene),
+    WEAPON_EFFECT_EXTRA_LIGHTS,
+  );
+  mat.diffuseColor = flashColor;
+  mat.emissiveColor = flashEmissive;
+  mat.alpha = 0.95;
+  flash.material = mat;
+  flash.parent = g.shotgunBarrelTip;
+  flash.position = Vector3.Zero();
+  flash.isPickable = false;
+  flash.renderingGroupId = 1;
+
+  const flashLight = new PointLight(
+    "sgMuzzleFlashLight",
+    Vector3.Zero(),
+    g.scene,
+  );
+  flashLight.parent = g.shotgunBarrelTip;
+  flashLight.position = Vector3.Zero();
+  flashLight.diffuse = flashEmissive.clone();
+  flashLight.specular = flashEmissive.clone();
+  flashLight.intensity = 3;
+  flashLight.range = 5;
+
+  const start = performance.now();
+  const obs = g.scene.onBeforeRenderObservable.add(() => {
+    const t = Math.min((performance.now() - start) / 70, 1);
+    flash.scaling.setAll(1.8 + t * 2.5);
+    mat.alpha = 0.95 * (1 - t);
+    flashLight.intensity = 3 * (1 - t);
+    if (t >= 1) {
+      g.scene.onBeforeRenderObservable.remove(obs);
+      flash.dispose();
+      flashLight.dispose();
+      mat.dispose();
+    }
+  });
+}
+
 // ─── Spawn functions (moved from update.ts) ─────────────────────────────────
 
 export function spawnEnemy(): void {
@@ -2214,16 +2525,24 @@ export function spawnEnemy(): void {
     ENEMY.minSpawnDist ** 2
   );
 
+  const eliteChance = Math.min(
+    ELITE.chance + ELITE.chancePerWave * (g.state.wave - ELITE.startWave),
+    ELITE.maxChance,
+  );
+  const isElite =
+    g.state.wave >= ELITE.startWave && Math.random() < eliteChance;
+
   const { mesh: physMesh, aggregate } = makeEnemyPhysCapsule(
     new Vector3(x, ARENA.ceil - 0.5, z),
   );
 
-  const { bodyMat, headMat } = makeEnemyMats();
+  const { bodyMat, headMat } = isElite ? makeEliteEnemyMats() : makeEnemyMats();
 
   const visualRoot = new Mesh("enemyVisual", g.scene);
   visualRoot.parent = physMesh;
   visualRoot.isVisible = false;
   visualRoot.isPickable = false;
+  if (isElite) visualRoot.scaling.setAll(ELITE.scaleMultiplier);
 
   const bodyMesh = makeEnemyBodyMesh();
   bodyMesh.parent = visualRoot;
@@ -2270,18 +2589,34 @@ export function spawnEnemy(): void {
     leftArm,
     rightArm,
     aggregate,
-    hp: ENEMY.hp + ENEMY.hpPerWave * (g.state.wave - 1),
-    maxHp: ENEMY.hp + ENEMY.hpPerWave * (g.state.wave - 1),
-    speed: ENEMY.speed + ENEMY.speedPerWave * (g.state.wave - 1),
+    hp: (() => {
+      const base = ENEMY.hp + ENEMY.hpPerWave * (g.state.wave - 1);
+      return isElite ? Math.round(base * ELITE.hpMultiplier) : base;
+    })(),
+    maxHp: (() => {
+      const base = ENEMY.hp + ENEMY.hpPerWave * (g.state.wave - 1);
+      return isElite ? Math.round(base * ELITE.hpMultiplier) : base;
+    })(),
+    speed: (() => {
+      const base = ENEMY.speed + ENEMY.speedPerWave * (g.state.wave - 1);
+      return isElite ? base * ELITE.speedMultiplier : base;
+    })(),
     state: "patrol",
     patrolTarget: physMesh.position.clone(),
     attackCooldown: 0,
-    meleeDamage:
-      ENEMY.meleeDamage + ENEMY.meleeDamagePerWave * (g.state.wave - 1),
-    meleeIntervalMs:
-      60000 /
-      (ENEMY.meleeAttacksPerMin +
-        ENEMY.meleeAttacksPerMinPerWave * (g.state.wave - 1)),
+    meleeDamage: (() => {
+      const base =
+        ENEMY.meleeDamage + ENEMY.meleeDamagePerWave * (g.state.wave - 1);
+      return isElite ? Math.round(base * ELITE.meleeDamageMultiplier) : base;
+    })(),
+    meleeIntervalMs: (() => {
+      const baseRate =
+        ENEMY.meleeAttacksPerMin +
+        ENEMY.meleeAttacksPerMinPerWave * (g.state.wave - 1);
+      return (
+        60000 / (isElite ? baseRate * ELITE.meleeRateMultiplier : baseRate)
+      );
+    })(),
     zigzagTimer: Math.random() * Math.PI * 2,
     flashTime: 0,
     flashMesh: null,
@@ -2298,6 +2633,8 @@ export function spawnEnemy(): void {
     fireAudioGain: null,
     fireSpreadTimer: 0,
     fireDmgAccum: 0,
+    isElite,
+    orbCooldown: 0,
     healthBarPlane: null,
     healthBarTexture: null,
     healthBarFill: null,
@@ -2309,7 +2646,13 @@ export function spawnEnemy(): void {
 
 export function spawnSupply(
   position: Vector3,
-  forceType?: "health" | "ammo" | "rifleAmmo" | "ammoCrate" | "surgeryKit",
+  forceType?:
+    | "health"
+    | "ammo"
+    | "rifleAmmo"
+    | "shotgunAmmo"
+    | "ammoCrate"
+    | "surgeryKit",
 ): void {
   let type = forceType ?? (Math.random() < 0.5 ? "health" : "ammo");
   if (
@@ -2338,7 +2681,9 @@ export function spawnSupply(
           ? makeAmmoCrateSupply(position)
           : type === "rifleAmmo"
             ? makeRifleAmmoSupply(position)
-            : makeAmmoSupply(position);
+            : type === "shotgunAmmo"
+              ? makeShotgunAmmoSupply(position)
+              : makeAmmoSupply(position);
   g.supplies.push({ mesh, aggregate, type });
 }
 
@@ -2411,6 +2756,27 @@ export function spawnPlasmaWithVelocity(
     isCrit,
     hasGravity,
     ricochetDepth,
+  });
+}
+
+export function spawnEnemyOrb(pos: Vector3, direction: Vector3): void {
+  const mat = applyMaterialLightBudget(new StandardMaterial("orbMat", g.scene));
+  mat.diffuseColor = new Color3(1, 0.15, 0.05);
+  mat.emissiveColor = new Color3(0.9, 0.1, 0.0);
+  mat.disableLighting = true;
+  const mesh = MeshBuilder.CreateSphere(
+    "enemyOrb",
+    { diameter: ELITE.orbRadius * 2, segments: 8 },
+    g.scene,
+  );
+  mesh.material = mat;
+  mesh.position = pos.clone();
+  mesh.isPickable = false;
+  g.enemyOrbs.push({
+    mesh,
+    velocity: direction.normalize().scale(ELITE.orbSpeed),
+    age: 0,
+    damage: ELITE.orbDamage,
   });
 }
 
@@ -2670,16 +3036,17 @@ export function spawnSmokeParticles(): void {
 
 // ─── Enemy Health Bar (3D GUI — world space) ──────────────────────────────
 function createEnemyHealthBar(enemy: import("./game.js").Enemy): void {
+  const s = enemy.isElite ? ELITE.scaleMultiplier : 1;
   const plane = MeshBuilder.CreatePlane(
     "hpBarPlane",
     {
-      width: ENEMY_HEALTH_BAR.width,
-      height: ENEMY_HEALTH_BAR.height,
+      width: ENEMY_HEALTH_BAR.width * s,
+      height: ENEMY_HEALTH_BAR.height * s,
     },
     g.scene,
   );
   plane.parent = enemy.physMesh;
-  plane.position.y = ENEMY_HEALTH_BAR.offsetY;
+  plane.position.y = ENEMY_HEALTH_BAR.offsetY * s;
   plane.billboardMode = Mesh.BILLBOARDMODE_ALL;
   plane.isPickable = false;
 
@@ -2706,6 +3073,7 @@ function createEnemyHealthBar(enemy: import("./game.js").Enemy): void {
   fill.horizontalAlignment = Control.HORIZONTAL_ALIGNMENT_LEFT;
   tex.addControl(fill);
 
+  if (enemy.isElite) fill.background = "#ff8800";
   enemy.healthBarPlane = plane;
   enemy.healthBarTexture = tex;
   enemy.healthBarFill = fill;
@@ -2996,9 +3364,10 @@ export function killEnemy(
 
   const finishKill = () => {
     g.state.kills++;
+    const baseKillScore = enemy.isElite ? ELITE.killScore : SCORING.kill;
     incrementScore(
       scoreOverride ??
-        (isHeadshot ? Math.round(SCORING.kill * 1.5) : SCORING.kill),
+        (isHeadshot ? Math.round(baseKillScore * 1.5) : baseKillScore),
       hitPoint,
     );
   };

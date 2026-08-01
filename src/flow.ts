@@ -39,6 +39,7 @@ export function endGame(): void {
   g.pressedKeys.clear();
   g.blasterRoot?.setEnabled(false);
   g.rifleRoot?.setEnabled(false);
+  g.shotgunRoot?.setEnabled(false);
   g.rifleLaserDot?.setEnabled(false);
   dom.speedLines.classList.remove("active");
   if (g.scopeOverlay) g.scopeOverlay.isVisible = false;
@@ -99,6 +100,8 @@ export async function startGame(sensitivity: number): Promise<void> {
   g.queuedSupplyDrops = [];
   for (const p of g.plasmas) p.mesh.dispose();
   g.plasmas = [];
+  for (const orb of g.enemyOrbs) orb.mesh.dispose();
+  g.enemyOrbs = [];
 
   g.state = makeState();
   await buildScene();

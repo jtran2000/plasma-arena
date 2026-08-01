@@ -12,13 +12,20 @@ function ensureAudioCtx(): AudioContext {
 function audioDest(): AudioNode {
   const ctx = g.audioCtx!;
   if (!g.masterGain) {
+    g.masterCompressor = ctx.createDynamicsCompressor();
+    g.masterCompressor.threshold.value = -18;
+    g.masterCompressor.knee.value = 12;
+    g.masterCompressor.ratio.value = 6;
+    g.masterCompressor.attack.value = 0.002;
+    g.masterCompressor.release.value = 0.15;
     g.masterGain = ctx.createGain();
     const saved = localStorage.getItem("fps_volume");
     g.masterGain.gain.value =
       (saved !== null ? Number(saved) / 100 : 0.5) * AUDIO.masterVolumeMult;
+    g.masterCompressor.connect(g.masterGain);
     g.masterGain.connect(ctx.destination);
   }
-  return g.masterGain;
+  return g.masterCompressor!;
 }
 
 function makePanner(ctx: AudioContext, pos: Vector3): PannerNode {
@@ -256,6 +263,153 @@ export function playRifleShotSound(): void {
   snap.stop(now + 0.05);
 }
 
+export function playShotgunShotSound(): void {
+  const ctx = ensureAudioCtx();
+  const now = ctx.currentTime;
+  const panner = makePanner(ctx, g.barrelTip.getAbsolutePosition());
+
+  const osc = ctx.createOscillator();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(90, now);
+  osc.frequency.exponentialRampToValueAtTime(35, now + 0.18);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.5, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+  osc.connect(gain);
+  gain.connect(panner);
+  osc.start(now);
+  osc.stop(now + 0.21);
+
+  const bufSize = Math.floor(ctx.sampleRate * 0.12);
+  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+  const noise = ctx.createBufferSource();
+  noise.buffer = buf;
+  const filter = ctx.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.setValueAtTime(1200, now);
+  filter.Q.value = 0.5;
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.setValueAtTime(0.6, now);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+  noise.connect(filter);
+  filter.connect(noiseGain);
+  noiseGain.connect(panner);
+  noise.start(now);
+
+  const snap = ctx.createOscillator();
+  snap.type = "square";
+  snap.frequency.setValueAtTime(800, now);
+  snap.frequency.exponentialRampToValueAtTime(200, now + 0.04);
+  const snapGain = ctx.createGain();
+  snapGain.gain.setValueAtTime(0.25, now);
+  snapGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+  snap.connect(snapGain);
+  snapGain.connect(panner);
+  snap.start(now);
+  snap.stop(now + 0.06);
+}
+
+export function playShotgunPumpSound(): void {
+  const ctx = ensureAudioCtx();
+  const now = ctx.currentTime;
+  const panner = makePanner(ctx, g.barrelTip.getAbsolutePosition());
+
+  const bufSize = Math.floor(ctx.sampleRate * 0.06);
+  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+  const scrape = ctx.createBufferSource();
+  scrape.buffer = buf;
+  const scrapeFilter = ctx.createBiquadFilter();
+  scrapeFilter.type = "bandpass";
+  scrapeFilter.frequency.setValueAtTime(1200, now);
+  scrapeFilter.Q.value = 1.2;
+  const scrapeGain = ctx.createGain();
+  scrapeGain.gain.setValueAtTime(0.12, now);
+  scrapeGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+  scrape.connect(scrapeFilter);
+  scrapeFilter.connect(scrapeGain);
+  scrapeGain.connect(panner);
+  scrape.start(now);
+
+  const clickBuf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const clickData = clickBuf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) clickData[i] = Math.random() * 2 - 1;
+  const click = ctx.createBufferSource();
+  click.buffer = clickBuf;
+  const clickFilter = ctx.createBiquadFilter();
+  clickFilter.type = "bandpass";
+  clickFilter.frequency.setValueAtTime(2000, now);
+  clickFilter.Q.value = 1.5;
+  const clickGain = ctx.createGain();
+  clickGain.gain.setValueAtTime(0.18, now + 0.06);
+  clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+  click.connect(clickFilter);
+  clickFilter.connect(clickGain);
+  clickGain.connect(panner);
+  click.start(now + 0.06);
+}
+
+export function playShotgunReloadSounds(
+  reloadTimeMs: number,
+  barrelPos: () => Vector3,
+): void {
+  const ctx = ensureAudioCtx();
+
+  setTimeout(() => {
+    const now = ctx.currentTime;
+    const panner = makePanner(ctx, barrelPos());
+    const bufSize = Math.floor(ctx.sampleRate * 0.04);
+    const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+    const noise = ctx.createBufferSource();
+    noise.buffer = buf;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.12, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+    noise.connect(gain);
+    gain.connect(panner);
+    noise.start(now);
+  }, reloadTimeMs * 0.25);
+
+  setTimeout(() => {
+    const now = ctx.currentTime;
+    const panner = makePanner(ctx, barrelPos());
+    const bufSize = Math.floor(ctx.sampleRate * 0.04);
+    const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+    const noise = ctx.createBufferSource();
+    noise.buffer = buf;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.12, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+    noise.connect(gain);
+    gain.connect(panner);
+    noise.start(now);
+  }, reloadTimeMs * 0.6);
+
+  setTimeout(() => {
+    const now = ctx.currentTime;
+    const panner = makePanner(ctx, barrelPos());
+    const bufSize = Math.floor(ctx.sampleRate * 0.035);
+    const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+    const noise = ctx.createBufferSource();
+    noise.buffer = buf;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.16, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
+    noise.connect(gain);
+    gain.connect(panner);
+    noise.start(now);
+  }, reloadTimeMs * 0.78);
+}
+
 export function startBayonetChargeWindSound(): void {
   if (bayonetWindSource) return;
   const ctx = ensureAudioCtx();
@@ -353,8 +507,8 @@ export function playEnemyDeathSound(pos: Vector3): void {
   const noise = ctx.createBufferSource();
   noise.buffer = buf;
   const noiseGain = ctx.createGain();
-  noiseGain.gain.setValueAtTime(0.5, now);
-  noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+  noiseGain.gain.setValueAtTime(0.3, now);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
   noise.connect(noiseGain);
   noiseGain.connect(panner);
   noise.start(now);
@@ -362,10 +516,10 @@ export function playEnemyDeathSound(pos: Vector3): void {
   const osc = ctx.createOscillator();
   osc.type = "sawtooth";
   osc.frequency.setValueAtTime(180, now);
-  osc.frequency.exponentialRampToValueAtTime(35, now + 0.35);
+  osc.frequency.exponentialRampToValueAtTime(35, now + 0.3);
   const oscGain = ctx.createGain();
-  oscGain.gain.setValueAtTime(0.25, now);
-  oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+  oscGain.gain.setValueAtTime(0.15, now);
+  oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
   osc.connect(oscGain);
   oscGain.connect(panner);
   osc.start(now);
@@ -457,6 +611,77 @@ export function playEnemyAttackSound(pos: Vector3): void {
   oscGain.connect(panner);
   osc.start(now);
   osc.stop(now + 0.11);
+}
+
+export function playEnemyOrbFireSound(pos: Vector3): void {
+  const ctx = ensureAudioCtx();
+  const now = ctx.currentTime;
+  const panner = makePanner(ctx, pos);
+
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(200, now);
+  osc.frequency.exponentialRampToValueAtTime(80, now + 0.25);
+  const oscGain = ctx.createGain();
+  oscGain.gain.setValueAtTime(0.3, now);
+  oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+  osc.connect(oscGain);
+  oscGain.connect(panner);
+  osc.start(now);
+  osc.stop(now + 0.26);
+
+  const bufSize = Math.floor(ctx.sampleRate * 0.1);
+  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+  const noise = ctx.createBufferSource();
+  noise.buffer = buf;
+  const filter = ctx.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.setValueAtTime(500, now);
+  filter.Q.value = 4;
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.setValueAtTime(0.2, now);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+  noise.connect(filter);
+  filter.connect(noiseGain);
+  noiseGain.connect(panner);
+  noise.start(now);
+}
+
+export function playEnemyOrbHitSound(pos: Vector3): void {
+  const ctx = ensureAudioCtx();
+  const now = ctx.currentTime;
+  const panner = makePanner(ctx, pos);
+
+  const bufSize = Math.floor(ctx.sampleRate * 0.08);
+  const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+  const noise = ctx.createBufferSource();
+  noise.buffer = buf;
+  const filter = ctx.createBiquadFilter();
+  filter.type = "highpass";
+  filter.frequency.value = 800;
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.setValueAtTime(0.4, now);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+  noise.connect(filter);
+  filter.connect(noiseGain);
+  noiseGain.connect(panner);
+  noise.start(now);
+
+  const osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(120, now);
+  osc.frequency.exponentialRampToValueAtTime(40, now + 0.12);
+  const oscGain = ctx.createGain();
+  oscGain.gain.setValueAtTime(0.5, now);
+  oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+  osc.connect(oscGain);
+  oscGain.connect(panner);
+  osc.start(now);
+  osc.stop(now + 0.13);
 }
 
 // ─── Plasma charge sounds ────────────────────────────────────────────────────
