@@ -1,6 +1,7 @@
 import {
   Vector3,
   StandardMaterial,
+  PBRMaterial,
   Color3,
   Color4,
   AbstractMesh,
@@ -343,7 +344,7 @@ function updateTimers(dt: number): void {
     }
   }
   // Heat bar display + barrel glow
-  const barrelMat = g.weaponBarrel.material as StandardMaterial;
+  const barrelMat = g.weaponBarrel.material as PBRMaterial;
   if (g.state.activeWeapon === "blaster") {
     const heatMax = effectiveHeatMax();
     const criticalHeat = heatMax * HEAT.critical;
@@ -401,7 +402,7 @@ function updateTimers(dt: number): void {
       if (e.flashTime <= 0) {
         e.flashTime = 0;
         if (e.flashMesh) {
-          (e.flashMesh.material as StandardMaterial).emissiveColor =
+          (e.flashMesh.material as PBRMaterial).emissiveColor =
             e.baseEmissive.clone();
           e.flashMesh = null;
         }
@@ -832,9 +833,9 @@ function syncRifleLaserSightColors(): void {
   const lens = g.rifleLaserSight
     ?.getChildMeshes(false)
     .find((child) => child.name === "rLaserSightLens");
-  const lensMat = lens?.material as StandardMaterial | undefined;
+  const lensMat = lens?.material as PBRMaterial | undefined;
   if (lensMat) {
-    lensMat.diffuseColor.copyFrom(palette.lensDiffuse);
+    lensMat.albedoColor.copyFrom(palette.lensDiffuse);
     lensMat.emissiveColor.copyFrom(palette.lensEmissive);
   }
   if (g.rifleLaserLight) {
@@ -1121,7 +1122,7 @@ function updateBayonetCharge(dt: number): void {
         RIFLE.BAYONET.damageMultiplier *
         RIFLE.BAYONET.chargeDamageMultiplier,
     );
-    (result.hitMesh.material as StandardMaterial).emissiveColor = new Color3(
+    (result.hitMesh.material as PBRMaterial).emissiveColor = new Color3(
       1,
       0,
       0,

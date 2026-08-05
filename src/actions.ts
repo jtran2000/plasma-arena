@@ -1,6 +1,7 @@
 import {
   Vector3,
   StandardMaterial,
+  PBRMaterial,
   Color3,
   Color4,
   Mesh,
@@ -350,7 +351,7 @@ export function meleeAttack(): void {
       const dmg = Math.round(melee.damage * (headshot ? 2 : 1));
       const hitPoint =
         hit.pickedPoint ?? result.enemy.bodyMesh.getAbsolutePosition();
-      (result.hitMesh.material as StandardMaterial).emissiveColor = new Color3(
+      (result.hitMesh.material as PBRMaterial).emissiveColor = new Color3(
         1,
         0,
         0,
@@ -817,11 +818,7 @@ function shootPinnedEnemy(
       ? shotDirection.normalizeToNew().negate()
       : embed.direction.negate();
 
-  (enemy.bodyMesh.material as StandardMaterial).emissiveColor = new Color3(
-    1,
-    0,
-    0,
-  );
+  (enemy.bodyMesh.material as PBRMaterial).emissiveColor = new Color3(1, 0, 0);
   enemy.flashMesh = enemy.bodyMesh;
   enemy.flashTime = 120;
   spawnRifleBulletHole(point, normal, enemy.bodyMesh, true);
@@ -923,7 +920,7 @@ function handleRifleHit(
       const hitDamage = Math.round(
         damage * (headshot ? headshotMultiplier : 1) * bayonetDamageScale,
       );
-      (result.hitMesh.material as StandardMaterial).emissiveColor = new Color3(
+      (result.hitMesh.material as PBRMaterial).emissiveColor = new Color3(
         1,
         0,
         0,
@@ -1692,11 +1689,7 @@ function explodePlasma(
 
     dmg = Math.round(dmg * (0.8 + Math.random() * 0.4) * heatPenalty);
 
-    (flashMesh.material as StandardMaterial).emissiveColor = new Color3(
-      1,
-      0,
-      0,
-    );
+    (flashMesh.material as PBRMaterial).emissiveColor = new Color3(1, 0, 0);
     enemy.flashMesh = flashMesh;
     enemy.flashTime = 200;
 
@@ -1824,7 +1817,7 @@ function triggerLightning(enemy: Enemy, critMult: number): void {
     LIGHTNING.damage * critMult * (0.8 + Math.random() * 0.4),
   );
   const flashColor = isCrit ? new Color3(0.5, 0, 0.9) : new Color3(0.5, 0.7, 1);
-  (enemy.bodyMesh.material as StandardMaterial).emissiveColor = flashColor;
+  (enemy.bodyMesh.material as PBRMaterial).emissiveColor = flashColor;
   enemy.flashMesh = enemy.bodyMesh;
   enemy.flashTime = 200;
   if (
@@ -1858,7 +1851,7 @@ function triggerLightning(enemy: Enemy, critMult: number): void {
     const chainDmg = Math.round(
       LIGHTNING.damage * critMult * (0.8 + Math.random() * 0.4),
     );
-    (closest.bodyMesh.material as StandardMaterial).emissiveColor = flashColor;
+    (closest.bodyMesh.material as PBRMaterial).emissiveColor = flashColor;
     closest.flashMesh = closest.bodyMesh;
     closest.flashTime = 200;
     damageEnemy(closest, chainDmg, closest.bodyMesh, targetPos, isCrit, {
@@ -1890,7 +1883,7 @@ function hitEnemy(
       heatPenalty *
       critMult,
   );
-  (hitMesh.material as StandardMaterial).emissiveColor = new Color3(1, 0, 0);
+  (hitMesh.material as PBRMaterial).emissiveColor = new Color3(1, 0, 0);
   enemy.flashMesh = hitMesh;
   enemy.flashTime = effectiveCooldown() * 0.6;
 
